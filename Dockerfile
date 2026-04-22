@@ -42,8 +42,16 @@ RUN install-php-extensions \
 COPY . .
 COPY --from=composer_build /app/vendor ./vendor
 
+# setup env
+COPY .env.example .env
+RUN php artisan key:generate
+
+# install octane (frankenphp)
+RUN php artisan octane:install --server=frankenphp
+
 # optimize (optional tapi recommended)
 RUN php artisan optimize --no-interaction || true
+RUN php artisan storage:link || true
 RUN php artisan config:cache || true
 RUN php artisan route:cache || true
 RUN php artisan view:cache || true
