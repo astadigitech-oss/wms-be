@@ -1,7 +1,7 @@
 ##############################################
-# 1) COMPOSER BUILD STAGE
+# 1) COMPOSER BUILD STAGE (PHP 8.3)
 ##############################################
-FROM php:8.3-cli AS builder
+FROM php:8.3-cli AS composer_build
 
 RUN apt-get update && apt-get install -y \
     git unzip libicu-dev libpng-dev libjpeg-dev libfreetype-dev libzip-dev \
@@ -12,35 +12,44 @@ RUN apt-get update && apt-get install -y \
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 
 WORKDIR /app
-
-COPY composer.json composer.lock ./
-RUN composer install \
-    --no-dev \
-    --no-interaction \
-    --prefer-dist \
-    --optimize-autoloader \
-    --no-scripts
-
-# baru copy source
 COPY . .
 
+# install backend deps
+RUN composer install --no-dev --no-interaction --prefer-dist --optimize-autoloader
+
 ##############################################
-# 2) RUNTIME (FRANKENPHP)
+# 2) FRANKENPHP RUNTIME STAGE
 ##############################################
-FROM dunglas/frankenphp:1-php8.3
+FROM dunglas/frankenphp:1-php8.3 AS runtime
 
 WORKDIR /app
 
+# install php extensions untuk octane
 RUN install-php-extensions \
-    pdo_mysql intl gd mbstring bcmath opcache zip sockets pcntl posix redis
+    pdo_mysql \
+    intl \
+    gd \
+    mbstring \
+    bcmath \
+    opcache \
+    zip \
+    sockets \
+    pcntl \
+    posix \
+    redis
 
-# copy hasil build saja
-COPY --from=builder /app /app
+# copy app & vendor
+COPY . .
+COPY --from=composer_build /app/vendor ./vendor
 
-# permission
-RUN chown -R www-data:www-data /app \
-    && chmod -R 775 /app/storage /app/bootstrap/cache
+# optimize (optional tapi recommended)
+RUN php artisan optimize --no-interaction || true
+RUN php artisan config:cache || true
+RUN php artisan route:cache || true
+RUN php artisan view:cache || true
 
+# expose port
 EXPOSE 8000
 
-CMD ["php", "artisan", "octane:frankenphp", "--host=0.0.0.0", "--port=8000", "--workers=auto"]
+# run octane
+CMD ["php", "artisan", "octane:frankenphp", "--host=0.0.0.0", "--port=8000", "--workers=2"]
