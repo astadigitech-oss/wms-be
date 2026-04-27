@@ -340,30 +340,29 @@ class ColorRackController extends Controller
                 ->orWhere('new_barcode_product', $barcode);
         })
             ->whereDoesntHave('colorRackProduct')
+            ->orderByRaw("CASE WHEN new_tag_product IS NOT NULL AND new_category_product IS NULL THEN 1 ELSE 2 END")
             ->orderByRaw("CASE WHEN new_status_product IN ('display', 'expired', 'slow_moving') THEN 1 ELSE 2 END")
             ->first();
 
-        if (!$product) {
-            $anyProductExists = New_product::where('old_barcode_product', $barcode)
-                ->orWhere('new_barcode_product', $barcode)
-                ->exists();
+        $bundle = null;
 
-            if ($anyProductExists) {
-                return (new ResponseResource(false, 'Semua produk dengan barcode ini sudah berada di dalam rak color', null))
-                    ->response()->setStatusCode(409);
+        if (!$product) {
+            $bundle = \App\Models\Bundle::where('barcode_bundle', $barcode)
+                ->whereDoesntHave('colorRackProduct')
+                ->first();
+
+            if (!$bundle) {
+                $anyProductExists = New_product::where('old_barcode_product', $barcode)->orWhere('new_barcode_product', $barcode)->exists();
+                $anyBundleExists = \App\Models\Bundle::where('barcode_bundle', $barcode)->exists();
+
+                if ($anyProductExists || $anyBundleExists) {
+                    return (new ResponseResource(false, 'Semua item dengan barcode ini sudah penuh / berada di dalam rak color', null))
+                        ->response()->setStatusCode(409);
+                }
+
+                return (new ResponseResource(false, 'Produk atau Bundle dengan barcode tersebut tidak ditemukan di sistem', null))
+                    ->response()->setStatusCode(404);
             }
-
-            $bundle = \App\Models\Bundle::where('barcode_bundle', $barcode)->first();
-        }
-
-        $bundle  = null;
-
-        if (!$product) {
-            $bundle = \App\Models\Bundle::where('barcode_bundle', $barcode)->first();
-        }
-
-        if (!$product && !$bundle) {
-            return (new ResponseResource(false, 'Produk atau Bundle dengan barcode tersebut tidak ditemukan', null))->response()->setStatusCode(404);
         }
 
         DB::beginTransaction();
