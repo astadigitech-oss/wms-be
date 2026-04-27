@@ -392,7 +392,7 @@ class BklController extends Controller
 
         $documents->getCollection()->transform(function ($document) {
             $filteredProducts = $document->scannedProducts->filter(function ($scan) use ($document) {
-                
+
                 if ($document->status !== 'done') {
                     return true;
                 }
@@ -864,14 +864,41 @@ class BklController extends Controller
                 return (new ResponseResource(false, "Dokumen ini sudah selesai (done), tidak bisa menambah produk lagi.", null))->response()->setStatusCode(422);
             }
 
-            $product = New_product::where('new_barcode_product', $barcode)->first();
+            $product = New_product::where(function ($query) use ($barcode) {
+                $query->where('old_barcode_product', $barcode)
+                    ->orWhere('new_barcode_product', $barcode);
+            })
+                ->whereNotIn('id', function ($q) use ($bklDocument) {
+                    $q->select('new_product_id')
+                        ->from('bkl_scanned_products')
+                        ->where('bkl_document_id', $bklDocument->id)
+                        ->whereNotNull('new_product_id');
+                })
+                ->orderByRaw("CASE WHEN new_status_product = 'migrate' THEN 1 ELSE 2 END")
+                ->first();
+
             $bundle = null;
             $type = 'product';
 
             if (!$product) {
-                $bundle = Bundle::where('barcode_bundle', $barcode)->first();
+                $bundle = Bundle::where('barcode_bundle', $barcode)
+                    ->whereNotIn('id', function ($q) use ($bklDocument) {
+                        $q->select('bundle_id')
+                            ->from('bkl_scanned_products')
+                            ->where('bkl_document_id', $bklDocument->id)
+                            ->whereNotNull('bundle_id');
+                    })
+                    ->first();
+
                 if (!$bundle) {
-                    return (new ResponseResource(false, "Barcode tidak ditemukan!", null))->response()->setStatusCode(404);
+                    $anyProduct = New_product::where('old_barcode_product', $barcode)->orWhere('new_barcode_product', $barcode)->exists();
+                    $anyBundle = Bundle::where('barcode_bundle', $barcode)->exists();
+
+                    if ($anyProduct || $anyBundle) {
+                        return (new ResponseResource(false, "Item ini sudah masuk daftar scan.", null))->response()->setStatusCode(409);
+                    }
+
+                    return (new ResponseResource(false, "Barcode tidak ditemukan di sistem!", null))->response()->setStatusCode(404);
                 }
                 $type = 'bundle';
             }
@@ -899,19 +926,13 @@ class BklController extends Controller
                 }
             }
 
-            $isAlreadyScanned = BklScannedProduct::where('bkl_document_id', $bklDocument->id)
-                ->where('barcode', $barcode)
-                ->exists();
-
-            if ($isAlreadyScanned) {
-                return (new ResponseResource(false, "Item ini sudah masuk daftar scan.", null))->response()->setStatusCode(409);
-            }
+            $uniqueBarcodeToSave = ($type === 'product') ? $product->new_barcode_product : $bundle->barcode_bundle;
 
             BklScannedProduct::create([
                 'bkl_document_id' => $bklDocument->id,
                 'new_product_id'  => $type === 'product' ? $product->id : null,
                 'bundle_id'       => $type === 'bundle' ? $bundle->id : null,
-                'barcode'         => $barcode,
+                'barcode'         => $uniqueBarcodeToSave,
             ]);
 
             DB::commit();
