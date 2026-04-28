@@ -557,10 +557,25 @@ class RiwayatCheckController extends Controller
         ini_set('memory_limit', '1024M');
         $code_document = $request->input('code_document');
 
-        // Mengambil history secara efisien
         $getHistory = RiwayatCheck::where('code_document', $code_document)->first();
 
-        //product old
+        if (!$getHistory) {
+            return response()->json(['status' => false, 'message' => "Data tidak ditemukan"], 404);
+        }
+
+        $fileName = $getHistory->base_document;
+        $publicPath = 'exports';
+        $filePath = public_path($publicPath) . '/' . $fileName;
+
+        if (!file_exists(public_path($publicPath))) {
+            mkdir(public_path($publicPath), 0777, true);
+        }
+
+        if (file_exists($filePath)) {
+            unlink($filePath); 
+        }
+
+        // Product old (Discrepancy)
         $totalOldPriceDiscrepancy = 0;
         $getProductDiscrepancy = [];
         Product_old::where('code_document', $code_document)
@@ -576,7 +591,7 @@ class RiwayatCheckController extends Controller
             : 0;
         $price_persentage_dp = round($price_persentage_dp, 2);
 
-        // new_product
+        // New_product (Damaged)
         $getProductDamaged = [];
         $totalOldPriceDamaged = 0;
         New_product::where('code_document', $code_document)
@@ -590,10 +605,16 @@ class RiwayatCheckController extends Controller
             ->whereNot('new_status_product', 'sale')
             ->chunk(2000, function ($products) use (&$getProductDamaged, &$totalOldPriceDamaged) {
                 foreach ($products as $product) {
-                    // Fallback ke kolom asli jika actual_ null
                     $product->actual_old_price_product = $product->actual_old_price_product ?? $product->old_price_product;
-                    $product->actual_new_quality = $product->actual_new_quality ?? $product->new_quality;
-                    $product->damaged_value = json_decode($product->actual_new_quality)->damaged ?? null;
+
+                    $qualityJson = $product->actual_new_quality ?? $product->new_quality;
+                    $quality = is_array($qualityJson) ? $qualityJson : (json_decode($qualityJson, true) ?? []);
+
+                    $product->lolos_value = $quality['lolos'] ?? null;
+                    $product->damaged_value = $quality['damaged'] ?? null;
+                    $product->abnormal_value = $quality['abnormal'] ?? null;
+                    $product->non_value = $quality['non'] ?? null;
+
                     $getProductDamaged[] = $product;
                     $totalOldPriceDamaged += $product->actual_old_price_product;
                 }
@@ -604,6 +625,7 @@ class RiwayatCheckController extends Controller
             : 0;
         $price_persentage_damaged = round($price_persentage_damaged, 2);
 
+        // New_product (Lolos)
         $getProductLolos = [];
         $totalOldPriceLolos = 0;
         New_product::where('code_document', $code_document)
@@ -617,19 +639,27 @@ class RiwayatCheckController extends Controller
             ->whereNot('new_status_product', 'sale')
             ->chunk(2000, function ($products) use (&$getProductLolos, &$totalOldPriceLolos) {
                 foreach ($products as $product) {
-                    // Fallback ke kolom asli jika actual_ null
                     $product->actual_old_price_product = $product->actual_old_price_product ?? $product->old_price_product;
-                    $product->actual_new_quality = $product->actual_new_quality ?? $product->new_quality;
-                    $product->lolos_value = json_decode($product->actual_new_quality)->lolos ?? null;
+
+                    $qualityJson = $product->actual_new_quality ?? $product->new_quality;
+                    $quality = is_array($qualityJson) ? $qualityJson : (json_decode($qualityJson, true) ?? []);
+
+                    $product->lolos_value = $quality['lolos'] ?? null;
+                    $product->damaged_value = $quality['damaged'] ?? null;
+                    $product->abnormal_value = $quality['abnormal'] ?? null;
+                    $product->non_value = $quality['non'] ?? null;
+
                     $getProductLolos[] = $product;
                     $totalOldPriceLolos += $product->actual_old_price_product;
                 }
             });
+
         $price_persentage_lolos = $getHistory->total_price != 0
             ? ($totalOldPriceLolos / $getHistory->total_price) * 100
             : 0;
         $price_persentage_lolos = round($price_persentage_lolos, 2);
 
+        // New_product (Abnormal)
         $getProductAbnormal = [];
         $totalOldPriceAbnormal = 0;
         New_product::where('code_document', $code_document)
@@ -643,16 +673,27 @@ class RiwayatCheckController extends Controller
             ->whereNot('new_status_product', 'sale')
             ->chunk(2000, function ($products) use (&$getProductAbnormal, &$totalOldPriceAbnormal) {
                 foreach ($products as $product) {
-                    // Fallback ke kolom asli jika actual_ null
                     $product->actual_old_price_product = $product->actual_old_price_product ?? $product->old_price_product;
-                    $product->actual_new_quality = $product->actual_new_quality ?? $product->new_quality;
-                    $product->abnormal_value = json_decode($product->actual_new_quality)->abnormal ?? null;
+
+                    $qualityJson = $product->actual_new_quality ?? $product->new_quality;
+                    $quality = is_array($qualityJson) ? $qualityJson : (json_decode($qualityJson, true) ?? []);
+
+                    $product->lolos_value = $quality['lolos'] ?? null;
+                    $product->damaged_value = $quality['damaged'] ?? null;
+                    $product->abnormal_value = $quality['abnormal'] ?? null;
+                    $product->non_value = $quality['non'] ?? null;
+
                     $getProductAbnormal[] = $product;
                     $totalOldPriceAbnormal += $product->actual_old_price_product;
                 }
             });
 
-        // non
+        $price_persentage_abnormal = $getHistory->total_price != 0
+            ? ($totalOldPriceAbnormal / $getHistory->total_price) * 100
+            : 0;
+        $price_persentage_abnormal = round($price_persentage_abnormal, 2);
+
+        // New_product (Non)
         $getProductNon = [];
         $totalOldPriceNon = 0;
         New_product::where('code_document', $code_document)
@@ -667,34 +708,42 @@ class RiwayatCheckController extends Controller
             ->chunk(2000, function ($products) use (&$getProductNon, &$totalOldPriceNon) {
                 foreach ($products as $product) {
                     $product->actual_old_price_product = $product->actual_old_price_product ?? $product->old_price_product;
-                    $product->actual_new_quality = $product->actual_new_quality ?? $product->new_quality;
-                    $product->non_value = json_decode($product->actual_new_quality)->non ?? null;
+
+                    $qualityJson = $product->actual_new_quality ?? $product->new_quality;
+                    $quality = is_array($qualityJson) ? $qualityJson : (json_decode($qualityJson, true) ?? []);
+
+                    $product->lolos_value = $quality['lolos'] ?? null;
+                    $product->damaged_value = $quality['damaged'] ?? null;
+                    $product->abnormal_value = $quality['abnormal'] ?? null;
+                    $product->non_value = $quality['non'] ?? null;
+
                     $getProductNon[] = $product;
                     $totalOldPriceNon += $product->actual_old_price_product;
                 }
             });
-
-        $price_persentage_abnormal = $getHistory->total_price != 0
-            ? ($totalOldPriceAbnormal / $getHistory->total_price) * 100
-            : 0;
-        $price_persentage_abnormal = round($price_persentage_abnormal, 2);
 
         $price_persentage_non = $getHistory->total_price != 0
             ? ($totalOldPriceNon / $getHistory->total_price) * 100
             : 0;
         $price_persentage_non = round($price_persentage_non, 2);
 
-        // staging
+        // Staging
         $getProductStagings = [];
         $totalOldPriceStaging = 0;
         StagingProduct::where('code_document', $code_document)
             ->whereNot('new_status_product', 'sale')
             ->chunk(2000, function ($products) use (&$getProductStagings, &$totalOldPriceStaging) {
                 foreach ($products as $product) {
-                    // Fallback ke kolom asli jika actual_ null
                     $product->actual_old_price_product = $product->actual_old_price_product ?? $product->old_price_product;
-                    $product->actual_new_quality = $product->actual_new_quality ?? $product->new_quality;
-                    $product->lolos_value = json_decode($product->actual_new_quality)->lolos ?? null;
+
+                    $qualityJson = $product->actual_new_quality ?? $product->new_quality;
+                    $quality = is_array($qualityJson) ? $qualityJson : (json_decode($qualityJson, true) ?? []);
+
+                    $product->lolos_value = $quality['lolos'] ?? null;
+                    $product->damaged_value = $quality['damaged'] ?? null;
+                    $product->abnormal_value = $quality['abnormal'] ?? null;
+                    $product->non_value = $quality['non'] ?? null;
+
                     $getProductStagings[] = $product;
                     $totalOldPriceStaging += $product->actual_old_price_product;
                 }
@@ -705,17 +754,23 @@ class RiwayatCheckController extends Controller
             : 0;
         $price_persentage_staging = round($price_persentage_staging, 2);
 
-        //product approve
+        // Product Approve
         $getProductPA = [];
         $totalOldPricePA = 0;
         ProductApprove::where('code_document', $code_document)
             ->whereNot('new_status_product', 'sale')
             ->chunk(2000, function ($products) use (&$getProductPA, &$totalOldPricePA) {
                 foreach ($products as $product) {
-                    // Fallback ke kolom asli jika actual_ null
                     $product->actual_old_price_product = $product->actual_old_price_product ?? $product->old_price_product;
-                    $product->actual_new_quality = $product->actual_new_quality ?? $product->new_quality;
-                    $product->lolos_value = json_decode($product->actual_new_quality)->lolos ?? null;
+
+                    $qualityJson = $product->actual_new_quality ?? $product->new_quality;
+                    $quality = is_array($qualityJson) ? $qualityJson : (json_decode($qualityJson, true) ?? []);
+
+                    $product->lolos_value = $quality['lolos'] ?? null;
+                    $product->damaged_value = $quality['damaged'] ?? null;
+                    $product->abnormal_value = $quality['abnormal'] ?? null;
+                    $product->non_value = $quality['non'] ?? null;
+
                     $getProductPA[] = $product;
                     $totalOldPricePA += $product->actual_old_price_product;
                 }
@@ -726,17 +781,23 @@ class RiwayatCheckController extends Controller
             : 0;
         $price_persentage_product_approve = round($price_persentage_product_approve, 2);
 
-        //product bundle
+        // Product Bundle
         $getProductBundle = [];
         $totalOldPriceBundle = 0;
         Product_Bundle::where('code_document', $code_document)
             ->whereNot('new_status_product', 'sale')
             ->chunk(2000, function ($products) use (&$getProductBundle, &$totalOldPriceBundle) {
                 foreach ($products as $product) {
-                    // Fallback ke kolom asli jika actual_ null
                     $product->actual_old_price_product = $product->actual_old_price_product ?? $product->old_price_product;
-                    $product->actual_new_quality = $product->actual_new_quality ?? $product->new_quality;
-                    $product->lolos_value = json_decode($product->actual_new_quality)->lolos ?? null;
+
+                    $qualityJson = $product->actual_new_quality ?? $product->new_quality;
+                    $quality = is_array($qualityJson) ? $qualityJson : (json_decode($qualityJson, true) ?? []);
+
+                    $product->lolos_value = $quality['lolos'] ?? null;
+                    $product->damaged_value = $quality['damaged'] ?? null;
+                    $product->abnormal_value = $quality['abnormal'] ?? null;
+                    $product->non_value = $quality['non'] ?? null;
+
                     $getProductBundle[] = $product;
                     $totalOldPriceBundle += $product->actual_old_price_product;
                 }
@@ -747,22 +808,18 @@ class RiwayatCheckController extends Controller
             : 0;
         $price_persentage_bundle = round($price_persentage_bundle, 2);
 
-        //sales
+        // Sales
         $totalPriceSales = 0;
-
         $getProductSales = Sale::where('code_document', $getHistory->code_document)->cursor();
 
         foreach ($getProductSales as $product) {
-            // Fallback ke kolom asli jika actual_ null
             $product->actual_product_old_price_sale = $product->actual_product_old_price_sale ?? $product->product_old_price_sale;
             $totalPriceSales += $product->actual_product_old_price_sale;
         }
 
-        // Menghitung persentase sales terhadap total price
         $totalPercentageSales = $getHistory->total_price != 0
             ? ($totalPriceSales / $getHistory->total_price) * 100
             : 0;
-
         $totalPercentageSales = round($totalPercentageSales, 2);
 
         // Validasi jika data kosong
@@ -771,11 +828,9 @@ class RiwayatCheckController extends Controller
             return response()->json(['status' => false, 'message' => "Data kosong, tidak bisa di export"], 422);
         }
 
-        // Proses pembuatan file Excel
         $spreadsheet = new Spreadsheet();
         $sheet = $spreadsheet->getActiveSheet();
 
-        // Set data ke lembar Excel
         $headers = [
             'Code Document',
             'Base Document',
@@ -802,16 +857,13 @@ class RiwayatCheckController extends Controller
             foreach ($headers as $index => $header) {
                 $columnName = strtolower(str_replace(' ', '_', $header));
                 $cellValue = $riwayatCheck->$columnName;
-                // Set header
                 $sheet->setCellValueByColumnAndRow(1, $currentRow, $header);
-                // Set value
                 $sheet->setCellValueByColumnAndRow(2, $currentRow, $cellValue);
                 $currentRow++;
             }
             $currentRow++;
         }
 
-        // Buat file Excel untuk setiap kategori produk
         $this->createExcelSheet($spreadsheet, 'Damaged-Inventory', $getProductDamaged, $totalOldPriceDamaged, $price_persentage_damaged);
         $this->createExcelSheet($spreadsheet, 'Lolos-Inventory', $getProductLolos, $totalOldPriceLolos, $price_persentage_lolos);
         $this->createExcelSheetAbnormal($spreadsheet, 'Abnormal-Inventory', $getProductAbnormal, $totalOldPriceAbnormal, $price_persentage_abnormal);
@@ -822,17 +874,7 @@ class RiwayatCheckController extends Controller
         $this->createExcelSale($spreadsheet, 'Sales', $getProductSales, $totalPriceSales, $totalPercentageSales);
         $this->createExcelSheetDiscrepancy($spreadsheet, 'Discrepancy', $getProductDiscrepancy, $totalOldPriceDiscrepancy, $price_persentage_dp);
 
-        $firstItem = $checkHistory->first();
-
         $writer = new Xlsx($spreadsheet);
-        $fileName = $firstItem->base_document;
-        $publicPath = 'exports';
-        $filePath = public_path($publicPath) . '/' . $fileName;
-
-        if (!file_exists(public_path($publicPath))) {
-            mkdir(public_path($publicPath), 0777, true);
-        }
-
         $writer->save($filePath);
 
         $downloadUrl = url($publicPath . '/' . $fileName);
