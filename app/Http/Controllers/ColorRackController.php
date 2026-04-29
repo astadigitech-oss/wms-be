@@ -153,7 +153,7 @@ class ColorRackController extends Controller
                     'is_bundle'            => true,
                     'new_name_product'     => "[BUNDLE] " . $item->bundle->name_bundle,
                     'new_barcode_product'  => $item->bundle->barcode_bundle,
-                    'old_barcode_product'  => null,
+                    'old_barcode_product'  => $item->bundle->old_barcode_bundle,
                     'new_tag_product'      => $item->bundle->name_color,
                     'new_status_product'   => $item->bundle->product_status,
                     'new_price_product'    => $item->bundle->total_price_custom_bundle,
