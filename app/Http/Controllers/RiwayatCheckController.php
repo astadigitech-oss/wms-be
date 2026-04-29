@@ -572,7 +572,7 @@ class RiwayatCheckController extends Controller
         }
 
         if (file_exists($filePath)) {
-            unlink($filePath); 
+            unlink($filePath);
         }
 
         // Product old (Discrepancy)
@@ -877,7 +877,7 @@ class RiwayatCheckController extends Controller
         $writer = new Xlsx($spreadsheet);
         $writer->save($filePath);
 
-        $downloadUrl = url($publicPath . '/' . $fileName);
+        $downloadUrl = url($publicPath . '/' . $fileName) . '?v=' . time();
 
         return new ResponseResource(true, "File siap diunduh.", $downloadUrl);
     }
