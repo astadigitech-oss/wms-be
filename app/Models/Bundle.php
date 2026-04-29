@@ -20,4 +20,9 @@ class Bundle extends Model
     {
         return $this->belongsTo(Rack::class, 'rack_id', 'id');
     }
+
+    public function colorRackProduct()
+    {
+        return $this->hasOne(ColorRackProduct::class, 'bundle_id');
+    }
 }

@@ -9,6 +9,7 @@ use App\Models\ColorRack;
 use App\Models\ColorRackProduct;
 use App\Models\New_product;
 use App\Http\Resources\ResponseResource;
+use App\Models\Bundle;
 use App\Models\ColorRackHistory;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -335,34 +336,44 @@ class ColorRackController extends Controller
 
         $barcode = $request->barcode;
 
-        $product = New_product::where(function ($query) use ($barcode) {
-            $query->where('old_barcode_product', $barcode)
-                ->orWhere('new_barcode_product', $barcode);
+        $bundle = Bundle::where(function ($query) use ($barcode) {
+            $query->where('barcode_bundle', $barcode)
+                ->orWhere('old_barcode_bundle', $barcode);
         })
             ->whereDoesntHave('colorRackProduct')
-            ->orderByRaw("CASE WHEN new_tag_product IS NOT NULL AND new_category_product IS NULL THEN 1 ELSE 2 END")
-            ->orderByRaw("CASE WHEN new_status_product IN ('display', 'expired', 'slow_moving') THEN 1 ELSE 2 END")
+            ->where('product_status', 'not sale')
+            ->whereNull('category')
             ->first();
 
-        $bundle = null;
+        $product = null;
 
-        if (!$product) {
-            $bundle = \App\Models\Bundle::where('barcode_bundle', $barcode)
+        if (!$bundle) {
+            $product = New_product::where(function ($query) use ($barcode) {
+                $query->where('old_barcode_product', $barcode)
+                    ->orWhere('new_barcode_product', $barcode);
+            })
                 ->whereDoesntHave('colorRackProduct')
+                ->whereIn('new_status_product', ['display', 'expired', 'slow_moving'])
+                ->whereNotNull('new_tag_product') 
+                ->whereNull('new_category_product') 
+                ->where(function ($query) {
+                    $query->whereRaw("JSON_UNQUOTE(JSON_EXTRACT(new_quality, '$.lolos')) = 'lolos'")
+                        ->orWhereRaw("JSON_UNQUOTE(JSON_EXTRACT(JSON_UNQUOTE(new_quality), '$.lolos')) = 'lolos'");
+                })
                 ->first();
+        }
 
-            if (!$bundle) {
-                $anyProductExists = New_product::where('old_barcode_product', $barcode)->orWhere('new_barcode_product', $barcode)->exists();
-                $anyBundleExists = \App\Models\Bundle::where('barcode_bundle', $barcode)->exists();
+        if (!$bundle && !$product) {
+            $anyProductExists = New_product::where('old_barcode_product', $barcode)->orWhere('new_barcode_product', $barcode)->exists();
+            $anyBundleExists = Bundle::where('barcode_bundle', $barcode)->orWhere('old_barcode_bundle', $barcode)->exists();
 
-                if ($anyProductExists || $anyBundleExists) {
-                    return (new ResponseResource(false, 'Semua item dengan barcode ini sudah penuh / berada di dalam rak color', null))
-                        ->response()->setStatusCode(409);
-                }
-
-                return (new ResponseResource(false, 'Produk atau Bundle dengan barcode tersebut tidak ditemukan di sistem', null))
-                    ->response()->setStatusCode(404);
+            if ($anyProductExists || $anyBundleExists) {
+                return (new ResponseResource(false, 'Item ditolak! Kemungkinan sudah masuk ke rak, berstatus migrate/sale, atau tidak memenuhi kriteria Lolos Color.', null))
+                    ->response()->setStatusCode(409);
             }
+
+            return (new ResponseResource(false, 'Barcode tersebut sama sekali tidak ditemukan di sistem', null))
+                ->response()->setStatusCode(404);
         }
 
         DB::beginTransaction();
@@ -370,55 +381,19 @@ class ColorRackController extends Controller
             $responseData = null;
 
             if ($bundle) {
-
-                if (!is_null($bundle->category)) {
-                    return (new ResponseResource(false, 'Gagal: Kategori bundle bukan color', null))->response()->setStatusCode(422);
-                }
-
-                if ($bundle->product_status === 'sale') {
-                    return (new ResponseResource(false, 'Gagal: Status bundle sudah terjual (sale)', null))->response()->setStatusCode(422);
-                }
-
-                if (ColorRackProduct::where('bundle_id', $bundle->id)->exists()) {
-                    return (new ResponseResource(false, 'Bundle ini sudah berada di dalam rak color', null))->response()->setStatusCode(409);
-                }
-
                 $rackProduct = ColorRackProduct::create([
                     'color_rack_id'  => $rack->id,
                     'new_product_id' => null,
                     'bundle_id'      => $bundle->id,
                 ]);
-
                 $rackProduct->load('bundle');
                 $responseData = $rackProduct->bundle;
             } else {
-
-                $allowedStatuses = ['display', 'expired', 'slow_moving'];
-                if (!in_array($product->new_status_product, $allowedStatuses)) {
-                    return (new ResponseResource(false, "Gagal: Status produk harus display, expired, atau slow_moving. Status saat ini: {$product->new_status_product}", null))->response()->setStatusCode(422);
-                }
-
-                $quality = is_string($product->new_quality) ? json_decode($product->new_quality, true) : $product->new_quality;
-                if (is_string($quality)) $quality = json_decode($quality, true);
-
-                if (empty($quality['lolos']) || $quality['lolos'] !== 'lolos') {
-                    return (new ResponseResource(false, 'Gagal: Kualitas produk tidak memenuhi syarat (Bukan Lolos)', null))->response()->setStatusCode(422);
-                }
-
-                if (is_null($product->new_tag_product) || !is_null($product->new_category_product)) {
-                    return (new ResponseResource(false, 'Gagal: Bukan Produk Color (Tag harus ada, Kategori harus NULL)', null))->response()->setStatusCode(422);
-                }
-
-                if (ColorRackProduct::where('new_product_id', $product->id)->exists()) {
-                    return (new ResponseResource(false, 'Produk ini sudah berada di dalam rak color', null))->response()->setStatusCode(409);
-                }
-
                 $rackProduct = ColorRackProduct::create([
                     'color_rack_id'  => $rack->id,
                     'new_product_id' => $product->id,
                     'bundle_id'      => null,
                 ]);
-
                 $rackProduct->load('newProduct');
                 $responseData = $rackProduct->newProduct;
             }

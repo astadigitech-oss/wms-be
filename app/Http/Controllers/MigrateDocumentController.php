@@ -306,7 +306,7 @@ class MigrateDocumentController extends Controller
                             if ($item->bundle_id && $item->bundle) {
                                 $allProductsToSend->push([
                                     "code_document"    => $item->bundle->code_document_bundle ?? "-",
-                                    "old_barcode"      => null,
+                                    "old_barcode"      => $item->bundle->old_barcode_bundle,
                                     "old_price"        => (float) $item->bundle->total_price_bundle,
                                     "actual_price"     => (float) $item->bundle->total_price_bundle,
                                     "barcode"          => $item->bundle->barcode_bundle,
