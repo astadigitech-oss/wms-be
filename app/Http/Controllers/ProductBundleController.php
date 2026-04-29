@@ -50,9 +50,11 @@ class ProductBundleController extends Controller
         $userId = auth()->id();
         try {
             $product_filters = Product_Filter::where('user_id', $userId)->get();
+
             if ($product_filters->isEmpty()) {
                 return new ResponseResource(false, "Tidak ada produk filter yang tersedia saat ini", $product_filters);
             }
+
             $validator = Validator::make($request->all(), [
                 'name_bundle' => 'required',
                 'total_price_bundle' => 'nullable',
@@ -76,6 +78,17 @@ class ProductBundleController extends Controller
 
             $bundleSource = ($totalOldPrice >= 100000) ? 'staging' : 'display';
 
+            $dominantOldBarcode = $product_filters
+                ->filter(function ($item) {
+                    return !is_null($item->old_barcode_product);
+                })
+                ->sortBy('new_date_in_product')
+                ->groupBy('old_barcode_product') 
+                ->sortByDesc(function ($group) {
+                    return $group->count();
+                })
+                ->keys()
+                ->first();
 
             $bundle = Bundle::create([
                 'name_bundle' => $request->name_bundle,
@@ -83,6 +96,7 @@ class ProductBundleController extends Controller
                 'total_price_custom_bundle' => $request->total_price_custom_bundle ?? 0,
                 'total_product_bundle' => $request->total_product_bundle ?? 0,
                 'barcode_bundle' => barcodeBundle(),
+                'old_barcode_bundle' => $dominantOldBarcode, 
                 'product_status' => "not sale",
                 'category' => $request->category ?? null,
                 'name_color' => $request->name_color ?? null,
@@ -120,8 +134,6 @@ class ProductBundleController extends Controller
             Product_Filter::where('user_id', $userId)->delete();
 
             logUserAction($request, $request->user(), "storage/moving_product/create_bundle", "Create bundle " . $bundle->name_bundle . "->" . $userId);
-
-            // Commit transaksi
 
             DB::commit();
             return new ResponseResource(true, "Bundle berhasil dibuat", $bundle);

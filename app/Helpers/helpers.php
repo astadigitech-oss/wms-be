@@ -191,6 +191,7 @@ function barcodeBundle()
 
     return $newBarcode;
 }
+
 function newBarcodeCustom($init_barcode, $userId)
 {
     $characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-';
