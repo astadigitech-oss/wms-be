@@ -36,11 +36,16 @@ class BundleController extends Controller
         if ($query) {
             $bundles->where(function ($queryBuilder) use ($query) {
                 $queryBuilder->where('name_bundle', 'LIKE', '%' . $query . '%')
+                    ->orWhere('barcode_bundle', 'LIKE', '%' . $query . '%')
+                    ->orWhere('category', 'LIKE', '%' . $query . '%')
+                    ->orWhere('old_barcode_bundle', 'LIKE', '%' . $query . '%')
+
                     ->orWhereHas('product_bundles', function ($subQueryBuilder) use ($query) {
-                        $subQueryBuilder->where('name_bundle', 'LIKE', '%' . $query . '%')
-                            ->orWhere('barcode_bundle', 'LIKE', '%' . $query . '%')
+                        $subQueryBuilder->where('new_name_product', 'LIKE', '%' . $query . '%')
+                            ->orWhere('new_barcode_product', 'LIKE', '%' . $query . '%')
+                            ->orWhere('old_barcode_product', 'LIKE', '%' . $query . '%')
                             ->orWhere('new_tag_product', 'LIKE', '%' . $query . '%')
-                            ->orWhere('category', 'LIKE', '%' . $query . '%');
+                            ->orWhere('new_category_product', 'LIKE', '%' . $query . '%');
                     });
             });
         }
@@ -72,15 +77,23 @@ class BundleController extends Controller
     public function show(Request $request, Bundle $bundle)
     {
         $query = $request->input('q');
+
         $bundle->load(['product_bundles' => function ($productBundles) use ($query) {
             if (!empty($query)) {
-                $productBundles->where('new_name_product', 'LIKE', '%' . $query . '%')
-                    ->orWhere('new_barcode_product', 'LIKE', '%' . $query . '%')
-                    ->orWhere('new_tag_product', 'LIKE', '%' . $query . '%')
-                    ->orWhere('new_category_product', 'LIKE', '%' . $query . '%')
-                    ->orWhere('new_tag_product', 'LIKE', '%' . $query . '%');
+                $productBundles->where(function ($q) use ($query) {
+                    $q->where('new_name_product', 'LIKE', '%' . $query . '%')
+                        ->orWhere('new_barcode_product', 'LIKE', '%' . $query . '%')
+                        ->orWhere('old_barcode_product', 'LIKE', '%' . $query . '%')
+                        ->orWhere('new_category_product', 'LIKE', '%' . $query . '%')
+                        ->orWhere('new_tag_product', 'LIKE', '%' . $query . '%');
+                });
             }
         }]);
+
+        $category = \App\Models\Category::where('name_category', $bundle->category)->first();
+
+        $bundle->discount_category = $category ? $category->discount_category : null;
+
         return new ResponseResource(true, "detail bundle", $bundle);
     }
 
