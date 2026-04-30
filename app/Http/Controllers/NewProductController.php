@@ -1741,6 +1741,7 @@ class NewProductController extends Controller
                 ->select(
                     'id',
                     'old_barcode_product',
+                    'new_barcode_product',
                     'new_name_product',
                     'new_date_in_product',
                     'new_status_product',
@@ -1839,6 +1840,7 @@ class NewProductController extends Controller
                 ->select(
                     'id',
                     'old_barcode_product',
+                    'new_barcode_product',
                     'new_name_product',
                     'new_date_in_product',
                     'new_status_product',
