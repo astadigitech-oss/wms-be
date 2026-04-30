@@ -913,7 +913,7 @@ class BklController extends Controller
                 $statusItem = $anyBundle ? $anyBundle->product_status : $anyProduct->new_status_product;
 
                 if ($statusItem !== 'migrate') {
-                    return (new ResponseResource(false, "Gagal! Status item adalah '{$statusItem}', harus 'migrate'.", null))->response()->setStatusCode(422);
+                    return (new ResponseResource(false, "Gagal! Semua produk di toko dengan barcode '{$barcode}', berhasil di scan.", null))->response()->setStatusCode(422);
                 }
 
                 return (new ResponseResource(false, "Item ini sudah masuk daftar scan pada dokumen ini.", null))->response()->setStatusCode(409);
@@ -1028,5 +1028,49 @@ class BklController extends Controller
         }
 
         return null;
+    }
+
+    public function markAsSoldFromPos(Request $request)
+    {
+        $request->validate([
+            'barcodes'   => 'required|array',
+            'barcodes.*' => 'required|string',
+            'barcodes.required' => 'Payload barcodes wajib dikirim.',
+            'barcodes.array'    => 'Format barcodes harus berupa array.',
+        ]);
+
+        DB::beginTransaction();
+        try {
+            $barcodes = $request->barcodes;
+
+            $productUpdated = New_product::whereIn('new_barcode_product', $barcodes)
+                ->where('new_status_product', '=', 'migrate')
+                ->update([
+                    'new_status_product' => 'sale',
+                    'date_out'           => now(), 
+                    'type_out'           => 'sale'
+                ]);
+
+            $bundleUpdated = Bundle::whereIn('barcode_bundle', $barcodes)
+                ->where('product_status', '=', 'migrate')
+                ->update([
+                    'product_status' => 'sale'
+                ]);
+
+            DB::commit();
+
+            return (new ResponseResource(true, "Sinkronisasi berhasil! Status barang diubah menjadi sale.", [
+                'total_produk_diupdate' => $productUpdated,
+                'total_bundle_diupdate' => $bundleUpdated,
+                'total_keseluruhan'     => $productUpdated + $bundleUpdated,
+                'barcodes_diterima'     => count($barcodes)
+            ]))->response()->setStatusCode(200);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return response()->json([
+                'status'  => false,
+                'message' => 'Terjadi kesalahan sistem di WMS: ' . $e->getMessage()
+            ], 500);
+        }
     }
 }
