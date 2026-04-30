@@ -1678,6 +1678,7 @@ class NewProductController extends Controller
             $bundleQuery = Bundle::select(
                 'id',
                 DB::raw("NULL as old_barcode_product"),
+                'old_barcode_bundle as old_barcode_product',
                 'barcode_bundle as new_barcode_product',
                 'name_bundle as new_name_product',
                 'name_color as new_tag_product',
@@ -1711,6 +1712,7 @@ class NewProductController extends Controller
                 $bundleQuery->where(function ($subQuery) use ($querySearch) {
                     $subQuery->where('name_color', 'LIKE', '%' . $querySearch . '%')
                         ->orWhere('barcode_bundle', 'LIKE', '%' . $querySearch . '%')
+                        ->orWhere('old_barcode_bundle', 'LIKE', '%' . $querySearch . '%')
                         ->orWhere('name_bundle', 'LIKE', '%' . $querySearch . '%');
                 });
             }
