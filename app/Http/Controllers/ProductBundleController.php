@@ -59,7 +59,7 @@ class ProductBundleController extends Controller
                 'name_bundle' => 'required',
                 'total_price_bundle' => 'nullable',
                 'total_price_custom_bundle' => 'nullable',
-                'total_product_bundle' => 'nullable',
+                // 'total_product_bundle' => 'nullable',
                 'category' => 'nullable|exists:categories,name_category',
                 'name_color' => 'nullable|exists:color_tags,name_color'
             ]);
@@ -83,20 +83,22 @@ class ProductBundleController extends Controller
                     return !is_null($item->old_barcode_product);
                 })
                 ->sortBy('new_date_in_product')
-                ->groupBy('old_barcode_product') 
+                ->groupBy('old_barcode_product')
                 ->sortByDesc(function ($group) {
                     return $group->count();
                 })
                 ->keys()
                 ->first();
 
+            $totalProductInBundle = $product_filters->count();
+
             $bundle = Bundle::create([
                 'name_bundle' => $request->name_bundle,
                 'total_price_bundle' => $request->total_price_bundle ?? 0,
                 'total_price_custom_bundle' => $request->total_price_custom_bundle ?? 0,
-                'total_product_bundle' => $request->total_product_bundle ?? 0,
+                'total_product_bundle' => $totalProductInBundle,
                 'barcode_bundle' => barcodeBundle(),
-                'old_barcode_bundle' => $dominantOldBarcode, 
+                'old_barcode_bundle' => $dominantOldBarcode,
                 'product_status' => "not sale",
                 'category' => $request->category ?? null,
                 'name_color' => $request->name_color ?? null,

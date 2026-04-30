@@ -121,7 +121,7 @@ class BundleController extends Controller
             'category' => 'nullable',
             'total_price_bundle' => 'required|numeric',
             'total_price_custom_bundle' => 'required|numeric',
-            'total_product_bundle' => 'nullable',
+            // 'total_product_bundle' => 'nullable',
             'name_color' => 'nullable'
         ]);
 
@@ -132,13 +132,7 @@ class BundleController extends Controller
 
         DB::beginTransaction();
         try {
-            $productBundle = Product_Bundle::where('bundle_id', $bundle->id)->get();
-
-            if ($productBundle) {
-                $qty = $request->total_product_bundle ?? count($productBundle);
-            } else {
-                $qty = $request->total_product_bundle ?? 0;
-            }
+            $totalProductInBundle = Product_Bundle::where('bundle_id', $bundle->id)->count();
 
             // Melakukan update pada data bundle
             $bundle->update([
@@ -146,7 +140,7 @@ class BundleController extends Controller
                 'category' => $request->has('category') ? $request->category : null,
                 'total_price_bundle' => $request->total_price_bundle,
                 'total_price_custom_bundle' => $request->total_price_custom_bundle,
-                'total_product_bundle' => $qty,
+                'total_product_bundle' => $totalProductInBundle,
                 'name_color' => $request->has('name_color') ? $request->name_color : null,
                 'source' => $bundle->source
             ]);
@@ -155,7 +149,7 @@ class BundleController extends Controller
             return new ResponseResource(true, "Bundle berhasil di edit", $bundle);
         } catch (\Exception $e) {
             DB::rollback();
-            Log::error("Bundle gagal di edit" . $e->getMessage());
+            Log::error("Bundle gagal di edit: " . $e->getMessage());
             return response()->json(['success' => false, 'message' => 'Bundle gagal di edit', 'error' => $e->getMessage()], 500);
         }
     }
