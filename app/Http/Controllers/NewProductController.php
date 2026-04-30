@@ -1652,8 +1652,8 @@ class NewProductController extends Controller
         try {
             $productQuery = New_product::select(
                 'id',
-                'old_barcode_product',
-                'new_barcode_product',
+                'old_barcode_product', 
+                'new_barcode_product', 
                 'new_name_product',
                 'new_tag_product',
                 'new_price_product',
@@ -1664,11 +1664,6 @@ class NewProductController extends Controller
                 ->whereNotNull('new_tag_product')
                 ->whereNull('new_category_product')
                 ->whereNull('is_so')
-                // ->where(function ($q) {
-                //     $q->where('is_so', 'done')
-                //         ->orWhere('new_tag_product', 'big')
-                //         ->orWhere('new_tag_product', 'small');
-                // })
                 ->whereJsonContains('new_quality->lolos', 'lolos')
                 ->whereIn('new_status_product', ['display', 'expired', 'slow_moving'])
                 ->where(function ($q) {
@@ -1677,7 +1672,6 @@ class NewProductController extends Controller
 
             $bundleQuery = Bundle::select(
                 'id',
-                DB::raw("NULL as old_barcode_product"),
                 'old_barcode_bundle as old_barcode_product',
                 'barcode_bundle as new_barcode_product',
                 'name_bundle as new_name_product',
@@ -1689,11 +1683,6 @@ class NewProductController extends Controller
             )
                 ->whereNotNull('name_color')
                 ->whereNull('category')
-                // ->where(function ($q) {
-                //     $q->where('is_so', 'done')
-                //         ->orWhere('name_color', 'big')
-                //         ->orWhere('name_color', 'small');
-                // })
                 ->whereIn('product_status', ['not sale'])
                 ->where(function ($q) {
                     $q->whereNull('type')
