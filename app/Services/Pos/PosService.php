@@ -2,6 +2,7 @@
 
 namespace App\Services\Pos;
 
+use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
@@ -133,7 +134,20 @@ class PosService
             return $response->json();
         }
 
-        Log::error("Gagal menghapus produk BKL di POS: " . $response->body());
-        throw new \Exception("Gagal menghapus produk di POS. Status: " . $response->status() . " | Pesan: " . $response->body());
+        $errorBody = $response->json();
+
+        $errorMessage = $errorBody['message'] ?? 'Gagal menghapus produk di POS.';
+        $errorData = $errorBody['data'] ?? [];
+
+        Log::error("Gagal menghapus produk BKL di POS", [
+            'status'   => $response->status(),
+            'response' => $errorBody
+        ]);
+
+        throw new HttpResponseException(response()->json([
+            'status'  => false,
+            'message' => $errorMessage,
+            'data'    => $errorData
+        ], $response->status() >= 400 && $response->status() < 600 ? $response->status() : 500));
     }
 }
