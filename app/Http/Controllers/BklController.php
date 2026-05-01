@@ -15,6 +15,7 @@ use App\Models\MigrateDocument;
 use App\Models\New_product;
 use App\Services\Olsera\OlseraService;
 use App\Services\Pos\PosService;
+use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -995,7 +996,11 @@ class BklController extends Controller
             $bklDocument->update(['status' => 'done']);
 
             DB::commit();
-            return new ResponseResource(true, "Dokumen BKL di-submit! Stok kembali ke display, dihapus dari POS, dan berhasil dikeluarkan dari rak.", $bklDocument);
+            return new ResponseResource(true, "Dokumen BKL di-submit! Stok kembali ke display, dihapus dari POS.", $bklDocument);
+        } catch (HttpResponseException $e) {
+            DB::rollBack();
+
+            return $e->getResponse();
         } catch (\Exception $e) {
             DB::rollBack();
             return response()->json(['status' => false, 'message' => $e->getMessage()], 500);
@@ -1028,49 +1033,5 @@ class BklController extends Controller
         }
 
         return null;
-    }
-
-    public function markAsSoldFromPos(Request $request)
-    {
-        $request->validate([
-            'barcodes'   => 'required|array',
-            'barcodes.*' => 'required|string',
-            'barcodes.required' => 'Payload barcodes wajib dikirim.',
-            'barcodes.array'    => 'Format barcodes harus berupa array.',
-        ]);
-
-        DB::beginTransaction();
-        try {
-            $barcodes = $request->barcodes;
-
-            $productUpdated = New_product::whereIn('new_barcode_product', $barcodes)
-                ->where('new_status_product', '=', 'migrate')
-                ->update([
-                    'new_status_product' => 'sale',
-                    'date_out'           => now(), 
-                    'type_out'           => 'sale'
-                ]);
-
-            $bundleUpdated = Bundle::whereIn('barcode_bundle', $barcodes)
-                ->where('product_status', '=', 'migrate')
-                ->update([
-                    'product_status' => 'sale'
-                ]);
-
-            DB::commit();
-
-            return (new ResponseResource(true, "Sinkronisasi berhasil! Status barang diubah menjadi sale.", [
-                'total_produk_diupdate' => $productUpdated,
-                'total_bundle_diupdate' => $bundleUpdated,
-                'total_keseluruhan'     => $productUpdated + $bundleUpdated,
-                'barcodes_diterima'     => count($barcodes)
-            ]))->response()->setStatusCode(200);
-        } catch (\Exception $e) {
-            DB::rollBack();
-            return response()->json([
-                'status'  => false,
-                'message' => 'Terjadi kesalahan sistem di WMS: ' . $e->getMessage()
-            ], 500);
-        }
     }
 }
