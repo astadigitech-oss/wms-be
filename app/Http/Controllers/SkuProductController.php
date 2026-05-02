@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Exports\BundlingSkuExport;
 use App\Http\Resources\ResponseResource;
 use App\Models\Category;
 use App\Models\Color_tag;
@@ -13,6 +14,7 @@ use App\Models\StagingProduct;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
+use Maatwebsite\Excel\Facades\Excel;
 
 class SkuProductController extends Controller
 {
@@ -583,5 +585,55 @@ class SkuProductController extends Controller
         $histories->setCollection($formattedData);
 
         return new ResponseResource(true, "List History Bundling", $histories);
+    }
+
+    public function exportBundlingSku()
+    {
+        set_time_limit(300);
+        ini_set('memory_limit', '512M');
+
+        try {
+            $staging = StagingProduct::with('user')
+                ->where('new_name_product', 'LIKE', 'Bundling %')
+                ->where('code_document', 'LIKE', '%SKU%')
+                ->get();
+
+            $newProd = New_product::with('user')
+                ->where('new_name_product', 'LIKE', 'Bundling %')
+                ->where('code_document', 'LIKE', '%SKU%')
+                ->get();
+
+            $allBundledSkus = $staging->merge($newProd)->sortByDesc('created_at');
+
+            if ($allBundledSkus->isEmpty()) {
+                return (new ResponseResource(false, "Tidak ada data Bundling SKU untuk diexport", null))
+                    ->response()->setStatusCode(404);
+            }
+
+            $fileName = 'Export_Bundling_SKU.xlsx';
+            $publicPath = 'exports/sku';
+            $filePath = $publicPath . '/' . $fileName;
+
+            // 2. Buat folder jika belum ada
+            if (!file_exists(public_path($publicPath))) {
+                mkdir(public_path($publicPath), 0777, true);
+            }
+
+            if (file_exists(public_path($filePath))) {
+                unlink(public_path($filePath));
+            }
+
+            Excel::store(new BundlingSkuExport($allBundledSkus), $filePath, 'public_direct');
+
+            $downloadUrl = url($filePath) . '?t=' . time();
+
+            return new ResponseResource(true, "File Bundling SKU berhasil digenerate", [
+                'download_url' => $downloadUrl,
+                'file_name' => $fileName
+            ]);
+        } catch (\Exception $e) {
+            return (new ResponseResource(false, "Gagal export: " . $e->getMessage(), null))
+                ->response()->setStatusCode(500);
+        }
     }
 }
