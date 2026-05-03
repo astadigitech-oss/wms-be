@@ -22,4 +22,9 @@ class Product_Bundle extends Model
     {
         return Carbon::parse($this->created_at)->diffInDays(Carbon::now()) . ' Hari';
     }
+
+    public function user()
+    {
+        return $this->belongsTo(User::class, 'user_id');
+    }
 }

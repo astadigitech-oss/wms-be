@@ -60,7 +60,7 @@ class BundleExport implements FromCollection, WithHeadings, WithMapping, ShouldA
             $category,
             $bundle->total_price_bundle ?? 0,
             $bundle->total_price_custom_bundle ?? 0,
-            $this->user->name ?? 'System'
+            $this->user->name ?? '-'
         ];
     }
 

@@ -27,7 +27,7 @@ class BundleController extends Controller
     {
         $query = $request->input('q');
 
-        $bundles = Bundle::with('product_bundles')
+        $bundles = Bundle::with(['product_bundles.user'])
             ->where(function ($q) {
                 $q->whereNull('type')
                     ->orWhereIn('type', ['type1', 'type2']);
@@ -41,7 +41,6 @@ class BundleController extends Controller
                     ->orWhere('barcode_bundle', 'LIKE', '%' . $query . '%')
                     ->orWhere('category', 'LIKE', '%' . $query . '%')
                     ->orWhere('old_barcode_bundle', 'LIKE', '%' . $query . '%')
-
                     ->orWhereHas('product_bundles', function ($subQueryBuilder) use ($query) {
                         $subQueryBuilder->where('new_name_product', 'LIKE', '%' . $query . '%')
                             ->orWhere('new_barcode_product', 'LIKE', '%' . $query . '%')
@@ -53,6 +52,19 @@ class BundleController extends Controller
         }
 
         $paginatedBundles = $bundles->paginate(50);
+
+        $paginatedBundles->getCollection()->transform(function ($bundle) {
+
+            $user = null;
+            if ($bundle->product_bundles && $bundle->product_bundles->isNotEmpty()) {
+                $firstItem = $bundle->product_bundles->first();
+                $user = $firstItem->user ? $firstItem->user->name : null;
+            }
+
+            $bundle->user = $user;
+
+            return $bundle;
+        });
 
         return new ResponseResource(true, "list bundle", $paginatedBundles);
     }
