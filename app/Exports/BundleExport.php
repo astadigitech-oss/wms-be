@@ -12,12 +12,12 @@ use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 class BundleExport implements FromCollection, WithHeadings, WithMapping, ShouldAutoSize, WithStyles
 {
     protected $data;
-    protected $user;
+    protected $downloader;
 
-    public function __construct($data, $user)
+    public function __construct($data, $downloader)
     {
         $this->data = $data;
-        $this->user = $user;
+        $this->downloader = $downloader;
     }
 
     public function collection()
@@ -32,7 +32,7 @@ class BundleExport implements FromCollection, WithHeadings, WithMapping, ShouldA
             'Nama Bundle',
             'List Produk Bundle',
             'Qty',
-            'Category',
+            'Category/Tag Color',
             'Original Price',
             'Sale price',
             'User'
@@ -44,10 +44,16 @@ class BundleExport implements FromCollection, WithHeadings, WithMapping, ShouldA
         $barcode = ($bundle->old_barcode_bundle ?? '-') . ' / ' . ($bundle->barcode_bundle ?? '-');
 
         $listProduk = '-';
+        $user = '-';
+
         if ($bundle->product_bundles && $bundle->product_bundles->isNotEmpty()) {
+            
             $listProduk = $bundle->product_bundles->map(function ($item) {
                 return "- " . $item->new_name_product;
             })->implode("\n");
+
+            $firstItem = $bundle->product_bundles->first();
+            $user = $firstItem->user ? $firstItem->user->name : '-';
         }
 
         $category = $bundle->category ?? $bundle->name_color ?? '-';
@@ -60,7 +66,7 @@ class BundleExport implements FromCollection, WithHeadings, WithMapping, ShouldA
             $category,
             $bundle->total_price_bundle ?? 0,
             $bundle->total_price_custom_bundle ?? 0,
-            $this->user->name ?? '-'
+            $user
         ];
     }
 
