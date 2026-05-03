@@ -304,7 +304,7 @@ class BundleController extends Controller
 
             $bundles = Bundle::where('product_status', 'not sale')
                 ->latest()
-                ->with('product_bundles')
+                ->with(['product_bundles.user'])
                 ->get();
 
             $fileName = 'Export_All_Bundles.xlsx';
@@ -319,7 +319,7 @@ class BundleController extends Controller
                 unlink(public_path($filePath));
             }
 
-            Excel::store(new BundleExport($bundles, $user), $filePath, 'public_direct');
+            Excel::store(new \App\Exports\BundleExport($bundles, $user), $filePath, 'public_direct');
 
             return new ResponseResource(true, "File semua bundle berhasil digenerate", [
                 'download_url' => url($filePath) . '?t=' . time(),
@@ -339,7 +339,7 @@ class BundleController extends Controller
         try {
             $user = auth()->user();
 
-            $bundle = Bundle::with('product_bundles')
+            $bundle = Bundle::with(['product_bundles.user'])
                 ->where('id', $id)
                 ->where('product_status', 'not sale')
                 ->get();
@@ -360,7 +360,7 @@ class BundleController extends Controller
                 unlink(public_path($filePath));
             }
 
-            Excel::store(new BundleExport($bundle, $user), $filePath, 'public_direct');
+            Excel::store(new \App\Exports\BundleExport($bundle, $user), $filePath, 'public_direct');
 
             return new ResponseResource(true, "Detail Bundle berhasil diunduh", [
                 'download_url' => url($filePath) . '?t=' . time(),
