@@ -59,4 +59,9 @@ class New_product extends Model
     {
         return $this->hasOne(ColorRackProduct::class, 'new_product_id');
     }
+
+    public function user()
+    {
+        return $this->belongsTo(User::class, 'user_id');
+    }
 }

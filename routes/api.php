@@ -798,6 +798,8 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Admin Kasir
 Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Admin Kasir,Crew,Reparasi,Kasir leader,Developer,Audit,Captain'])->group(function () {
     Route::get('sku-products/history-bundling', [SkuProductController::class, 'getHistoryBundling']);
     Route::get('sku-product-old/{id}/export', [SkuProductOldController::class, 'export']);
+    Route::get('sku-product/export-bundling', [SkuProductController::class, 'exportBundlingSku']);
+    Route::get('exportBundles', [BundleController::class, 'exportBundles']);
     Route::resource('sku-products', SkuProductController::class)->only(['index', 'show']);
     Route::resource('sku-product-old', SkuProductOldController::class)->only(['index', 'show']);
     Route::resource('sku-documents', SkuDocumentController::class)->only(['index', 'show']);

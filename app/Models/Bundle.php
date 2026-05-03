@@ -25,4 +25,9 @@ class Bundle extends Model
     {
         return $this->hasOne(ColorRackProduct::class, 'bundle_id');
     }
+
+    public function user()
+    {
+        return $this->belongsTo(User::class, 'user_id');
+    }
 }

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Exports\BundleExport;
 use App\Models\Bundle;
 use App\Models\New_product;
 use Illuminate\Http\Request;
@@ -12,6 +13,7 @@ use App\Models\Product_Bundle;
 use App\Models\ProductInput;
 use App\Models\StagingProduct;
 use Illuminate\Support\Facades\Validator;
+use Maatwebsite\Excel\Facades\Excel;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 use PhpOffice\PhpSpreadsheet\Reader\Exception as ReaderException;
@@ -25,7 +27,7 @@ class BundleController extends Controller
     {
         $query = $request->input('q');
 
-        $bundles = Bundle::with('product_bundles')
+        $bundles = Bundle::with(['product_bundles.user'])
             ->where(function ($q) {
                 $q->whereNull('type')
                     ->orWhereIn('type', ['type1', 'type2']);
@@ -39,7 +41,6 @@ class BundleController extends Controller
                     ->orWhere('barcode_bundle', 'LIKE', '%' . $query . '%')
                     ->orWhere('category', 'LIKE', '%' . $query . '%')
                     ->orWhere('old_barcode_bundle', 'LIKE', '%' . $query . '%')
-
                     ->orWhereHas('product_bundles', function ($subQueryBuilder) use ($query) {
                         $subQueryBuilder->where('new_name_product', 'LIKE', '%' . $query . '%')
                             ->orWhere('new_barcode_product', 'LIKE', '%' . $query . '%')
@@ -51,6 +52,19 @@ class BundleController extends Controller
         }
 
         $paginatedBundles = $bundles->paginate(50);
+
+        $paginatedBundles->getCollection()->transform(function ($bundle) {
+
+            $user = null;
+            if ($bundle->product_bundles && $bundle->product_bundles->isNotEmpty()) {
+                $firstItem = $bundle->product_bundles->first();
+                $user = $firstItem->user ? $firstItem->user->name : null;
+            }
+
+            $bundle->user = $user;
+
+            return $bundle;
+        });
 
         return new ResponseResource(true, "list bundle", $paginatedBundles);
     }
@@ -282,213 +296,80 @@ class BundleController extends Controller
 
     public function exportBundles()
     {
-        // Meningkatkan batas waktu eksekusi dan memori
         set_time_limit(300);
         ini_set('memory_limit', '512M');
 
-        // Membuat spreadsheet baru
-        $spreadsheet = new Spreadsheet();
-        $sheet = $spreadsheet->getActiveSheet();
+        try {
+            $user = auth()->user();
 
-        // Headers untuk bundle
-        $bundleHeaders = [
-            'name_bundle',
-            'total_price_bundle',
-            'total_price_custom_bundle',
-            'total_product_bundle',
-            'product_status',
-            'barcode_bundle',
-            'category',
-            'name_color',
-            'id'
-        ];
+            $bundles = Bundle::where('product_status', 'not sale')
+                ->latest()
+                ->with('product_bundles')
+                ->get();
 
-        // Headers untuk product_bundles
-        $productBundleHeaders = [
-            'bundle_id',
-            'code_document',
-            'old_barcode_product',
-            'new_barcode_product',
-            'new_name_product',
-            'new_quantity_product',
-            'new_price_product',
-            'old_price_product',
-            'new_date_in_product',
-            'new_status_product',
-            'new_quality',
-            'new_category_product',
-            'new_tag_product'
-        ];
+            $fileName = 'Export_All_Bundles.xlsx';
+            $publicPath = 'exports/bundles';
+            $filePath = $publicPath . '/' . $fileName;
 
-        // Menuliskan headers ke sheet
-        $columnIndex = 1;
-        foreach ($bundleHeaders as $header) {
-            $sheet->setCellValueByColumnAndRow($columnIndex, 1, $header);
-            $columnIndex++;
-        }
-
-        // Menuliskan header product_bundles di bawah data bundle
-        $rowIndex = 2; // Mulai dari baris kedua
-
-        // Mengambil data bundle terbaru dengan relasi product_bundles
-        $bundles = Bundle::latest()->with('product_bundles')->get();
-        foreach ($bundles as $bundle) {
-            $columnIndex = 1;
-
-            // Menuliskan data bundle ke sheet
-            foreach ($bundleHeaders as $header) {
-                $sheet->setCellValueByColumnAndRow($columnIndex, $rowIndex, $bundle->$header);
-                $columnIndex++;
+            if (!file_exists(public_path($publicPath))) {
+                mkdir(public_path($publicPath), 0777, true);
             }
-            $rowIndex++;
 
-            // Menuliskan header product_bundles
-            $productColumnIndex = 1;
-            foreach ($productBundleHeaders as $header) {
-                $sheet->setCellValueByColumnAndRow($productColumnIndex, $rowIndex, $header);
-                $productColumnIndex++;
+            if (file_exists(public_path($filePath))) {
+                unlink(public_path($filePath));
             }
-            $rowIndex++;
 
-            // Menuliskan data product_bundles ke sheet
-            if ($bundle->product_bundles) {
-                foreach ($bundle->product_bundles as $productBundle) {
-                    $productColumnIndex = 1; // Mulai dari kolom pertama
-                    foreach ($productBundleHeaders as $header) {
-                        $sheet->setCellValueByColumnAndRow($productColumnIndex, $rowIndex, $productBundle->$header);
-                        $productColumnIndex++;
-                    }
-                    $rowIndex++;
-                }
-            }
-            $rowIndex++; // Baris kosong setelah setiap bundle
+            Excel::store(new BundleExport($bundles, $user), $filePath, 'public_direct');
+
+            return new ResponseResource(true, "File semua bundle berhasil digenerate", [
+                'download_url' => url($filePath) . '?t=' . time(),
+                'file_name' => $fileName
+            ]);
+        } catch (\Exception $e) {
+            return (new ResponseResource(false, "Gagal export: " . $e->getMessage(), null))
+                ->response()->setStatusCode(500);
         }
-
-        // Menyimpan file Excel
-        $writer = new Xlsx($spreadsheet);
-        $fileName = 'bundles_export.xlsx';
-        $publicPath = 'exports';
-        $filePath = public_path($publicPath) . '/' . $fileName;
-
-        // Membuat direktori exports jika belum ada
-        if (!file_exists(public_path($publicPath))) {
-            mkdir(public_path($publicPath), 0777, true);
-        }
-
-        $writer->save($filePath);
-
-        // Mengembalikan URL untuk mengunduh file
-        $downloadUrl = url($publicPath . '/' . $fileName);
-
-        return new ResponseResource(true, "unduh", $downloadUrl);
     }
 
     public function exportBundlesDetail($id)
     {
-        // Meningkatkan batas waktu eksekusi dan memori
         set_time_limit(300);
         ini_set('memory_limit', '512M');
 
-        // Membuat spreadsheet baru
-        $spreadsheet = new Spreadsheet();
-        $sheet = $spreadsheet->getActiveSheet();
+        try {
+            $user = auth()->user();
 
-        // Headers untuk bundle
-        $bundleHeaders = [
-            'id',
-            'name_bundle',
-            'total_price_bundle',
-            'total_price_custom_bundle',
-            'total_product_bundle',
-            'product_status',
-            'barcode_bundle',
-            'category',
-            'name_color',
-        ];
+            $bundle = Bundle::with('product_bundles')
+                ->where('id', $id)
+                ->where('product_status', 'not sale')
+                ->get();
 
-        // Headers untuk product_bundles
-        $productBundleHeaders = [
-            'bundle_id',
-            'code_document',
-            'old_barcode_product',
-            'new_barcode_product',
-            'new_name_product',
-            'new_quantity_product',
-            'new_price_product',
-            'old_price_product',
-            'new_date_in_product',
-            'new_status_product',
-            'new_quality',
-            'new_category_product',
-            'new_tag_product'
-        ];
-
-        // Menuliskan headers untuk bundle ke sheet
-        $columnIndex = 1;
-        foreach ($bundleHeaders as $header) {
-            $sheet->setCellValueByColumnAndRow($columnIndex, 1, $header);
-            $columnIndex++;
-        }
-
-        // Menuliskan header product_bundles di bawah data bundle
-        $rowIndex = 2; // Mulai dari baris kedua
-
-        // Mengambil data bundle terbaru dengan relasi product_bundles
-        $bundle = Bundle::with('product_bundles')->where('id', $id)->first();
-
-        if ($bundle) {
-            $columnIndex = 1;
-
-            // Menuliskan data bundle ke sheet
-            foreach ($bundleHeaders as $header) {
-                $sheet->setCellValueByColumnAndRow($columnIndex, $rowIndex, $bundle->$header);
-                $columnIndex++;
+            if ($bundle->isEmpty()) {
+                return (new ResponseResource(false, "Bundle tidak ditemukan", null))->response()->setStatusCode(404);
             }
-            $rowIndex++;
 
-            $rowIndex++;
-            // Menuliskan header product_bundles
-            $productColumnIndex = 1;
-            foreach ($productBundleHeaders as $header) {
-                $sheet->setCellValueByColumnAndRow($productColumnIndex, $rowIndex, $header);
-                $productColumnIndex++;
+            $safeName = preg_replace('/[^a-zA-Z0-9]+/', '_', $bundle->first()->name_bundle);
+            $fileName = 'Export_Bundle_' . $safeName . '.xlsx';
+            $publicPath = 'exports/bundles';
+            $filePath = $publicPath . '/' . $fileName;
+
+            if (!file_exists(public_path($publicPath))) {
+                mkdir(public_path($publicPath), 0777, true);
             }
-            $rowIndex++;
-
-            // Menuliskan data product_bundles ke sheet
-            if ($bundle->product_bundles->isNotEmpty()) {
-                foreach ($bundle->product_bundles as $productBundle) {
-                    $productColumnIndex = 1; // Mulai dari kolom pertama
-                    foreach ($productBundleHeaders as $header) {
-                        $sheet->setCellValueByColumnAndRow($productColumnIndex, $rowIndex, $productBundle->$header);
-                        $productColumnIndex++;
-                    }
-                    $rowIndex++;
-                }
+            if (file_exists(public_path($filePath))) {
+                unlink(public_path($filePath));
             }
-            $rowIndex++; // Baris kosong setelah setiap bundle
-        } else {
-            // Jika tidak ada bundle ditemukan
-            $sheet->setCellValueByColumnAndRow(1, 1, 'No data found');
+
+            Excel::store(new BundleExport($bundle, $user), $filePath, 'public_direct');
+
+            return new ResponseResource(true, "Detail Bundle berhasil diunduh", [
+                'download_url' => url($filePath) . '?t=' . time(),
+                'file_name' => $fileName
+            ]);
+        } catch (\Exception $e) {
+            return (new ResponseResource(false, "Gagal export: " . $e->getMessage(), null))
+                ->response()->setStatusCode(500);
         }
-
-        // Menyimpan file Excel
-        $writer = new Xlsx($spreadsheet);
-        $fileName = 'exportBndl_' . $bundle->name_bundle . '.xlsx';
-        $publicPath = 'exports';
-        $filePath = public_path($publicPath) . '/' . $fileName;
-
-        // Membuat direktori exports jika belum ada
-        if (!file_exists(public_path($publicPath))) {
-            mkdir(public_path($publicPath), 0777, true);
-        }
-
-        $writer->save($filePath);
-
-        // Mengembalikan URL untuk mengunduh file
-        $downloadUrl = url($publicPath . '/' . $fileName);
-
-        return new ResponseResource(true, "unduh", $downloadUrl);
     }
 
     public function bundleColor(Request $request)
