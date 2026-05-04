@@ -587,34 +587,51 @@ class SkuProductController extends Controller
         return new ResponseResource(true, "List History Bundling", $histories);
     }
 
-    public function exportBundlingSku()
+    public function exportBundlingSku(Request $request)
     {
         set_time_limit(300);
         ini_set('memory_limit', '512M');
 
         try {
-            $staging = StagingProduct::with('user')
-                ->where('new_name_product', 'LIKE', 'Bundling %')
-                ->where('code_document', 'LIKE', '%SKU%')
-                ->get();
+            $startDate = $request->input('start_date');
+            $endDate = $request->input('end_date');
 
-            $newProd = New_product::with('user')
+            $stagingQuery = StagingProduct::with('user')
                 ->where('new_name_product', 'LIKE', 'Bundling %')
-                ->where('code_document', 'LIKE', '%SKU%')
-                ->get();
+                ->where('code_document', 'LIKE', '%SKU%');
+
+            $newProdQuery = New_product::with('user')
+                ->where('new_name_product', 'LIKE', 'Bundling %')
+                ->where('code_document', 'LIKE', '%SKU%');
+
+            if ($startDate && $endDate) {
+                $stagingQuery->whereDate('created_at', '>=', $startDate)
+                    ->whereDate('created_at', '<=', $endDate);
+
+                $newProdQuery->whereDate('created_at', '>=', $startDate)
+                    ->whereDate('created_at', '<=', $endDate);
+            }
+
+            $staging = $stagingQuery->get();
+            $newProd = $newProdQuery->get();
 
             $allBundledSkus = $staging->merge($newProd)->sortByDesc('created_at');
 
+            // Validasi jika data kosong
             if ($allBundledSkus->isEmpty()) {
                 return (new ResponseResource(false, "Tidak ada data Bundling SKU untuk diexport", null))
                     ->response()->setStatusCode(404);
             }
 
-            $fileName = 'Export_Bundling_SKU.xlsx';
+            if ($startDate && $endDate) {
+                $fileName = 'Export_Bundling_SKU_' . $startDate . '_to_' . $endDate . '.xlsx';
+            } else {
+                $fileName = 'Export_Bundling_SKU.xlsx';
+            }
+
             $publicPath = 'exports/sku';
             $filePath = $publicPath . '/' . $fileName;
 
-            // 2. Buat folder jika belum ada
             if (!file_exists(public_path($publicPath))) {
                 mkdir(public_path($publicPath), 0777, true);
             }

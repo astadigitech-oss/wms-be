@@ -294,7 +294,7 @@ class BundleController extends Controller
         return new ResponseResource(true, "list bundle", $paginatedBundles);
     }
 
-    public function exportBundles()
+    public function exportBundles(Request $request)
     {
         set_time_limit(300);
         ini_set('memory_limit', '512M');
@@ -302,12 +302,31 @@ class BundleController extends Controller
         try {
             $user = auth()->user();
 
-            $bundles = Bundle::where('product_status', 'not sale')
-                ->latest()
-                ->with(['product_bundles.user'])
-                ->get();
+            $startDate = $request->input('start_date');
+            $endDate = $request->input('end_date');
 
-            $fileName = 'Export_All_Bundles.xlsx';
+            $query = Bundle::where('product_status', 'not sale')
+                ->with(['product_bundles.user'])
+                ->latest();
+
+            if ($startDate && $endDate) {
+                $query->whereDate('created_at', '>=', $startDate)
+                    ->whereDate('created_at', '<=', $endDate);
+            }
+
+            // 4. Eksekusi Query
+            $bundles = $query->get();
+
+            if ($bundles->isEmpty()) {
+                return (new ResponseResource(false, "Tidak ada data bundle pada rentang tanggal tersebut", null))->response()->setStatusCode(404);
+            }
+
+            if ($startDate && $endDate) {
+                $fileName = 'Export_Bundles_' . $startDate . '_to_' . $endDate . '.xlsx';
+            } else {
+                $fileName = 'Export_Bundles.xlsx';
+            }
+
             $publicPath = 'exports/bundles';
             $filePath = $publicPath . '/' . $fileName;
 
@@ -321,7 +340,7 @@ class BundleController extends Controller
 
             Excel::store(new \App\Exports\BundleExport($bundles, $user), $filePath, 'public_direct');
 
-            return new ResponseResource(true, "File semua bundle berhasil digenerate", [
+            return new ResponseResource(true, "File bundle berhasil digenerate", [
                 'download_url' => url($filePath) . '?t=' . time(),
                 'file_name' => $fileName
             ]);
