@@ -23,9 +23,15 @@ class NotificationController extends Controller
     /**
      * Display a listing of the resource.
      */
-    public function index()
+    public function index(Request $request)
     {
-        $notifications = Notification::latest()->paginate(100);
+        $query = $request->input('q');
+
+        $notifications = Notification::latest()
+            ->when($query, function ($q) use ($query) {
+                return $q->where('notification_name', 'LIKE', '%' . $query . '%');
+            })
+            ->paginate(100);
 
         return new ResponseResource(true, "list notification", $notifications);
     }
@@ -339,16 +345,21 @@ class NotificationController extends Controller
 
                 app(NewProductController::class)->incrementStockOpname($inputData, $qualityData);
 
-                // Update Notifikasi
                 $notification->update([
                     'notification_name' => 'Approved - ' . $notification->notification_name,
-                    'status' => 'done'
+                    'status' => 'manual_inbound',
+                    'approved' => '2'
                 ]);
 
                 $message = "Produk berhasil di-approve.";
             } else {
                 $product->delete();
-                $notification->delete();
+
+                $notification->update([
+                    'notification_name' => 'Rejected - ' . $notification->notification_name,
+                    'status' => 'manual_inbound',
+                    'approved' => '1'
+                ]);
 
                 $message = "Produk ditolak dan data telah dihapus.";
             }
@@ -405,7 +416,7 @@ class NotificationController extends Controller
                     'new_status_product' => $product->new_status_product,
                     'new_category_product' => $product->new_category_product,
                     'new_tag_product' => $product->new_tag_product,
-                    'new_quality' => json_decode($product->new_quality, true), 
+                    'new_quality' => json_decode($product->new_quality, true),
                     'created_at' => $product->created_at
                 ]
             ];
