@@ -250,22 +250,22 @@ class NotificationController extends Controller
         $userRole = User::where('id', $userId)->with('role')->first();
         $query = $request->input('q');
         $page = $request->input('page', 1);
-        $perPage = 33;
+        $perPage = 30;
 
-        // Buat query dasar
         $notifQuery = Notification::query()
             ->latest('notifications.created_at');
+            
         if (!in_array($userRole->role->id, [1, 2, 5, 8])) {
             $notifQuery->whereNot('status', 'sale');
         }
 
-
-        // Filter pencarian jika ada
         if ($query) {
-            $notifQuery->where('status', 'LIKE', '%' . $query . '%');
+            $notifQuery->where(function ($qBuilder) use ($query) {
+                $qBuilder->where('status', 'LIKE', '%' . $query . '%')
+                         ->orWhere('notification_name', 'LIKE', '%' . $query . '%');
+            });
         }
 
-        // Lakukan pagination pada query
         $notifications = $notifQuery->paginate($perPage);
 
         return new ResponseResource(true, "Notifications", $notifications);
