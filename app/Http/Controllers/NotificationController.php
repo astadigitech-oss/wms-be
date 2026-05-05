@@ -273,7 +273,7 @@ class NotificationController extends Controller
 
         $notifQuery = Notification::query()->latest()->limit(5);
 
-        if(!in_array($userRole->role->id, [1,2,5,8])){
+        if (!in_array($userRole->role->id, [1, 2, 5, 8])) {
             $notifQuery->whereNot('status', 'sale');
         }
         // Jika ada query pencarian
@@ -286,5 +286,133 @@ class NotificationController extends Controller
 
         // Kembalikan hasil dalam format ResponseResource
         return new ResponseResource(true, "Notifications", $notifications);
+    }
+
+    public function actionManualProduct(Request $request, $notificationId)
+    {
+        $user = User::with('role')->find(auth()->id());
+        $roleName = $user->role->role_name ?? '';
+
+        if (!in_array($roleName, ['Admin', 'Spv'])) {
+            $response = new ResponseResource(false, "User tidak diizinkan", null);
+            return $response->response()->setStatusCode(403);
+        }
+
+        $validator = Validator::make($request->all(), [
+            'action' => 'required|in:approve,reject'
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json($validator->errors(), 422);
+        }
+
+        DB::beginTransaction();
+        try {
+            $notification = Notification::find($notificationId);
+
+            if (!$notification || $notification->status !== 'manual_inbound') {
+                return response()->json(['message' => 'Notifikasi tidak valid'], 404);
+            }
+
+            $barcode = str_replace('Approval Manual Product: ', '', $notification->notification_name);
+
+            $product = \App\Models\New_product::where('id', $notification->external_id)
+                ->where('new_barcode_product', $barcode)
+                ->first();
+
+            if (!$product) {
+                $product = \App\Models\StagingProduct::where('id', $notification->external_id)
+                    ->where('new_barcode_product', $barcode)
+                    ->first();
+            }
+
+            if (!$product) {
+                $notification->delete();
+                return response()->json(['message' => 'Produk asli sudah tidak ditemukan'], 404);
+            }
+
+            if ($request->action === 'approve') {
+                $product->update(['is_pending' => false]);
+
+                $qualityData = json_decode($product->new_quality, true);
+                $inputData = $product->toArray();
+
+                app(NewProductController::class)->incrementStockOpname($inputData, $qualityData);
+
+                // Update Notifikasi
+                $notification->update([
+                    'notification_name' => 'Approved - ' . $notification->notification_name,
+                    'status' => 'done'
+                ]);
+
+                $message = "Produk berhasil di-approve.";
+            } else {
+                $product->delete();
+                $notification->delete();
+
+                $message = "Produk ditolak dan data telah dihapus.";
+            }
+
+            DB::commit();
+            return new ResponseResource(true, $message, null);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return response()->json(['error' => $e->getMessage()], 500);
+        }
+    }
+
+    public function detailManualProduct($notificationId)
+    {
+        try {
+            $notification = Notification::find($notificationId);
+
+            if (!$notification || $notification->status !== 'manual_inbound') {
+                return response()->json(['message' => 'Notifikasi tidak valid atau tidak ditemukan'], 404);
+            }
+
+            $barcode = str_replace('Approval Manual Product: ', '', $notification->notification_name);
+
+            $product = \App\Models\New_product::with('user')->where('id', $notification->external_id)
+                ->where('new_barcode_product', $barcode)
+                ->first();
+
+            $type = 'Color';
+
+            if (!$product) {
+                $product = \App\Models\StagingProduct::with('user')->where('id', $notification->external_id)
+                    ->where('new_barcode_product', $barcode)
+                    ->first();
+                $type = 'Reguler';
+            }
+
+            if (!$product) {
+                $notification->delete();
+                return response()->json(['message' => 'Detail produk asli sudah tidak ditemukan di database'], 404);
+            }
+
+            $dataResponse = [
+                'notification_id' => $notification->id,
+                'role' => $notification->role,
+                'name' => $product->user ? $product->user->name : 'Unknown',
+                'type' => $type,
+                'is_pending' => $product->is_pending,
+                'detail_product' => [
+                    'old_price_product' => $product->old_price_product,
+                    'new_barcode_product' => $product->new_barcode_product,
+                    'new_name_product' => $product->new_name_product,
+                    'new_quantity_product' => $product->new_quantity_product,
+                    'new_price_product' => $product->new_price_product,
+                    'new_status_product' => $product->new_status_product,
+                    'new_category_product' => $product->new_category_product,
+                    'new_tag_product' => $product->new_tag_product,
+                    'new_quality' => json_decode($product->new_quality, true), 
+                    'created_at' => $product->created_at
+                ]
+            ];
+
+            return new ResponseResource(true, "Detail approval produk manual", $dataResponse);
+        } catch (\Exception $e) {
+            return response()->json(['error' => $e->getMessage()], 500);
+        }
     }
 }

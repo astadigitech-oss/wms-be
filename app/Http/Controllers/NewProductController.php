@@ -1652,8 +1652,8 @@ class NewProductController extends Controller
         try {
             $productQuery = New_product::select(
                 'id',
-                'old_barcode_product', 
-                'new_barcode_product', 
+                'old_barcode_product',
+                'new_barcode_product',
                 'new_name_product',
                 'new_tag_product',
                 'new_price_product',
@@ -1664,6 +1664,7 @@ class NewProductController extends Controller
                 ->whereNotNull('new_tag_product')
                 ->whereNull('new_category_product')
                 ->whereNull('is_so')
+                ->where('is_pending', false)
                 ->whereJsonContains('new_quality->lolos', 'lolos')
                 ->whereIn('new_status_product', ['display', 'expired', 'slow_moving'])
                 ->where(function ($q) {
@@ -1787,6 +1788,7 @@ class NewProductController extends Controller
             $baseQuery = New_product::whereNotNull('new_tag_product')
                 ->whereNull('new_category_product')
                 ->whereNull('is_so')
+                ->where('is_pending', false)
                 // ->where(function ($q) {
                 //     $q->where('is_so', 'done')
                 //         ->orWhere('new_tag_product', 'big')
@@ -1901,6 +1903,7 @@ class NewProductController extends Controller
             )
                 ->whereNotNull('new_category_product')
                 ->where('new_tag_product', NULL)
+                ->where('is_pending', false)
                 ->where(function ($query) {
                     $query->whereRaw("JSON_UNQUOTE(JSON_EXTRACT(new_quality, '$.lolos')) = 'lolos'")
                         ->orWhereRaw("JSON_UNQUOTE(JSON_EXTRACT(JSON_UNQUOTE(new_quality), '$.lolos')) = 'lolos'");
@@ -2094,11 +2097,15 @@ class NewProductController extends Controller
     }
 
     //khusus super admin
-    public function  addProductByAdmin(Request $request)
+    public function addProductByAdmin(Request $request)
     {
         $userId = auth()->id();
+        $user = User::with('role')->find($userId);
+        $roleName = $user->role->role_name ?? '';
+
+        $isPending = !in_array($roleName, ['Admin', 'Spv']);
+
         $validator = Validator::make($request->all(), [
-            // 'new_barcode_product' => 'required|unique:new_products,new_barcode_product',
             'new_name_product' => 'required',
             'new_quantity_product' => 'required|integer',
             'new_price_product' => 'required|numeric',
@@ -2107,13 +2114,7 @@ class NewProductController extends Controller
             'new_category_product' => 'nullable|exists:categories,name_category',
             'new_tag_product' => 'nullable|exists:color_tags,name_color',
             'is_extra' => 'nullable|boolean'
-        ],  [
-            'new_barcode_product.unique' => 'barcode sudah ada'
         ]);
-
-        // $validator->sometimes('new_category_product', 'required', function ($input) {
-        //     return $input->new_price_product >= 100000;
-        // });
 
         if ($validator->fails()) {
             return response()->json($validator->errors(), 422);
@@ -2122,7 +2123,6 @@ class NewProductController extends Controller
         DB::beginTransaction();
 
         try {
-            // Logika untuk memproses data
             $status = $request->input('condition');
             $description = $request->input('description');
 
@@ -2131,7 +2131,6 @@ class NewProductController extends Controller
                 'damaged' => $status === 'damaged' ? $description : null,
                 'abnormal' => $status === 'abnormal' ? $description : null,
             ];
-
 
             $inputData = $request->only([
                 'old_price_product',
@@ -2147,15 +2146,13 @@ class NewProductController extends Controller
                 'user_id',
                 'discount_category',
                 'is_so'
-
             ]);
 
             $inputData['new_status_product'] = 'display';
             $inputData['user_id'] = $userId;
             $inputData['is_so'] = null;
-            // $inputData['is_so'] = "done";
-            // $inputData['user_so'] = $userId;
             $inputData['is_extra'] = $request->boolean('is_extra');
+            $inputData['is_pending'] = $isPending;
 
             $category = Category::where('name_category', $inputData['new_category_product'])->first();
 
@@ -2171,7 +2168,6 @@ class NewProductController extends Controller
             $inputData['new_discount'] = 0;
             $inputData['type'] = 'type1';
             $inputData['display_price'] = $inputData['new_price_product'];
-
             $inputData['new_barcode_product'] = generateNewBarcode($inputData['new_category_product']);
 
             if ($inputData['old_price_product'] < 100000) {
@@ -2179,67 +2175,75 @@ class NewProductController extends Controller
             } else {
                 $newProduct = StagingProduct::create($inputData);
             }
+
             $newProduct['discount_category'] = $category ? $category->discount_category : null;
 
-            $checkSoCategory = SummarySoCategory::where('type', 'process')->first();
-            $checkSoColor = SummarySoColor::where('type', 'process')->first();
-
-            if ($qualityData['lolos'] != null) {
-                if ($checkSoCategory && $inputData['new_category_product'] !== null) {
-                    $checkSoCategory->increment('product_inventory');
-                }
-                if ($checkSoColor && $inputData['new_tag_product'] !== null) {
-                    $soColor = SoColor::where('summary_so_color_id', $checkSoColor->id)
-                        ->where('color', $inputData['new_tag_product'])
-                        ->first();
-                    if ($soColor) {
-                        $soColor->increment('total_color');
-                    }
-                }
-                // $riwayatCheck->total_data_lolos += 1;
-            } else if ($qualityData['damaged'] != null) {
-                if ($inputData['old_price_product'] < 100000) {
-                    if ($checkSoColor) {
-                        $soColor = SoColor::where('summary_so_color_id', $checkSoColor->id)
-                            ->where('color', $inputData['new_tag_product'])
-                            ->first();
-                        if ($soColor) {
-                            $soColor->increment('product_damaged');
-                        }
-                    }
-                } else {
-                    if ($checkSoCategory) {
-                        $checkSoCategory->increment('product_damaged');
-                    }
-                }
-                // $riwayatCheck->total_data_damaged += 1;
-            } else if ($qualityData['abnormal'] != null) {
-                // $riwayatCheck->total_data_abnormal += 1;
-                if ($inputData['old_price_product'] < 100000) {
-                    if ($checkSoColor) {
-                        $soColor = SoColor::where('summary_so_color_id', $checkSoColor->id)
-                            ->where('color', $inputData['new_tag_product'])
-                            ->first();
-                        if ($soColor) {
-                            $soColor->increment('product_abnormal');
-                        }
-                    }
-                } else {
-                    if ($checkSoCategory) {
-                        $checkSoCategory->increment('product_abnormal');
-                    }
-                }
+            if ($isPending) {
+                Notification::create([
+                    'user_id' => $userId,
+                    'notification_name' => 'Approval Manual Product: ' . $newProduct->new_barcode_product,
+                    'status' => 'manual_inbound',
+                    'external_id' => $newProduct->id,
+                    'role' => $roleName
+                ]);
+                $message = "Data berhasil ditambahkan. Menunggu approval Admin/Spv.";
+            } else {
+                $this->incrementStockOpname($inputData, $qualityData);
+                $message = "Berhasil menambah data produk manual";
             }
 
-
-            // $this->deleteOldProduct($request->input('old_barcode_product')); 
-
             DB::commit();
-
-            return new ResponseResource(true, "berhasil menambah data", $newProduct);
+            return new ResponseResource(true, $message, $newProduct);
         } catch (\Exception $e) {
             DB::rollback();
             return response()->json(['error' => $e->getMessage()], 500);
+        }
+    }
+
+    public function incrementStockOpname($inputData, $qualityData)
+    {
+        $checkSoCategory = SummarySoCategory::where('type', 'process')->first();
+        $checkSoColor = SummarySoColor::where('type', 'process')->first();
+
+        if ($qualityData['lolos'] != null) {
+            if ($checkSoCategory && $inputData['new_category_product'] !== null) {
+                $checkSoCategory->increment('product_inventory');
+            }
+            if ($checkSoColor && $inputData['new_tag_product'] !== null) {
+                $soColor = SoColor::where('summary_so_color_id', $checkSoColor->id)
+                    ->where('color', $inputData['new_tag_product'])->first();
+                if ($soColor) {
+                    $soColor->increment('total_color');
+                }
+            }
+        } else if ($qualityData['damaged'] != null) {
+            if ($inputData['old_price_product'] < 100000) {
+                if ($checkSoColor) {
+                    $soColor = SoColor::where('summary_so_color_id', $checkSoColor->id)
+                        ->where('color', $inputData['new_tag_product'])->first();
+                    if ($soColor) {
+                        $soColor->increment('product_damaged');
+                    }
+                }
+            } else {
+                if ($checkSoCategory) {
+                    $checkSoCategory->increment('product_damaged');
+                }
+            }
+        } else if ($qualityData['abnormal'] != null) {
+            if ($inputData['old_price_product'] < 100000) {
+                if ($checkSoColor) {
+                    $soColor = SoColor::where('summary_so_color_id', $checkSoColor->id)
+                        ->where('color', $inputData['new_tag_product'])->first();
+                    if ($soColor) {
+                        $soColor->increment('product_abnormal');
+                    }
+                }
+            } else {
+                if ($checkSoCategory) {
+                    $checkSoCategory->increment('product_abnormal');
+                }
+            }
         }
     }
 
