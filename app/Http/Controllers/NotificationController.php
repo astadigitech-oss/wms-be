@@ -23,9 +23,15 @@ class NotificationController extends Controller
     /**
      * Display a listing of the resource.
      */
-    public function index()
+    public function index(Request $request)
     {
-        $notifications = Notification::latest()->paginate(100);
+        $query = $request->input('q');
+
+        $notifications = Notification::latest()
+            ->when($query, function ($q) use ($query) {
+                return $q->where('notification_name', 'LIKE', '%' . $query . '%');
+            })
+            ->paginate(100);
 
         return new ResponseResource(true, "list notification", $notifications);
     }
@@ -244,22 +250,22 @@ class NotificationController extends Controller
         $userRole = User::where('id', $userId)->with('role')->first();
         $query = $request->input('q');
         $page = $request->input('page', 1);
-        $perPage = 33;
+        $perPage = 30;
 
-        // Buat query dasar
         $notifQuery = Notification::query()
             ->latest('notifications.created_at');
+            
         if (!in_array($userRole->role->id, [1, 2, 5, 8])) {
             $notifQuery->whereNot('status', 'sale');
         }
 
-
-        // Filter pencarian jika ada
         if ($query) {
-            $notifQuery->where('status', 'LIKE', '%' . $query . '%');
+            $notifQuery->where(function ($qBuilder) use ($query) {
+                $qBuilder->where('status', 'LIKE', '%' . $query . '%')
+                         ->orWhere('notification_name', 'LIKE', '%' . $query . '%');
+            });
         }
 
-        // Lakukan pagination pada query
         $notifications = $notifQuery->paginate($perPage);
 
         return new ResponseResource(true, "Notifications", $notifications);
@@ -339,16 +345,21 @@ class NotificationController extends Controller
 
                 app(NewProductController::class)->incrementStockOpname($inputData, $qualityData);
 
-                // Update Notifikasi
                 $notification->update([
                     'notification_name' => 'Approved - ' . $notification->notification_name,
-                    'status' => 'done'
+                    'status' => 'manual_inbound',
+                    'approved' => '2'
                 ]);
 
                 $message = "Produk berhasil di-approve.";
             } else {
                 $product->delete();
-                $notification->delete();
+
+                $notification->update([
+                    'notification_name' => 'Rejected - ' . $notification->notification_name,
+                    'status' => 'manual_inbound',
+                    'approved' => '1'
+                ]);
 
                 $message = "Produk ditolak dan data telah dihapus.";
             }
@@ -405,7 +416,7 @@ class NotificationController extends Controller
                     'new_status_product' => $product->new_status_product,
                     'new_category_product' => $product->new_category_product,
                     'new_tag_product' => $product->new_tag_product,
-                    'new_quality' => json_decode($product->new_quality, true), 
+                    'new_quality' => json_decode($product->new_quality, true),
                     'created_at' => $product->created_at
                 ]
             ];

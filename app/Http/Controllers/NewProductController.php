@@ -2419,6 +2419,7 @@ class NewProductController extends Controller
             )
                 ->whereNotNull('new_category_product')
                 ->whereNull('new_tag_product')
+                ->where('is_pending', false)
                 ->where(function ($query) {
                     $query->whereRaw("JSON_UNQUOTE(JSON_EXTRACT(new_quality, '$.lolos')) = 'lolos'")
                         ->orWhereRaw("JSON_UNQUOTE(JSON_EXTRACT(JSON_UNQUOTE(new_quality), '$.lolos')) = 'lolos'");
