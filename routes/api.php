@@ -560,10 +560,12 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Audit'])->group(functio
     Route::get('format-user', [FormatBarcodeController::class, 'formatsUsers']);
     Route::get('panel-spv/detail/{user}', [UserController::class, 'showFormatBarcode']);
     Route::get('active_so_category', [SummarySoCategoryController::class, 'checkSoCategoryActive']);
+    Route::get('notifications/manual-product/{id}', [NotificationController::class, 'detailManualProduct']);
 });
 
 // [WRITE / POST / ACTION - TANPA Audit]
 Route::middleware(['auth:sanctum', 'check.role:Admin,Spv'])->group(function () {
+    Route::post('notifications/manual-product/{id}/action', [NotificationController::class, 'actionManualProduct']);
     Route::resource('categories', CategoryController::class)->except(['destroy', 'show', 'index']);
     Route::resource('color_tags', ColorTagController::class)->except(['index', 'show', 'destroy']);
     Route::resource('color_tags2', ColorTag2Controller::class)->except(['index', 'show', 'destroy']);

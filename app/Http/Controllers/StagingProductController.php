@@ -68,6 +68,7 @@ class StagingProductController extends Controller
                 })
                 ->whereNull('new_tag_product')
                 ->whereNull('stage')
+                ->where('is_pending', false)
                 ->whereNotNull('new_category_product') //  diperbarui dari lokal
                 ->whereNot('new_category_product', '') // diperbarui dari lokal
                 ->latest();

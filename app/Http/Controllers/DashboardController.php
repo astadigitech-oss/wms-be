@@ -1174,13 +1174,13 @@ class DashboardController extends Controller
         return $resource->response();
     }
 
-    public function exportStorageReport()
+    public function exportStorageReport(Request $request)
     {
         set_time_limit(3600);
         ini_set('memory_limit', '2048M');
         DB::beginTransaction();
         try {
-            $dataExport = $this->storageReport();
+            $dataExport = $this->storageReport($request);
             $dataExport = $dataExport->getData(true);
 
             $inventories = $dataExport['data']['resource']['chart']['category'];
