@@ -220,8 +220,6 @@ class MigrateBulkyProductController extends Controller
             $productData['new_discount'] = $product->new_discount ?? 0;
             $productData['display_price'] = $product->display_price ?? $product->new_price_product;
             $productData['weight'] = $product->weight ?? null;
-            $productData['actual_old_price_product'] = $product->actual_old_price ?? null;
-            $productData['actual_new_quality'] = $product->actual_new_quality ?? null;
             // $productData['is_so'] = "done";
             // $productData['user_so'] = $user->id;
 
@@ -360,8 +358,8 @@ class MigrateBulkyProductController extends Controller
             $inputData['user_id'] = $user->id;
             $inputData['weight'] = $migrateProduct->weight ?? null;
             $inputData['code_document'] = $migrateProduct->code_document_inbound ?? null;
-            $inputData['actual_old_price'] = $migrateProduct->actual_old_price_product ?? null;
-            $inputData['actual_new_quality'] = $migrateProduct->actual_new_quality ?? null;
+            $inputData['actual_old_price_product'] = $migrateProduct->old_price_product ?? null;
+            $inputData['actual_new_quality'] = $migrateProduct->new_quality ?? null;
             // $inputData['is_so'] = "done";
             // $inputData['user_so'] = $user->id;
             $inputData['is_extra'] = $request->boolean('is_extra');
