@@ -248,7 +248,9 @@ class NotificationController extends Controller
     {
         $userId = auth()->id();
         $userRole = User::where('id', $userId)->with('role')->first();
-        $query = $request->input('q');
+        
+        $query = $request->input('search') ?? $request->input('q'); 
+        
         $page = $request->input('page', 1);
         $perPage = 30;
 
@@ -259,13 +261,14 @@ class NotificationController extends Controller
             $notifQuery->whereNot('status', 'sale');
         }
 
-        if ($query) {
+        if (!empty($query)) {
             $notifQuery->where(function ($qBuilder) use ($query) {
                 $qBuilder->where('status', 'LIKE', '%' . $query . '%')
                          ->orWhere('notification_name', 'LIKE', '%' . $query . '%');
             });
         }
 
+        
         $notifications = $notifQuery->paginate($perPage);
 
         return new ResponseResource(true, "Notifications", $notifications);
