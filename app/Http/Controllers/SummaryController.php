@@ -1374,6 +1374,7 @@ class SummaryController extends Controller
                 ->when($hasFilter, function ($q) use ($month, $year) {
                     return $q->whereMonth('created_at', $month)->whereYear('created_at', $year);
                 })
+                ->where('is_pending', false)
                 ->groupBy('new_category_product')->get();
 
             // staging
@@ -1383,6 +1384,7 @@ class SummaryController extends Controller
                     $query->whereRaw("JSON_UNQUOTE(JSON_EXTRACT(new_quality, '$.lolos')) = 'lolos'")
                         ->orWhereRaw("JSON_UNQUOTE(JSON_EXTRACT(JSON_UNQUOTE(new_quality), '$.lolos')) = 'lolos'");
                 })
+                ->where('is_pending', false)
                 ->whereNull('new_tag_product')->whereNull('stage')->whereNot('new_category_product', '')
                 ->selectRaw('new_category_product as category, COUNT(DISTINCT rack_id) as qty_container, COUNT(id) as qty_product, SUM(old_price_product) as old_price, SUM(new_price_product) as new_price')
                 ->when($hasFilter, function ($q) use ($month, $year) {

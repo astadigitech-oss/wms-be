@@ -387,6 +387,7 @@ class DashboardController extends Controller
                 SUM(old_price_product) as before_price_category
             ')
             ->whereNotNull('new_category_product')
+            ->where('is_pending', false)
             ->where('new_tag_product', null)
             // ->whereNotNull('is_so')
             // ->where('is_so', 'done')
@@ -450,6 +451,7 @@ class DashboardController extends Controller
                 SUM(old_price_product) as before_price_category
             ')
             ->whereNotNull('new_category_product')
+            ->where('is_pending', false)
             ->where('new_tag_product', null)
             // ->whereNotNull('is_so')
             // ->where('is_so', 'done')
@@ -475,6 +477,7 @@ class DashboardController extends Controller
                 SUM(old_price_product) as before_price_category
             ')
             ->whereNotNull('new_category_product')
+            ->where('is_pending', false)
             ->where('new_tag_product', null)
             // ->whereNotNull('is_so')
             // ->where('is_so', 'done')
@@ -497,6 +500,7 @@ class DashboardController extends Controller
                 SUM(old_price_product) as before_price_category
             ')
             ->whereNotNull('new_category_product')
+            ->where('is_pending', false)
             ->where('new_tag_product', null)
             // ->whereNotNull('is_so')
             // ->whereNull('user_so')
@@ -546,6 +550,7 @@ class DashboardController extends Controller
                 SUM(new_price_product) as total_price_category
             ')
             ->whereNotNull('new_category_product')
+            ->where('is_pending', false)
             ->where('new_tag_product', null)
             ->where('new_status_product', 'dump')
             ->when($hasFilter, function ($query) use ($month, $year) {
@@ -560,6 +565,7 @@ class DashboardController extends Controller
                 SUM(new_price_product) as total_price_category
             ')
             ->whereNotNull('new_category_product')
+            ->where('is_pending', false)
             ->where('new_tag_product', null)
             ->where('new_status_product', 'dump')
             ->when($hasFilter, function ($query) use ($month, $year) {
@@ -602,6 +608,7 @@ class DashboardController extends Controller
                 SUM(new_price_product) as total_price_category
             ')
             ->whereNotNull('new_category_product')
+            ->where('is_pending', false)
             ->where('new_tag_product', null)
             ->where('new_status_product', 'scrap_qcd')
             ->groupBy('category_product')
@@ -613,6 +620,7 @@ class DashboardController extends Controller
                 SUM(new_price_product) as total_price_category
             ')
             ->whereNotNull('new_category_product')
+            ->where('is_pending', false)
             ->where('new_tag_product', null)
             ->where('new_status_product', 'scrap_qcd')
             ->when($hasFilter, function ($query) use ($month, $year) {
@@ -885,6 +893,7 @@ class DashboardController extends Controller
                 SUM(new_price_product) as total_price_category
             ')
             ->whereNotNull('new_category_product')
+            ->where('is_pending', false)
             ->where('new_tag_product', null)
             ->where(function ($query) {
                 $query->whereRaw("JSON_UNQUOTE(JSON_EXTRACT(new_quality, '$.lolos')) = 'lolos'")
@@ -931,6 +940,7 @@ class DashboardController extends Controller
                 SUM(new_price_product) as total_price_category
             ')
             ->whereNotNull('new_category_product')
+            ->where('is_pending', false)
             ->where('new_tag_product', null)
             ->where(function ($query) {
                 $query->whereRaw("JSON_UNQUOTE(JSON_EXTRACT(new_quality, '$.lolos')) = 'lolos'")
@@ -1040,6 +1050,7 @@ class DashboardController extends Controller
                 SUM(new_price_product) as total_price_category
             ')
             ->whereNotNull('new_category_product')
+            ->where('is_pending', false)
             ->where('new_tag_product', null)
             ->where(function ($query) {
                 $query->whereRaw("JSON_UNQUOTE(JSON_EXTRACT(new_quality, '$.lolos')) = 'lolos'")
@@ -1095,6 +1106,7 @@ class DashboardController extends Controller
                 SUM(new_price_product) as total_price_category
             ')
             ->whereNotNull('new_category_product')
+            ->where('is_pending', false)
             ->where('new_tag_product', null)
             ->where(function ($query) {
                 $query->whereRaw("JSON_UNQUOTE(JSON_EXTRACT(new_quality, '$.lolos')) = 'lolos'")
