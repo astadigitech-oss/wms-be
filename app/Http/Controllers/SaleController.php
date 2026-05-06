@@ -511,12 +511,14 @@ class SaleController extends Controller
         $newProductsQuery = New_product::whereNotIn('new_barcode_product', $productSaleBarcodes)
             ->whereJsonContains('new_quality', ['lolos' => 'lolos'])
             ->whereNotNull('new_category_product')
+            ->where('is_pending', false)
             ->where('new_status_product', '!=', 'sale')
             ->select('new_barcode_product as barcode', 'new_name_product as name', 'new_category_product as category', 'created_at as created_date');
 
         $stagingProductsQuery = StagingProduct::whereNotIn('new_barcode_product', $productSaleBarcodes)
             ->whereJsonContains('new_quality', ['lolos' => 'lolos'])
             ->whereNotNull('new_category_product')
+            ->where('is_pending', false)
             ->where('new_status_product', '!=', 'sale')
             ->whereNull('new_tag_product')
             ->select('new_barcode_product as barcode', 'new_name_product as name', 'new_category_product as category', 'created_at as created_date');

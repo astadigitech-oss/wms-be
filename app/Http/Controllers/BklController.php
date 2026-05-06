@@ -691,6 +691,7 @@ class BklController extends Controller
                 )
                 ->whereNotNull('new_tag_product')
                 ->whereNull('new_category_product')
+                ->where('is_pending', false)
                 ->whereNull('is_so')
                 ->whereJsonContains('new_quality->lolos', 'lolos')
                 ->whereIn('new_status_product', ['display', 'expired', 'slow_moving'])

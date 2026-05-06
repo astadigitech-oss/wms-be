@@ -54,6 +54,7 @@ class SnapshotSheet implements FromCollection, WithHeadings, WithMapping, WithTi
             ->where(function($q) {
                 $q->whereNull('new_tag_product')->orWhere('new_tag_product', '');
             })
+            ->where('is_pending', false)
             ->where(function ($query) {
                 $query->whereRaw("JSON_UNQUOTE(JSON_EXTRACT(new_quality, '$.lolos')) = 'lolos'")
                     ->orWhereRaw("JSON_UNQUOTE(JSON_EXTRACT(JSON_UNQUOTE(new_quality), '$.lolos')) = 'lolos'");
@@ -68,6 +69,7 @@ class SnapshotSheet implements FromCollection, WithHeadings, WithMapping, WithTi
             })
             ->whereNull('stage')
             ->whereNotNull('new_category_product')
+            ->where('is_pending', false)
             ->whereNot('new_category_product', '');
 
         if ($this->type === 'in') {

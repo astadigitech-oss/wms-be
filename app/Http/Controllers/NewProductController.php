@@ -745,6 +745,7 @@ class NewProductController extends Controller
                 ->addSelect(DB::raw("'staging' as source"))
                 ->whereIn('new_status_product', ['display', 'expired'])
                 ->whereNotNull('new_category_product')
+                ->where('is_pending', false)
                 ->where(function ($q) {
                     $q->whereRaw("JSON_UNQUOTE(JSON_EXTRACT(new_quality, '$.lolos')) = 'lolos'")
                         ->orWhereRaw("JSON_UNQUOTE(JSON_EXTRACT(JSON_UNQUOTE(new_quality), '$.lolos')) = 'lolos'");
@@ -836,9 +837,10 @@ class NewProductController extends Controller
                 'Nilai Barang Satuan',
             ];
 
-            // Periksa apakah header sesuai
-            if (array_diff($expectedHeaders, $headersFromFile) || array_diff($headersFromFile, $expectedHeaders)) {
-                $response = new ResponseResource(false, "header tidak sesuai, berikut header yang benar : ", $expectedHeaders);
+            $missingHeaders = array_diff($expectedHeaders, $headersFromFile);
+
+            if (!empty($missingHeaders)) {
+                $response = new ResponseResource(false, "Header tidak sesuai, berikut header yang benar : ", $expectedHeaders);
                 return $response->response()->setStatusCode(422);
             }
 
@@ -853,6 +855,7 @@ class NewProductController extends Controller
                 'new_date_in_product' => Carbon::now('Asia/Jakarta')->toDateString(),
                 'new_discount' => 0,
                 'display_price' => 'Nilai Barang Satuan',
+                'weight' => 'Weight',
             ];
 
             // Ensure unique code_document before starting the process
@@ -877,6 +880,8 @@ class NewProductController extends Controller
                                 $newProductDataToInsert[$key] = $quantity;
                             } elseif ($key === 'old_price_product' || $key === 'display_price') {
                                 $newProductDataToInsert[$key] = (float)str_replace(',', '', $value);
+                            } elseif ($key === 'weight') {
+                                $newProductDataToInsert[$key] = $value !== '' ? (float)str_replace(',', '', $value) : null;
                             } else {
                                 $newProductDataToInsert[$key] = $value;
                             }
@@ -1040,6 +1045,7 @@ class NewProductController extends Controller
                 'old_price_product' => 'Unit Price',
                 'new_date_in_product' => 'Date',
                 'display_price' => 'Price After Discount',
+                'weight' => 'Weight',
             ];
 
             $initBarcode = collect($ekspedisiData)->pluck('A');
@@ -1087,6 +1093,8 @@ class NewProductController extends Controller
                             } elseif (in_array($key, ['old_price_product', 'display_price', 'new_price_product'])) {
                                 $cleanedValue = str_replace(',', '', $value);
                                 $newProductDataToInsert[$key] = (float) $cleanedValue;
+                            } elseif ($key === 'weight') {
+                                $newProductDataToInsert[$key] = $value !== '' ? (float) str_replace(',', '', $value) : null;
                             } else {
                                 $newProductDataToInsert[$key] = $value;
                             }

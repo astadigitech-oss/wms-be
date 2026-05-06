@@ -360,6 +360,7 @@ class ColorRackController extends Controller
                     $query->whereRaw("JSON_UNQUOTE(JSON_EXTRACT(new_quality, '$.lolos')) = 'lolos'")
                         ->orWhereRaw("JSON_UNQUOTE(JSON_EXTRACT(JSON_UNQUOTE(new_quality), '$.lolos')) = 'lolos'");
                 })
+                ->where('is_pending', false)
                 ->first();
         }
 
@@ -506,6 +507,7 @@ class ColorRackController extends Controller
                 ->whereIn('new_status_product', ['display', 'expired', 'slow_moving'])
                 ->whereNotNull('new_tag_product')
                 ->whereNull('new_category_product')
+                ->where('is_pending', false)
                 ->where(function ($query) {
                     $query->whereRaw("JSON_UNQUOTE(JSON_EXTRACT(new_quality, '$.lolos')) = 'lolos'")
                         ->orWhereRaw("JSON_UNQUOTE(JSON_EXTRACT(JSON_UNQUOTE(new_quality), '$.lolos')) = 'lolos'");

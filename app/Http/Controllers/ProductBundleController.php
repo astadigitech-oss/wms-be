@@ -127,7 +127,8 @@ class ProductBundleController extends Controller
                     'type' => $product->type,
                     'is_extra' => $product->is_extra,
                     'user_id' => $product->user_id ?? null,
-                    'source' => $product->source
+                    'source' => $product->source,
+                    'weight' => $product->weight ?? null
                 ];
             })->toArray();
 
@@ -206,6 +207,7 @@ class ProductBundleController extends Controller
                 'type' => $productBundle->type,
                 'is_extra' => $productBundle->is_extra,
                 'user_id' => $productBundle->user_id ?? null,
+                'weight' => $productBundle->weight ?? null,
             ];
 
             if ($source === 'staging') {
@@ -304,7 +306,8 @@ class ProductBundleController extends Controller
                 'type' => $product->type,
                 'is_extra' => $product->is_extra,
                 'user_id' => $product->user_id ?? null,
-                'source' => $source
+                'source' => $source,
+                'weight' => $product->weight ?? null
             ]);
 
             //calculate
@@ -431,7 +434,8 @@ class ProductBundleController extends Controller
                     'type' => $product->type,
                     'is_extra' => $product->is_extra,
                     'image' => $product->image,
-                    'user_id' => $product->user_id ?? null
+                    'user_id' => $product->user_id ?? null,
+                    'weight' => $product->weight ?? null
                 ]);
 
                 $productFilters[] = $productBundle;
@@ -505,6 +509,7 @@ class ProductBundleController extends Controller
                     'type' => $product->type,
                     'is_extra' => $product->is_extra,
                     'user_id' => $userId,
+                    'weight' => $product->weight ?? null
                 ]);
 
                 $productFilters[] = $productBundle;
@@ -570,7 +575,8 @@ class ProductBundleController extends Controller
                             'display_price' => $product->display_price,
                             'type' => $product->type,
                             'is_extra' => $product->is_extra,
-                            'user_id' => $userId
+                            'user_id' => $userId,
+                            'weight' => $product->weight ?? null,
                         ]);
 
                         // Perbarui total harga dan total produk
@@ -673,7 +679,8 @@ class ProductBundleController extends Controller
                             'new_discount' => $product->new_discount,
                             'display_price' => $product->display_price,
                             'type' => $product->type,
-                            'user_id' => $userId
+                            'user_id' => $userId,
+                            'weight' => $product->weight ?? null,
                         ]);
 
                         $totalPrice -= $product->old_price_product;

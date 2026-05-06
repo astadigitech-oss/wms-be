@@ -40,6 +40,7 @@ class SnapshotDailyInventory extends Command
                 SUM(old_price_product) as before_price_category
             ')
             ->whereNotNull('new_category_product')
+            ->where('is_pending', false)
             ->where('new_tag_product', null)
             // ->whereNotNull('is_so')
             // ->where('is_so', 'done')
@@ -95,6 +96,7 @@ class SnapshotDailyInventory extends Command
                 SUM(old_price_product) as before_price_category
             ')
             ->whereNotNull('new_category_product')
+            ->where('is_pending', false)
             ->where('new_tag_product', null)
             // ->whereNotNull('is_so')
             // ->where('is_so', 'done')
@@ -118,6 +120,7 @@ class SnapshotDailyInventory extends Command
                 SUM(old_price_product) as before_price_category
             ')
             ->whereNotNull('new_category_product')
+            ->where('is_pending', false)
             ->where('new_tag_product', null)
             // ->whereNotNull('is_so')
             // ->where('is_so', 'done')
@@ -137,6 +140,7 @@ class SnapshotDailyInventory extends Command
                 SUM(old_price_product) as before_price_category
             ')
             ->whereNotNull('new_category_product')
+            ->where('is_pending', false)
             ->where('new_tag_product', null)
             // ->whereNotNull('is_so')
             // ->whereNull('user_so')

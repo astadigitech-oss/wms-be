@@ -207,6 +207,7 @@ class BundleController extends Controller
                     'new_discount' => $product->new_discount,
                     'type' => $product->type,
                     'is_extra' => $product->is_extra,
+                    'weight' => $product->weight ?? null
                 ];
 
                 if ($source === 'staging') {
@@ -254,7 +255,8 @@ class BundleController extends Controller
                     'new_tag_product' => $product->new_tag_product,
                     'display_price' => $product->display_price,
                     'new_discount' => $product->new_discount,
-                    'type' => $product->type
+                    'type' => $product->type,
+                    'weight' => $product->weight ?? null
                 ]);
 
                 $product->delete();

@@ -555,6 +555,7 @@ class RackController extends Controller
                     $query->whereRaw("JSON_UNQUOTE(JSON_EXTRACT(new_quality, '$.lolos')) = 'lolos'")
                         ->orWhereRaw("JSON_UNQUOTE(JSON_EXTRACT(JSON_UNQUOTE(new_quality), '$.lolos')) = 'lolos'");
                 })
+                ->where('is_pending', false)
                 ->where(function ($status) {
                     $status->where('new_status_product', 'display')
                         ->orWhere('new_status_product', 'expired')
@@ -633,6 +634,7 @@ class RackController extends Controller
                 ->whereNull('rack_id')
                 ->whereNotNull('new_category_product')
                 ->whereNull('new_tag_product')
+                ->where('is_pending', false)
                 ->where(function ($query) {
                     $query->whereRaw("JSON_UNQUOTE(JSON_EXTRACT(new_quality, '$.lolos')) = 'lolos'")
                         ->orWhereRaw("JSON_UNQUOTE(JSON_EXTRACT(JSON_UNQUOTE(new_quality), '$.lolos')) = 'lolos'");
@@ -982,9 +984,10 @@ class RackController extends Controller
                             'actual_old_price_product' => $stagingProduct->actual_old_price_product,
                             'actual_new_quality'       => is_array($stagingProduct->actual_new_quality) ? json_encode($stagingProduct->actual_new_quality) : $stagingProduct->actual_new_quality,
                             'rack_id'                  => $displayRack->id,
-                            'is_extra'                  => $stagingProduct->is_extra,
+                            'is_extra'                 => $stagingProduct->is_extra,
                             'created_at'               => $stagingProduct->created_at,
                             'updated_at'               => $now,
+                            'weight'                   => $stagingProduct->weight,
                         ];
                         $idsToDelete[] = $stagingProduct->id;
                     }
@@ -1015,7 +1018,8 @@ class RackController extends Controller
                                 'actual_new_quality',
                                 'rack_id',
                                 'is_extra',
-                                'updated_at'
+                                'updated_at',
+                                'weight'
                             ]
                         );
                     }

@@ -561,7 +561,9 @@ class StagingProductController extends Controller
             $sheet = $spreadsheet->getActiveSheet();
             $ekspedisiData = $sheet->toArray(null, true, true, true);
 
-            $headersFromFile = $ekspedisiData[1]; // baris pertama (index 1) adalah header
+            $headersFromFile = array_filter(array_map(function ($header) {
+                return $header !== null ? trim($header) : null;
+            }, $ekspedisiData[1]));
 
             // Header yang diharapkan untuk format baru
             $expectedHeaders = [
@@ -575,9 +577,10 @@ class StagingProductController extends Controller
                 'Price After Discount',
             ];
 
-            // Periksa apakah header sesuai
-            if (array_diff($expectedHeaders, $headersFromFile) || array_diff($headersFromFile, $expectedHeaders)) {
-                $response = new ResponseResource(false, "header tidak sesuai, berikut header yang benar : ", $expectedHeaders);
+            $missingHeaders = array_diff($expectedHeaders, $headersFromFile);
+
+            if (!empty($missingHeaders)) {
+                $response = new ResponseResource(false, "Header tidak sesuai, berikut header yang benar : ", $expectedHeaders);
                 return $response->response()->setStatusCode(422);
             }
 
@@ -594,6 +597,7 @@ class StagingProductController extends Controller
                 'old_price_product' => 'Unit Price',
                 'new_date_in_product' => 'Date',
                 'display_price' => 'Price After Discount',
+                'weight' => 'Weight',
             ];
 
             $initBarcode = collect($ekspedisiData)->pluck('A');
@@ -638,6 +642,8 @@ class StagingProductController extends Controller
                             } elseif (in_array($key, ['old_price_product', 'display_price', 'new_price_product'])) {
                                 $cleanedValue = str_replace(',', '', $value);
                                 $newProductDataToInsert[$key] = (float) $cleanedValue;
+                            } elseif ($key === 'weight') {
+                                $newProductDataToInsert[$key] = $value !== '' ? (float)str_replace(',', '', $value) : null;
                             } else {
                                 $newProductDataToInsert[$key] = $value;
                             }
@@ -885,6 +891,7 @@ class StagingProductController extends Controller
                     $query->whereRaw("JSON_UNQUOTE(JSON_EXTRACT(new_quality, '$.lolos')) = 'lolos'")
                         ->orWhereRaw("JSON_UNQUOTE(JSON_EXTRACT(JSON_UNQUOTE(new_quality), '$.lolos')) = 'lolos'");
                 })
+                ->where('is_pending', false)
                 ->whereNull('new_tag_product')
                 ->whereNull('stage')
                 ->whereNotNull('new_category_product')
@@ -896,7 +903,7 @@ class StagingProductController extends Controller
                     DB::raw("NULL as old_barcode_product"),
                     'barcode_bundle as new_barcode_product',
                     'name_bundle as new_name_product',
-                    DB::raw("1 as new_quantity_product"), 
+                    DB::raw("1 as new_quantity_product"),
                     'total_price_custom_bundle as new_price_product',
                     'total_price_bundle as old_price_product',
                     'created_at as new_date_in_product',
@@ -1331,6 +1338,7 @@ class StagingProductController extends Controller
             )
             ->whereNotIn('new_status_product', ['dump', 'expired', 'sale', 'migrate', 'repair'])
             ->whereNull('new_tag_product')
+            ->where('is_pending', false)
             ->whereNotNull('new_category_product') // diperbarui dari lokal
             ->whereNot('new_category_product', '') // diperbarui dari lokal
             ->whereNull('stage');

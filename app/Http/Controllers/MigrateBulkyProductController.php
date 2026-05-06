@@ -218,6 +218,7 @@ class MigrateBulkyProductController extends Controller
             $productData['code_document'] = $migrateBulky->code_document;
             $productData['new_discount'] = $product->new_discount ?? 0;
             $productData['display_price'] = $product->display_price ?? $product->new_price_product;
+            $productData['weight'] = $product->weight ?? null;
             // $productData['is_so'] = "done";
             // $productData['user_so'] = $user->id;
 
@@ -289,6 +290,7 @@ class MigrateBulkyProductController extends Controller
                     })
                     ->whereNotNull('new_category_product')
                     ->where('new_tag_product', NULL)
+                    ->where('is_pending', false)
                     ->where(function ($query) {
                         $query->whereRaw("JSON_UNQUOTE(JSON_EXTRACT(new_quality, '$.lolos')) = 'lolos'")
                             ->orWhereRaw("JSON_UNQUOTE(JSON_EXTRACT(JSON_UNQUOTE(new_quality), '$.lolos')) = 'lolos'");
@@ -353,6 +355,7 @@ class MigrateBulkyProductController extends Controller
             $inputData['new_status_product'] = 'display';
             $inputData['new_quality'] = json_encode(['lolos' => 'lolos']);
             $inputData['user_id'] = $user->id;
+            $inputData['weight'] = $migrateProduct->weight ?? null;
             // $inputData['is_so'] = "done";
             // $inputData['user_so'] = $user->id;
             $inputData['is_extra'] = $request->boolean('is_extra');

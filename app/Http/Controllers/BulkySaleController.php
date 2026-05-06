@@ -585,6 +585,7 @@ class BulkySaleController extends Controller
             $colorQuery = New_product::whereNotIn('new_barcode_product', $productSaleBarcodes)
                 ->whereJsonContains('new_quality', ['lolos' => 'lolos'])
                 ->whereIn('new_status_product', ['display', 'expired', 'slow_moving'])
+                ->where('is_pending', false)
                 ->where('new_tag_product', $activeBagValue)
                 ->select(
                     'new_barcode_product as barcode',
@@ -628,11 +629,13 @@ class BulkySaleController extends Controller
         $newProductsQuery = New_product::whereNotIn('new_barcode_product', $productSaleBarcodes)
             ->whereJsonContains('new_quality', ['lolos' => 'lolos'])
             ->whereIn('new_status_product', ['display', 'expired', 'slow_moving'])
+            ->where('is_pending', false)
             ->select('new_barcode_product as barcode', 'new_name_product as name', 'new_category_product as category', 'created_at as created_date');
 
         $stagingProductsQuery = StagingProduct::whereNotIn('new_barcode_product', $productSaleBarcodes)
             ->whereJsonContains('new_quality', ['lolos' => 'lolos'])
             ->whereIn('new_status_product', ['display', 'expired', 'slow_moving'])
+            ->where('is_pending', false)
             ->select('new_barcode_product as barcode', 'new_name_product as name', 'new_category_product as category', 'created_at as created_date');
 
         $bundleQuery = Bundle::whereNot('type', 'type2')

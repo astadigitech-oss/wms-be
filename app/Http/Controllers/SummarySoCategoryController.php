@@ -169,6 +169,7 @@ class SummarySoCategoryController extends Controller
         $newProductsQuery = New_product::whereNull('is_so')
             ->where('new_status_product', '!=', 'sale')
             ->whereNull('new_tag_product')
+            ->where('is_pending', false)
             ->select(
                 'new_barcode_product as barcode',
                 'new_name_product as name',
@@ -186,6 +187,7 @@ class SummarySoCategoryController extends Controller
         $stagingProductsQuery = StagingProduct::whereNull('is_so')
             ->where('new_status_product', '!=', 'sale')
             ->whereNotNull('new_category_product')
+            ->where('is_pending', false)
             ->whereNull('new_tag_product')
             ->select(
                 'new_barcode_product as barcode',
