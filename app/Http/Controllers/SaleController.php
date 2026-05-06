@@ -170,9 +170,14 @@ class SaleController extends Controller
             $newProduct = New_product::where('new_barcode_product', $request->sale_barcode)->first();
             $staging = StagingProduct::where('new_barcode_product', $request->sale_barcode)->first();
             $bundle = Bundle::where('barcode_bundle', $request->sale_barcode)->first();
+
+            if ($staging) {
+                return (new ResponseResource(false, "Product staging gabisa di sale silahkan produknya di display terlebih dahulu", []))->response()->setStatusCode(422);
+            }
+            
             if (
                 $newProduct?->new_status_product === 'sale' ||
-                $staging?->new_status_product === 'sale' ||
+                // $staging?->new_status_product === 'sale' ||
                 $bundle?->product_status === 'sale'
             ) {
                 return (new ResponseResource(false, "Data sudah dimasukkan!", []))->response()->setStatusCode(422);
@@ -199,27 +204,28 @@ class SaleController extends Controller
                         'expected_price' => $expectedPriceCeil
                     ]))->response()->setStatusCode(422);
                 }
-            } else if ($staging) {
-                // Check apakah category ada
-                $category = \App\Models\Category::where('name_category', $staging->new_category_product)->first();
-                if (!$category) {
-                    return (new ResponseResource(false, "Category '{$staging->new_category_product}' tidak ditemukan, silakan cek halaman category!", $staging->new_barcode_product))->response()->setStatusCode(422);
-                }
+            } 
+            // else if ($staging) {
+            //     // Check apakah category ada
+            //     $category = \App\Models\Category::where('name_category', $staging->new_category_product)->first();
+            //     if (!$category) {
+            //         return (new ResponseResource(false, "Category '{$staging->new_category_product}' tidak ditemukan, silakan cek halaman category!", $staging->new_barcode_product))->response()->setStatusCode(422);
+            //     }
 
-                // Kalkulasi harga yang seharusnya berdasarkan discount category
-                $expectedPrice = $staging->old_price_product * (1 - ($category->discount_category / 100));
-                $expectedPriceCeil = ceil(round($expectedPrice, 2));
-                $actualPrice = ceil($staging->new_price_product);
+            //     // Kalkulasi harga yang seharusnya berdasarkan discount category
+            //     $expectedPrice = $staging->old_price_product * (1 - ($category->discount_category / 100));
+            //     $expectedPriceCeil = ceil(round($expectedPrice, 2));
+            //     $actualPrice = ceil($staging->new_price_product);
 
-                // Check apakah new_price_product sesuai dengan kalkulasi (gunakan ceiling untuk toleransi pembulatan)
-                if ($actualPrice != $expectedPriceCeil) {
-                    return (new ResponseResource(false, "Harga tidak sesuai", [
-                        'barcode' => $staging->new_barcode_product,
-                        'price_now' => $staging->new_price_product,
-                        'expected_price' => $expectedPriceCeil
-                    ]))->response()->setStatusCode(422);
-                }
-            }
+            //     // Check apakah new_price_product sesuai dengan kalkulasi (gunakan ceiling untuk toleransi pembulatan)
+            //     if ($actualPrice != $expectedPriceCeil) {
+            //         return (new ResponseResource(false, "Harga tidak sesuai", [
+            //             'barcode' => $staging->new_barcode_product,
+            //             'price_now' => $staging->new_price_product,
+            //             'expected_price' => $expectedPriceCeil
+            //         ]))->response()->setStatusCode(422);
+            //     }
+            // }
 
             if ($newProduct) {
                 $data = [
@@ -245,30 +251,32 @@ class SaleController extends Controller
                     'date_out' => now(),
                     'type_out' => 'sale'
                 ]);
-            } else if ($staging) {
-                $data = [
-                    $staging->new_name_product,
-                    $staging->new_category_product,
-                    $staging->new_barcode_product,
-                    $staging->display_price,
-                    $staging->new_price_product,
-                    $staging->new_discount,
-                    $staging->old_price_product,
-                    $staging->code_document,
-                    $staging->type,
-                    $staging->old_barcode_product,
-                    $staging->new_status_product,
-                    $staging->is_so,
-                    $staging->actual_new_quality ?? $staging->new_quality,
-                    $staging->actual_old_price_product ?? $staging->old_price_product,
-                    $staging->created_at
-                ];
-                $staging->update([
-                    'new_status_product' => 'sale',
-                    'date_out' => now(),
-                    'type_out' => 'sale'
-                ]);
-            } elseif ($bundle) {
+            } 
+            // else if ($staging) {
+            //     $data = [
+            //         $staging->new_name_product,
+            //         $staging->new_category_product,
+            //         $staging->new_barcode_product,
+            //         $staging->display_price,
+            //         $staging->new_price_product,
+            //         $staging->new_discount,
+            //         $staging->old_price_product,
+            //         $staging->code_document,
+            //         $staging->type,
+            //         $staging->old_barcode_product,
+            //         $staging->new_status_product,
+            //         $staging->is_so,
+            //         $staging->actual_new_quality ?? $staging->new_quality,
+            //         $staging->actual_old_price_product ?? $staging->old_price_product,
+            //         $staging->created_at
+            //     ];
+            //     $staging->update([
+            //         'new_status_product' => 'sale',
+            //         'date_out' => now(),
+            //         'type_out' => 'sale'
+            //     ]);
+            // } 
+            elseif ($bundle) {
                 $data = [
                     $bundle->name_bundle,
                     $bundle->category,
@@ -515,13 +523,13 @@ class SaleController extends Controller
             ->where('new_status_product', '!=', 'sale')
             ->select('new_barcode_product as barcode', 'new_name_product as name', 'new_category_product as category', 'created_at as created_date');
 
-        $stagingProductsQuery = StagingProduct::whereNotIn('new_barcode_product', $productSaleBarcodes)
-            ->whereJsonContains('new_quality', ['lolos' => 'lolos'])
-            ->whereNotNull('new_category_product')
-            ->where('is_pending', false)
-            ->where('new_status_product', '!=', 'sale')
-            ->whereNull('new_tag_product')
-            ->select('new_barcode_product as barcode', 'new_name_product as name', 'new_category_product as category', 'created_at as created_date');
+        // $stagingProductsQuery = StagingProduct::whereNotIn('new_barcode_product', $productSaleBarcodes)
+        //     ->whereJsonContains('new_quality', ['lolos' => 'lolos'])
+        //     ->whereNotNull('new_category_product')
+        //     ->where('is_pending', false)
+        //     ->where('new_status_product', '!=', 'sale')
+        //     ->whereNull('new_tag_product')
+        //     ->select('new_barcode_product as barcode', 'new_name_product as name', 'new_category_product as category', 'created_at as created_date');
 
         if ($searchQuery) {
 
@@ -531,12 +539,12 @@ class SaleController extends Controller
                     ->orWhere('new_category_product', 'like', '%' . $searchQuery . '%');
             });
 
-            $stagingProductsQuery->where(function ($query) use ($searchQuery) {
-                $query->where('new_name_product', 'LIKE', '%' . $searchQuery . '%')
-                    ->orWhere('new_barcode_product', 'LIKE', '%' . $searchQuery . '%')
-                    ->orWhere('old_barcode_product', 'LIKE', '%' . $searchQuery . '%')
-                    ->orWhere('new_category_product', 'LIKE', '%' . $searchQuery . '%');
-            });
+            // $stagingProductsQuery->where(function ($query) use ($searchQuery) {
+            //     $query->where('new_name_product', 'LIKE', '%' . $searchQuery . '%')
+            //         ->orWhere('new_barcode_product', 'LIKE', '%' . $searchQuery . '%')
+            //         ->orWhere('old_barcode_product', 'LIKE', '%' . $searchQuery . '%')
+            //         ->orWhere('new_category_product', 'LIKE', '%' . $searchQuery . '%');
+            // });
         }
 
         $bundleQuery = Bundle::whereNot('type', 'type2')->select('barcode_bundle as barcode', 'name_bundle as name', 'category', 'created_at as created_date');
@@ -551,7 +559,9 @@ class SaleController extends Controller
 
 
 
-        $products = $newProductsQuery->union($stagingProductsQuery)->union($bundleQuery)
+        $products = $newProductsQuery
+            // ->union($stagingProductsQuery)
+            ->union($bundleQuery)
             ->orderBy('created_date', 'desc')
             ->paginate(15);
 
