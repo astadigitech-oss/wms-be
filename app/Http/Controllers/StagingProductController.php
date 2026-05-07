@@ -942,7 +942,9 @@ class StagingProductController extends Controller
             $unionQuery = $newProductsQuery->unionAll($bundleQuery);
             $results = $unionQuery->get();
 
-            $fileName = 'product-staging.xlsx';
+            $timestamp = now()->format('Y-m-d_H-i-s');
+            $fileName = 'product-staging_' . $timestamp . '.xlsx';
+
             $publicPath = 'exports';
             $filePath = storage_path('app/public/' . $publicPath . '/' . $fileName);
 
@@ -952,7 +954,7 @@ class StagingProductController extends Controller
 
             Excel::store(new ProductsExportCategory($results), $publicPath . '/' . $fileName, 'public');
 
-            $downloadUrl = asset('storage/' . $publicPath . '/' . $fileName);
+            $downloadUrl = asset('storage/' . $publicPath . '/' . $fileName) . '?t=' . time();
 
             return new ResponseResource(true, "File berhasil diunduh", $downloadUrl);
         } catch (\Exception $e) {
