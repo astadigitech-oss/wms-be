@@ -26,9 +26,9 @@ class BundlingSkuExport implements FromCollection, WithHeadings, WithMapping, Sh
     public function headings(): array
     {
         return [
-            'Barcode Bundle (Old / New)',
+            'Old Barcode Bundle',
+            'New Barcode Bundle',
             'Nama Produk Bundle',
-            'List Product Bundle',
             'Qty',
             'Category/Tag Color',
             'Original Price/Old Price',
@@ -39,17 +39,17 @@ class BundlingSkuExport implements FromCollection, WithHeadings, WithMapping, Sh
 
     public function map($row): array
     {
-        $barcode = ($row->old_barcode_product ?? '-') . ' / ' . ($row->new_barcode_product ?? '-');
+        $oldBarcode = $row->old_barcode_product ?? '-';
+        $newBarcode = $row->new_barcode_product ?? '-';
         $nameBundle = $row->new_name_product ?? '-';
-        $originalName = trim(str_ireplace('Bundling', '', $nameBundle));
-        $listQty = "Ada " . ($row->new_quantity_product ?? 0) . " Product " . $originalName;
+        $listQty = $row->new_quantity_product ?? 0;
         $categoryOrTag = $row->new_category_product ?? $row->new_tag_product ?? '-';
 
         return [
-            $barcode,
+            $oldBarcode,
+            $newBarcode,
             $nameBundle,
             $listQty,
-            1,
             $categoryOrTag,
             $row->old_price_product,
             $row->new_price_product,
