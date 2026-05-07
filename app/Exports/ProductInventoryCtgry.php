@@ -41,12 +41,10 @@ class ProductInventoryCtgry implements FromCollection, WithHeadings, WithMapping
             'Created At',
             'New Discount',
             'Display Price',
-            'Days Since Created',
             'Weight',
         ];
     }
 
-    // Pembersih Karakter Unicode / Emoji yang rusak
     private function cleanString($string)
     {
         if (empty($string)) return '';
@@ -72,7 +70,6 @@ class ProductInventoryCtgry implements FromCollection, WithHeadings, WithMapping
             $this->cleanString($product->created_at),
             $product->new_discount,
             $product->display_price,
-            $product->days_since_created,
             $product->weight,
         ];
     }

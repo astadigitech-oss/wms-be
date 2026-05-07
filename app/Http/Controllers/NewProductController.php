@@ -2424,7 +2424,6 @@ class NewProductController extends Controller
                 'new_discount',
                 'display_price',
                 'weight',
-                DB::raw('DATEDIFF(CURRENT_DATE, created_at) as days_since_created')
             )
                 ->whereNotNull('new_category_product')
                 ->whereNull('new_tag_product')
@@ -2459,8 +2458,7 @@ class NewProductController extends Controller
                 'created_at',
                 DB::raw('NULL as new_discount'),
                 'total_price_custom_bundle as display_price',
-                DB::raw('DATEDIFF(CURRENT_DATE, created_at) as days_since_created'),
-                DB::raw("NULL as weight")
+                DB::raw("NULL as weight"),
             )
                 ->whereNotNull('category')
                 ->where('source', 'display')
@@ -2489,8 +2487,9 @@ class NewProductController extends Controller
                 });
             }
 
-            $unionQuery = $productQuery->unionAll($bundleQuery)->orderBy('created_at', 'desc');
-            $results = $unionQuery->get();
+            $unionQuery = $productQuery->unionAll($bundleQuery);
+
+            $results = $unionQuery->get()->sortByDesc('created_at')->values();
 
             $timestamp = now()->format('Y-m-d_H-i-s');
             $fileName = 'product-inventory_' . $timestamp . '.xlsx';
