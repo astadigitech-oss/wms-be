@@ -359,7 +359,6 @@ class MigrateBulkyProductController extends Controller
             $inputData['weight'] = $migrateProduct->weight ?? null;
             $inputData['code_document'] = $migrateProduct->code_document_inbound ?? null;
             $inputData['actual_old_price_product'] = $migrateProduct->old_price_product ?? null;
-            $inputData['actual_new_quality'] = $migrateProduct->new_quality ?? null;
             // $inputData['is_so'] = "done";
             // $inputData['user_so'] = $user->id;
             $inputData['is_extra'] = $request->boolean('is_extra');

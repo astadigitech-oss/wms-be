@@ -28,7 +28,8 @@ class BundleExport implements FromCollection, WithHeadings, WithMapping, ShouldA
     public function headings(): array
     {
         return [
-            'Barcode Bundle (Old / New)',
+            'Old Barcode Bundle',
+            'New Barcode Bundle',
             'Nama Bundle',
             'List Produk Bundle',
             'Qty',
@@ -41,15 +42,22 @@ class BundleExport implements FromCollection, WithHeadings, WithMapping, ShouldA
 
     public function map($bundle): array
     {
-        $barcode = ($bundle->old_barcode_bundle ?? '-') . ' / ' . ($bundle->barcode_bundle ?? '-');
+
+        $oldBarcodeBundle = $bundle->old_barcode_bundle ?? '-';
+        $newBarcodeBundle = $bundle->barcode_bundle ?? '-';
 
         $listProduk = '-';
         $user = '-';
 
         if ($bundle->product_bundles && $bundle->product_bundles->isNotEmpty()) {
-            
+
+
             $listProduk = $bundle->product_bundles->map(function ($item) {
-                return "- " . $item->new_name_product;
+                $oldItemBarcode = $item->old_barcode_product ?? '-';
+                $newItemBarcode = $item->new_barcode_product ?? '-';
+
+
+                return "- " . $item->new_name_product . " [Old: " . $oldItemBarcode . " | New: " . $newItemBarcode . "]";
             })->implode("\n");
 
             $firstItem = $bundle->product_bundles->first();
@@ -58,8 +66,10 @@ class BundleExport implements FromCollection, WithHeadings, WithMapping, ShouldA
 
         $category = $bundle->category ?? $bundle->name_color ?? '-';
 
+
         return [
-            $barcode,
+            $oldBarcodeBundle,
+            $newBarcodeBundle,
             $bundle->name_bundle ?? '-',
             $listProduk,
             $bundle->total_product_bundle ?? 0,
@@ -74,15 +84,17 @@ class BundleExport implements FromCollection, WithHeadings, WithMapping, ShouldA
     {
         return [
             1 => ['font' => ['bold' => true]],
-            
-            'C' => [
+
+
+            'D' => [
                 'alignment' => [
                     'wrapText' => true,
                     'vertical' => \PhpOffice\PhpSpreadsheet\Style\Alignment::VERTICAL_TOP
                 ]
             ],
-            
-            'A:H' => [
+
+
+            'A:I' => [
                 'alignment' => [
                     'vertical' => \PhpOffice\PhpSpreadsheet\Style\Alignment::VERTICAL_TOP
                 ]

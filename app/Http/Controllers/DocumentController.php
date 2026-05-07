@@ -235,19 +235,37 @@ class DocumentController extends Controller
 
         $inventoryLolosStats = New_product::where('code_document', $code_document)
             ->whereNot('new_status_product', 'sale')
-            ->where('actual_new_quality->lolos', '!=', null)
+            ->where(function ($query) {
+                $query->whereNotNull('actual_new_quality->lolos')
+                    ->orWhere(function ($q) {
+                        $q->whereNull('actual_new_quality')
+                            ->whereNotNull('new_quality->lolos');
+                    });
+            })
             ->selectRaw('COUNT(*) as lolos_count, SUM(COALESCE(actual_old_price_product, old_price_product)) as lolos_price')
             ->first();
 
         $inventoryDamagedStats = New_product::where('code_document', $code_document)
             ->whereNot('new_status_product', 'sale')
-            ->where('actual_new_quality->damaged', '!=', null)
+            ->where(function ($query) {
+                $query->whereNotNull('actual_new_quality->damaged')
+                    ->orWhere(function ($q) {
+                        $q->whereNull('actual_new_quality')
+                            ->whereNotNull('new_quality->damaged');
+                    });
+            })
             ->selectRaw('COUNT(*) as damaged_count, SUM(COALESCE(actual_old_price_product, old_price_product)) as damaged_price')
             ->first();
 
         $inventoryAbnormalStats = New_product::where('code_document', $code_document)
             ->whereNot('new_status_product', 'sale')
-            ->where('actual_new_quality->abnormal', '!=', null)
+            ->where(function ($query) {
+                $query->whereNotNull('actual_new_quality->abnormal')
+                    ->orWhere(function ($q) {
+                        $q->whereNull('actual_new_quality')
+                            ->whereNotNull('new_quality->abnormal');
+                    });
+            })
             ->selectRaw('COUNT(*) as abnormal_count, SUM(COALESCE(actual_old_price_product, old_price_product)) as abnormal_price')
             ->first();
 
@@ -256,10 +274,10 @@ class DocumentController extends Controller
             ->whereNot('new_status_product', 'sale')
             ->where(function ($query) {
                 $query->whereNotNull('actual_new_quality->non')
-                      ->orWhere(function ($q) {
-                          $q->whereNull('actual_new_quality')
+                    ->orWhere(function ($q) {
+                        $q->whereNull('actual_new_quality')
                             ->whereNotNull('new_quality->non');
-                      });
+                    });
             })
             ->selectRaw('COUNT(*) as non_count, SUM(COALESCE(actual_old_price_product, old_price_product)) as non_price')
             ->first();
@@ -271,19 +289,37 @@ class DocumentController extends Controller
 
         $stagingLolosStats = StagingProduct::where('code_document', $code_document)
             ->whereNot('new_status_product', 'sale')
-            ->where('actual_new_quality->lolos', '!=', null)
+            ->where(function ($query) {
+                $query->whereNotNull('actual_new_quality->lolos')
+                    ->orWhere(function ($q) {
+                        $q->whereNull('actual_new_quality')
+                            ->whereNotNull('new_quality->lolos');
+                    });
+            })
             ->selectRaw('COUNT(*) as lolos_count, SUM(COALESCE(actual_old_price_product, old_price_product)) as lolos_price')
             ->first();
 
         $stagingDamagedStats = StagingProduct::where('code_document', $code_document)
             ->whereNot('new_status_product', 'sale')
-            ->where('actual_new_quality->damaged', '!=', null)
+            ->where(function ($query) {
+                $query->whereNotNull('actual_new_quality->damaged')
+                    ->orWhere(function ($q) {
+                        $q->whereNull('actual_new_quality')
+                            ->whereNotNull('new_quality->damaged');
+                    });
+            })
             ->selectRaw('COUNT(*) as damaged_count, SUM(COALESCE(actual_old_price_product, old_price_product)) as damaged_price')
             ->first();
 
         $stagingAbnormalStats = StagingProduct::where('code_document', $code_document)
             ->whereNot('new_status_product', 'sale')
-            ->where('actual_new_quality->abnormal', '!=', null)
+            ->where(function ($query) {
+                $query->whereNotNull('actual_new_quality->abnormal')
+                    ->orWhere(function ($q) {
+                        $q->whereNull('actual_new_quality')
+                            ->whereNotNull('new_quality->abnormal');
+                    });
+            })
             ->selectRaw('COUNT(*) as abnormal_count, SUM(COALESCE(actual_old_price_product, old_price_product)) as abnormal_price')
             ->first();
 
@@ -291,10 +327,10 @@ class DocumentController extends Controller
             ->whereNot('new_status_product', 'sale')
             ->where(function ($query) {
                 $query->whereNotNull('actual_new_quality->non')
-                      ->orWhere(function ($q) {
-                          $q->whereNull('actual_new_quality')
+                    ->orWhere(function ($q) {
+                        $q->whereNull('actual_new_quality')
                             ->whereNotNull('new_quality->non');
-                      });
+                    });
             })
             ->selectRaw('COUNT(*) as non_count, SUM(COALESCE(actual_old_price_product, old_price_product)) as non_price')
             ->first();
@@ -306,19 +342,37 @@ class DocumentController extends Controller
 
         $productBundleLolosStats = Product_Bundle::where('code_document', $code_document)
             ->whereNot('new_status_product', 'sale')
-            ->where('actual_new_quality->lolos', '!=', null)
+            ->where(function ($query) {
+                $query->whereNotNull('actual_new_quality->lolos')
+                    ->orWhere(function ($q) {
+                        $q->whereNull('actual_new_quality')
+                            ->whereNotNull('new_quality->lolos');
+                    });
+            })
             ->selectRaw('COUNT(*) as lolos_count, SUM(COALESCE(actual_old_price_product, old_price_product)) as lolos_price')
             ->first();
 
         $productBundleDamagedStats = Product_Bundle::where('code_document', $code_document)
             ->whereNot('new_status_product', 'sale')
-            ->where('actual_new_quality->damaged', '!=', null)
+            ->where(function ($query) {
+                $query->whereNotNull('actual_new_quality->damaged')
+                    ->orWhere(function ($q) {
+                        $q->whereNull('actual_new_quality')
+                            ->whereNotNull('new_quality->damaged');
+                    });
+            })
             ->selectRaw('COUNT(*) as damaged_count, SUM(COALESCE(actual_old_price_product, old_price_product)) as damaged_price')
             ->first();
 
         $productBundleAbnormalStats = Product_Bundle::where('code_document', $code_document)
             ->whereNot('new_status_product', 'sale')
-            ->where('actual_new_quality->abnormal', '!=', null)
+            ->where(function ($query) {
+                $query->whereNotNull('actual_new_quality->abnormal')
+                    ->orWhere(function ($q) {
+                        $q->whereNull('actual_new_quality')
+                            ->whereNotNull('new_quality->abnormal');
+                    });
+            })
             ->selectRaw('COUNT(*) as abnormal_count, SUM(COALESCE(actual_old_price_product, old_price_product)) as abnormal_price')
             ->first();
 
@@ -326,10 +380,10 @@ class DocumentController extends Controller
             ->whereNot('new_status_product', 'sale')
             ->where(function ($query) {
                 $query->whereNotNull('actual_new_quality->non')
-                      ->orWhere(function ($q) {
-                          $q->whereNull('actual_new_quality')
+                    ->orWhere(function ($q) {
+                        $q->whereNull('actual_new_quality')
                             ->whereNotNull('new_quality->non');
-                      });
+                    });
             })
             ->selectRaw('COUNT(*) as non_count, SUM(COALESCE(actual_old_price_product, old_price_product)) as non_price')
             ->first();
@@ -341,19 +395,37 @@ class DocumentController extends Controller
 
         $productApproveLolosStats = ProductApprove::where('code_document', $code_document)
             ->whereNot('new_status_product', 'sale')
-            ->where('actual_new_quality->lolos', '!=', null)
+            ->where(function ($query) {
+                $query->whereNotNull('actual_new_quality->lolos')
+                    ->orWhere(function ($q) {
+                        $q->whereNull('actual_new_quality')
+                            ->whereNotNull('new_quality->lolos');
+                    });
+            })
             ->selectRaw('COUNT(*) as lolos_count, SUM(COALESCE(actual_old_price_product, old_price_product)) as lolos_price')
             ->first();
 
         $productApproveDamagedStats = ProductApprove::where('code_document', $code_document)
             ->whereNot('new_status_product', 'sale')
-            ->where('actual_new_quality->damaged', '!=', null)
+            ->where(function ($query) {
+                $query->whereNotNull('actual_new_quality->damaged')
+                    ->orWhere(function ($q) {
+                        $q->whereNull('actual_new_quality')
+                            ->whereNotNull('new_quality->damaged');
+                    });
+            })
             ->selectRaw('COUNT(*) as damaged_count, SUM(COALESCE(actual_old_price_product, old_price_product)) as damaged_price')
             ->first();
 
         $productApproveAbnormalStats = ProductApprove::where('code_document', $code_document)
             ->whereNot('new_status_product', 'sale')
-            ->where('actual_new_quality->abnormal', '!=', null)
+            ->where(function ($query) {
+                $query->whereNotNull('actual_new_quality->abnormal')
+                    ->orWhere(function ($q) {
+                        $q->whereNull('actual_new_quality')
+                            ->whereNotNull('new_quality->abnormal');
+                    });
+            })
             ->selectRaw('COUNT(*) as abnormal_count, SUM(COALESCE(actual_old_price_product, old_price_product)) as abnormal_price')
             ->first();
 
@@ -361,10 +433,10 @@ class DocumentController extends Controller
             ->whereNot('new_status_product', 'sale')
             ->where(function ($query) {
                 $query->whereNotNull('actual_new_quality->non')
-                      ->orWhere(function ($q) {
-                          $q->whereNull('actual_new_quality')
+                    ->orWhere(function ($q) {
+                        $q->whereNull('actual_new_quality')
                             ->whereNotNull('new_quality->non');
-                      });
+                    });
             })
             ->selectRaw('COUNT(*) as non_count, SUM(COALESCE(actual_old_price_product, old_price_product)) as non_price')
             ->first();
@@ -376,19 +448,37 @@ class DocumentController extends Controller
 
         $repairProductLolosStats = RepairProduct::where('code_document', $code_document)
             ->whereNot('new_status_product', 'sale')
-            ->where('actual_new_quality->lolos', '!=', null)
+            ->where(function ($query) {
+                $query->whereNotNull('actual_new_quality->lolos')
+                    ->orWhere(function ($q) {
+                        $q->whereNull('actual_new_quality')
+                            ->whereNotNull('new_quality->lolos');
+                    });
+            })
             ->selectRaw('COUNT(*) as lolos_count, SUM(COALESCE(actual_old_price_product, old_price_product)) as lolos_price')
             ->first();
 
         $repairProductDamagedStats = RepairProduct::where('code_document', $code_document)
             ->whereNot('new_status_product', 'sale')
-            ->where('actual_new_quality->damaged', '!=', null)
+            ->where(function ($query) {
+                $query->whereNotNull('actual_new_quality->damaged')
+                    ->orWhere(function ($q) {
+                        $q->whereNull('actual_new_quality')
+                            ->whereNotNull('new_quality->damaged');
+                    });
+            })
             ->selectRaw('COUNT(*) as damaged_count, SUM(COALESCE(actual_old_price_product, old_price_product)) as damaged_price')
             ->first();
 
         $repairProductAbnormalStats = RepairProduct::where('code_document', $code_document)
             ->whereNot('new_status_product', 'sale')
-            ->where('actual_new_quality->abnormal', '!=', null)
+            ->where(function ($query) {
+                $query->whereNotNull('actual_new_quality->abnormal')
+                    ->orWhere(function ($q) {
+                        $q->whereNull('actual_new_quality')
+                            ->whereNotNull('new_quality->abnormal');
+                    });
+            })
             ->selectRaw('COUNT(*) as abnormal_count, SUM(COALESCE(actual_old_price_product, old_price_product)) as abnormal_price')
             ->first();
 
@@ -396,10 +486,10 @@ class DocumentController extends Controller
             ->whereNot('new_status_product', 'sale')
             ->where(function ($query) {
                 $query->whereNotNull('actual_new_quality->non')
-                      ->orWhere(function ($q) {
-                          $q->whereNull('actual_new_quality')
+                    ->orWhere(function ($q) {
+                        $q->whereNull('actual_new_quality')
                             ->whereNotNull('new_quality->non');
-                      });
+                    });
             })
             ->selectRaw('COUNT(*) as non_count, SUM(COALESCE(actual_old_price_product, old_price_product)) as non_price')
             ->first();
