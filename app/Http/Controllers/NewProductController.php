@@ -2459,7 +2459,8 @@ class NewProductController extends Controller
                 'created_at',
                 DB::raw('NULL as new_discount'),
                 'total_price_custom_bundle as display_price',
-                DB::raw('DATEDIFF(CURRENT_DATE, created_at) as days_since_created')
+                DB::raw('DATEDIFF(CURRENT_DATE, created_at) as days_since_created'),
+                DB::raw("NULL as weight")
             )
                 ->whereNotNull('category')
                 ->where('source', 'display')

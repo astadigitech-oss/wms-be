@@ -910,7 +910,8 @@ class StagingProductController extends Controller
                     'created_at as new_date_in_product',
                     DB::raw("CASE WHEN product_status = 'not sale' THEN 'display' ELSE product_status END as new_status_product"),
                     DB::raw("NULL as new_quality"),
-                    'category as new_category_product'
+                    'category as new_category_product',
+                    DB::raw("NULL as weight")
                 )
                 ->whereNotNull('category')
                 ->where('source', 'staging')
