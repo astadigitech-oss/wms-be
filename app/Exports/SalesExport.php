@@ -45,10 +45,10 @@ class SalesExport implements FromCollection, WithHeadings, WithMapping
     public function map($sale): array
     {
         return [
-            $sale->code_document_sale,
-            $sale->product_name_sale,
-            $sale->product_category_sale,
-            $sale->product_barcode_sale,
+            $this->sanitizeString($sale->code_document_sale),
+            $this->sanitizeString($sale->product_name_sale),
+            $this->sanitizeString($sale->product_category_sale),
+            $this->sanitizeString($sale->product_barcode_sale),
             $sale->product_old_price_sale,
             $sale->product_price_sale,
             $sale->gabor_sale,
@@ -56,11 +56,20 @@ class SalesExport implements FromCollection, WithHeadings, WithMapping
             $sale->product_qty_sale,
             $sale->total_discount_sale,
             $sale->new_discount_sale,
-            $sale->type_discount,
+            $this->sanitizeString($sale->type_discount),
             $sale->display_price,
-            $sale->code_document,
-            $sale->old_barcode_product,
+            $this->sanitizeString($sale->code_document),
+            $this->sanitizeString($sale->old_barcode_product),
             $sale->actual_product_old_price_sale,
         ];
+    }
+
+    private function sanitizeString($value)
+    {
+        if (is_string($value)) {
+            return mb_convert_encoding($value, 'UTF-8', 'UTF-8');
+        }
+
+        return $value;
     }
 }

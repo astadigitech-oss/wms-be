@@ -2492,7 +2492,9 @@ class NewProductController extends Controller
             $unionQuery = $productQuery->unionAll($bundleQuery)->orderBy('created_at', 'desc');
             $results = $unionQuery->get();
 
-            $fileName = 'product-inventory.xlsx';
+            $timestamp = now()->format('Y-m-d_H-i-s');
+            $fileName = 'product-inventory_' . $timestamp . '.xlsx';
+
             $publicPath = 'exports';
             $filePath = storage_path('app/public/' . $publicPath . '/' . $fileName);
 
@@ -2502,7 +2504,7 @@ class NewProductController extends Controller
 
             Excel::store(new ProductInventoryCtgry($results), $publicPath . '/' . $fileName, 'public');
 
-            $downloadUrl = asset('storage/' . $publicPath . '/' . $fileName);
+            $downloadUrl = asset('storage/' . $publicPath . '/' . $fileName) . '?t=' . time();
 
             return new ResponseResource(true, "File berhasil diunduh", $downloadUrl);
         } catch (\Exception $e) {
