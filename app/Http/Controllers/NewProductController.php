@@ -2423,6 +2423,7 @@ class NewProductController extends Controller
                 'created_at',
                 'new_discount',
                 'display_price',
+                'weight',
                 DB::raw('DATEDIFF(CURRENT_DATE, created_at) as days_since_created')
             )
                 ->whereNotNull('new_category_product')

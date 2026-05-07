@@ -884,7 +884,8 @@ class StagingProductController extends Controller
                     'new_date_in_product',
                     'new_status_product',
                     'new_quality',
-                    'new_category_product'
+                    'new_category_product',
+                    'weight'
                 )
                 ->whereNotIn('new_status_product', ['dump', 'sale', 'migrate', 'repair', 'scrap_qcd'])
                 ->where(function ($query) {

@@ -837,6 +837,7 @@ Route::get('setCache', [StagingApproveController::class, 'cacheProductBarcodes']
 Route::get('selectionDataRedis', [StagingApproveController::class, 'dataSelectionRedis']);
 Route::get('getCategoryNull', [SaleController::class, 'getCategoryNull']);
 Route::get('exportSale', [SaleController::class, 'exportSale']);
+Route::get('sales/product-export', [SaleController::class, 'exportSaleProducts']);
 Route::get('invoiceSale/{id}', [SaleDocumentController::class, 'invoiceSale']);
 Route::get('export-sale-month', [SaleController::class, 'exportSaleMonth']);
 Route::get('export-category-color-null', [NewProductController::class, 'exportCategoryColorNull']);
