@@ -884,7 +884,8 @@ class StagingProductController extends Controller
                     'new_date_in_product',
                     'new_status_product',
                     'new_quality',
-                    'new_category_product'
+                    'new_category_product',
+                    'weight'
                 )
                 ->whereNotIn('new_status_product', ['dump', 'sale', 'migrate', 'repair', 'scrap_qcd'])
                 ->where(function ($query) {
@@ -909,7 +910,8 @@ class StagingProductController extends Controller
                     'created_at as new_date_in_product',
                     DB::raw("CASE WHEN product_status = 'not sale' THEN 'display' ELSE product_status END as new_status_product"),
                     DB::raw("NULL as new_quality"),
-                    'category as new_category_product'
+                    'category as new_category_product',
+                    DB::raw("NULL as weight")
                 )
                 ->whereNotNull('category')
                 ->where('source', 'staging')

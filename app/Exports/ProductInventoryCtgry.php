@@ -42,6 +42,7 @@ class ProductInventoryCtgry implements FromCollection, WithHeadings, WithMapping
             'New Discount',
             'Display Price',
             'Days Since Created',
+            'Weight',
         ];
     }
 
@@ -72,6 +73,7 @@ class ProductInventoryCtgry implements FromCollection, WithHeadings, WithMapping
             $product->new_discount,
             $product->display_price,
             $product->days_since_created,
+            $product->weight,
         ];
     }
 

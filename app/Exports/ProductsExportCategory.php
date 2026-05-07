@@ -38,6 +38,7 @@ class ProductsExportCategory implements FromCollection, WithHeadings, WithMappin
             'New Status Product',
             'New Quality',
             'New Category Product',
+            'Weight'
         ];
     }
 
@@ -63,6 +64,7 @@ class ProductsExportCategory implements FromCollection, WithHeadings, WithMappin
             $this->cleanString($row->new_status_product),
             $this->cleanString($row->new_quality),
             $this->cleanString($row->new_category_product),
+            $row->weight,
         ];
     }
 

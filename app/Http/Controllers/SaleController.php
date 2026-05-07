@@ -15,6 +15,7 @@ use App\Models\SaleDocument;
 use Illuminate\Http\Request;
 use App\Models\StagingProduct;
 use App\Exports\ProductSaleMonth;
+use App\Exports\SalesExport;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Maatwebsite\Excel\Facades\Excel;
@@ -172,7 +173,7 @@ class SaleController extends Controller
             $bundle = Bundle::where('barcode_bundle', $request->sale_barcode)->first();
 
             if ($staging) {
-                return (new ResponseResource(false, "Product staging gabisa di sale silahkan produknya di display terlebih dahulu", []))->response()->setStatusCode(422);
+                return (new ResponseResource(false, "Product staging tidak bisa di sale silahkan produknya di display terlebih dahulu", []))->response()->setStatusCode(422);
             }
             
             if (
@@ -699,6 +700,62 @@ class SaleController extends Controller
         $downloadUrl = url($publicPath . '/' . $fileName);
 
         return new ResponseResource(true, "unduh", $downloadUrl);
+    }
+
+    public function exportSaleProducts(Request $request)
+    {
+        set_time_limit(300);
+        ini_set('memory_limit', '512M');
+
+        try {
+            $startDate = $request->input('start_date');
+            $endDate = $request->input('end_date');
+
+            $query = Sale::query();
+
+            if ($startDate && $endDate) {
+                $query->whereDate('created_at', '>=', $startDate)
+                      ->whereDate('created_at', '<=', $endDate);
+            }
+
+            $sales = $query->latest()->get();
+
+            if ($sales->isEmpty()) {
+                return (new ResponseResource(false, "Tidak ada data penjualan untuk diexport", null))
+                    ->response()->setStatusCode(404);
+            }
+
+            if ($startDate && $endDate) {
+                $fileName = 'Export_Sales_' . $startDate . '_to_' . $endDate . '.xlsx';
+            } else {
+                $fileName = 'Export_All_Sales.xlsx';
+            }
+
+            // 7. Persiapkan folder dan path
+            $publicPath = 'exports/sales';
+            $filePath = $publicPath . '/' . $fileName;
+
+            if (!file_exists(public_path($publicPath))) {
+                mkdir(public_path($publicPath), 0777, true);
+            }
+
+            if (file_exists(public_path($filePath))) {
+                unlink(public_path($filePath));
+            }
+
+            Excel::store(new SalesExport($sales), $filePath, 'public_direct');
+
+            $downloadUrl = url($filePath) . '?t=' . time();
+
+            return new ResponseResource(true, "File Export Sales berhasil digenerate", [
+                'download_url' => $downloadUrl,
+                'file_name' => $fileName
+            ]);
+
+        } catch (\Exception $e) {
+            return (new ResponseResource(false, "Gagal export: " . $e->getMessage(), null))
+                ->response()->setStatusCode(500);
+        }
     }
 
     public function exportSale()
