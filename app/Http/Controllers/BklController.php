@@ -887,7 +887,11 @@ class BklController extends Controller
                 ->get();
 
             // Tambahan untuk mencari dari relasi produk bundle
-            $productBundles = Product_Bundle::where('new_barcode_product', $barcode)->get();
+            $productBundles = Product_Bundle::where(function ($q) use ($barcode) {
+                $q->where('old_barcode_product', $barcode)
+                    ->orWhere('new_barcode_product', $barcode);
+            })->get();
+
             if ($productBundles->isNotEmpty()) {
                 $bundleIds = $productBundles->pluck('bundle_id')->toArray();
                 $indirectBundles = Bundle::whereIn('id', $bundleIds)
@@ -929,7 +933,7 @@ class BklController extends Controller
                 }
             }
 
-            $potentialProducts = collect(); 
+            $potentialProducts = collect();
 
             if (!$bundle) {
                 $potentialProducts = New_product::where(function ($q) use ($barcode) {
@@ -985,7 +989,7 @@ class BklController extends Controller
                 // Cek ekstensi fallback (Barang tidak valid, beda status, atau sudah di-scan semua)
                 $anyBundle = Bundle::where('barcode_bundle', $barcode)->orWhere('old_barcode_bundle', $barcode)->first();
                 if (!$anyBundle) {
-                    $pbCheck = Product_Bundle::where('new_barcode_product', $barcode)->first();
+                    $pbCheck = Product_Bundle::where('new_barcode_product', $barcode)->orWhere('old_barcode_product', $barcode)->first();
                     if ($pbCheck) {
                         $anyBundle = Bundle::where('id', $pbCheck->bundle_id)->first();
                     }
