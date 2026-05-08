@@ -886,11 +886,18 @@ class BklController extends Controller
                 ->orderBy('created_at', 'asc')
                 ->get();
 
-            // Tambahan untuk mencari dari relasi produk bundle
-            $productBundles = Product_Bundle::where(function ($q) use ($barcode) {
-                $q->where('old_barcode_product', $barcode)
-                    ->orWhere('new_barcode_product', $barcode);
-            })->get();
+            $matchingNewBarcodes = \App\Models\New_product::where('old_barcode_product', $barcode)
+                ->orWhere('new_barcode_product', $barcode)
+                ->pluck('new_barcode_product')
+                ->toArray();
+
+            // Masukkan juga inputan asli sebagai jaga-jaga
+            if (!in_array($barcode, $matchingNewBarcodes)) {
+                $matchingNewBarcodes[] = $barcode;
+            }
+
+            // 2. Cari dari relasi isi bundle menggunakan daftar new_barcode
+            $productBundles = Product_Bundle::whereIn('new_barcode_product', $matchingNewBarcodes)->get();
 
             if ($productBundles->isNotEmpty()) {
                 $bundleIds = $productBundles->pluck('bundle_id')->toArray();
@@ -905,6 +912,7 @@ class BklController extends Controller
                     ->orderBy('created_at', 'asc')
                     ->get();
 
+                // Gabungkan dan hilangkan duplikat bundle
                 $potentialBundles = $potentialBundles->merge($indirectBundles)->unique('id');
             }
 
@@ -936,7 +944,7 @@ class BklController extends Controller
             $potentialProducts = collect();
 
             if (!$bundle) {
-                $potentialProducts = New_product::where(function ($q) use ($barcode) {
+                $potentialProducts = \App\Models\New_product::where(function ($q) use ($barcode) {
                     $q->where('old_barcode_product', $barcode)
                         ->orWhere('new_barcode_product', $barcode);
                 })
@@ -986,16 +994,16 @@ class BklController extends Controller
                     return (new ResponseResource(false, "Barang ditemukan, namun tidak ada satupun yang ditujukan untuk Toko {$tokoDokumen}. Silakan periksa kembali.", null))->response()->setStatusCode(422);
                 }
 
-                // Cek ekstensi fallback (Barang tidak valid, beda status, atau sudah di-scan semua)
+                // Cek ekstensi fallback
                 $anyBundle = Bundle::where('barcode_bundle', $barcode)->orWhere('old_barcode_bundle', $barcode)->first();
                 if (!$anyBundle) {
-                    $pbCheck = Product_Bundle::where('new_barcode_product', $barcode)->orWhere('old_barcode_product', $barcode)->first();
+                    $pbCheck = Product_Bundle::whereIn('new_barcode_product', $matchingNewBarcodes)->first();
                     if ($pbCheck) {
                         $anyBundle = Bundle::where('id', $pbCheck->bundle_id)->first();
                     }
                 }
 
-                $anyProduct = New_product::where('old_barcode_product', $barcode)->orWhere('new_barcode_product', $barcode)->first();
+                $anyProduct = \App\Models\New_product::where('old_barcode_product', $barcode)->orWhere('new_barcode_product', $barcode)->first();
                 $foundItem = $anyBundle ?? $anyProduct;
 
                 if (!$foundItem) {
