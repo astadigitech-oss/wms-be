@@ -205,7 +205,7 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Audit'])->group(functio
 });
 
 // [WRITE / POST / ACTION - TANPA Audit]
-Route::middleware(['auth:sanctum', 'check.role:Admin,Spv'])->group(function () {
+Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader'])->group(function () {
     Route::post('/excelOld', [StagingProductController::class, 'processExcelFilesCategoryStaging']);
     Route::post('/bulkingInventory', [NewProductController::class, 'processExcelFilesCategory']);
     Route::post('/bulking_tag_warna', [NewProductController::class, 'processExcelFilesTagColor']);

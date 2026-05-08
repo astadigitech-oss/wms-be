@@ -1363,11 +1363,6 @@ class NewProductController extends Controller
 
                 if (isset($category->discount_category) && $category->discount_category > 0) {
                     $discountAmount = ($category->discount_category / 100) * $inputData['old_price_product'];
-                    // if (isset($category->max_price_category) && $category->max_price_category > 0) {
-                    //     if ($discountAmount > $category->max_price_category) {
-                    //         $discountAmount = $category->max_price_category;
-                    //     }
-                    // }
                     $calculatedPrice = $inputData['old_price_product'] - $discountAmount;
                     $calculatedPriceFinal = round($calculatedPrice);
                     $inputPrice = $inputData['new_price_product'];
@@ -1383,11 +1378,14 @@ class NewProductController extends Controller
 
             $quality['lolos'] = 'lolos';
             $inputData['new_quality'] = json_encode($quality);
-            // $inputData['actual_old_price_product'] = $product->actual_old_price_product ?? $product->old_price_product;
-            // $inputData['actual_new_quality'] =  json_encode($quality);
             $inputData['user_id'] = $user_id;
             $inputData['display_price'] = $inputData['new_price_product'];
             $inputData['is_extra'] = $request->boolean('is_extra');
+
+            $inputData['code_document'] = $product->code_document;
+            $inputData['actual_new_quality'] = $product->actual_new_quality;
+            $inputData['actual_old_price_product'] = $product->actual_old_price_product;
+            $inputData['weight'] = $product->weight;
 
             if ($inputData['old_price_product'] < 100000) {
 
@@ -1405,14 +1403,19 @@ class NewProductController extends Controller
                 }
             }
 
-            $product->update($inputData);
+            if ($source === 'staging') {
+                $product->update($inputData);
+            } else {
+                StagingProduct::create($inputData);
 
-            return new ResponseResource(true, "Berhasil di repair", $inputData);
+                $product->delete();
+            }
+
+            return new ResponseResource(true, "Berhasil di repair dan masuk ke staging", $inputData);
         } catch (\Exception $e) {
             return new ResponseResource(false, "Terjadi kesalahan: " . $e->getMessage(), null);
         }
     }
-
 
     public function MultipleUpdateRepair(Request $request)
     {
