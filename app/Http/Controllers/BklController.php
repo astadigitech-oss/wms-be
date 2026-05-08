@@ -13,6 +13,7 @@ use App\Models\Destination;
 use App\Models\Migrate;
 use App\Models\MigrateDocument;
 use App\Models\New_product;
+use App\Models\Product_Bundle;
 use App\Services\Olsera\OlseraService;
 use App\Services\Pos\PosService;
 use Illuminate\Http\Exceptions\HttpResponseException;
@@ -866,7 +867,13 @@ class BklController extends Controller
                 return (new ResponseResource(false, "Dokumen ini sudah selesai (done), tidak bisa menambah produk lagi.", null))->response()->setStatusCode(422);
             }
 
-            $bundle = Bundle::where(function ($q) use ($barcode) {
+            $bundle = null;
+            $product = null;
+            $tracedDestinationId = null;
+            $type = null;
+
+            // Cari Bundle dari Barcode Utama Bundle-nya
+            $potentialBundles = Bundle::where(function ($q) use ($barcode) {
                 $q->where('barcode_bundle', $barcode)
                     ->orWhere('old_barcode_bundle', $barcode);
             })
@@ -877,12 +884,64 @@ class BklController extends Controller
                         ->whereNotNull('bundle_id');
                 })
                 ->where('product_status', 'migrate')
-                ->first();
+                ->orderBy('created_at', 'asc')
+                ->get();
 
-            $product = null;
+            // Cari Bundle dari Barcode (New/Old) milik produk di dalamnya
+            $productBundles = Product_Bundle::where(function ($q) use ($barcode) {
+                $q->where('old_barcode_product', $barcode)
+                    ->orWhere('new_barcode_product', $barcode);
+            })->get();
+
+            if ($productBundles->isNotEmpty()) {
+                // Ambil semua bundle_id dari produk-produk yang cocok
+                $bundleIds = $productBundles->pluck('bundle_id')->unique()->toArray();
+
+                // Cari bundle induknya dengan syarat status migrate & belum discan
+                $indirectBundles = Bundle::whereIn('id', $bundleIds)
+                    ->whereNotIn('id', function ($q) use ($bklDocument) {
+                        $q->select('bundle_id')
+                            ->from('bkl_scanned_products')
+                            ->where('bkl_document_id', $bklDocument->id)
+                            ->whereNotNull('bundle_id');
+                    })
+                    ->where('product_status', 'migrate')
+                    ->orderBy('created_at', 'asc')
+                    ->get();
+
+                // Gabungkan dengan pencarian utama dan hilangkan duplikat
+                $potentialBundles = $potentialBundles->merge($indirectBundles)->unique('id');
+            }
+
+            // Cari bundle yang 'destination_id'-nya cocok dengan dokumen BKL ini
+            if ($potentialBundles->isNotEmpty()) {
+                $type = 'bundle';
+
+                foreach ($potentialBundles as $b) {
+                    $destId = $this->traceProductDestination($b->id, 'bundle');
+
+                    // Jika dokumen sudah punya tujuan, cocokan tujuannya!
+                    if ($bklDocument->destination_id) {
+                        if ($destId == $bklDocument->destination_id) {
+                            $bundle = $b;
+                            $tracedDestinationId = $destId;
+                            break; // Ditemukan yang cocok, hentikan pencarian
+                        }
+                    } else {
+                        // Jika dokumen belum punya tujuan, ambil yang pertama kali memiliki tujuan valid
+                        if ($destId) {
+                            $bundle = $b;
+                            $tracedDestinationId = $destId;
+                            break;
+                        }
+                    }
+                }
+            }
+
+            $potentialProducts = collect();
 
             if (!$bundle) {
-                $product = New_product::where(function ($q) use ($barcode) {
+                $potentialProducts = New_product::where(function ($q) use ($barcode) {
                     $q->where('old_barcode_product', $barcode)
                         ->orWhere('new_barcode_product', $barcode);
                 })
@@ -899,13 +958,50 @@ class BklController extends Controller
                         $query->whereRaw("JSON_UNQUOTE(JSON_EXTRACT(new_quality, '$.lolos')) = 'lolos'")
                             ->orWhereRaw("JSON_UNQUOTE(JSON_EXTRACT(JSON_UNQUOTE(new_quality), '$.lolos')) = 'lolos'");
                     })
-                    ->first();
+                    ->orderBy('created_at', 'asc')
+                    ->get();
+
+                if ($potentialProducts->isNotEmpty()) {
+                    $type = 'product';
+
+                    foreach ($potentialProducts as $p) {
+                        $destId = $this->traceProductDestination($p->id, 'product');
+
+                        if ($bklDocument->destination_id) {
+                            if ($destId == $bklDocument->destination_id) {
+                                $product = $p;
+                                $tracedDestinationId = $destId;
+                                break;
+                            }
+                        } else {
+                            if ($destId) {
+                                $product = $p;
+                                $tracedDestinationId = $destId;
+                                break;
+                            }
+                        }
+                    }
+                }
             }
 
             if (!$bundle && !$product) {
-                $anyBundle = Bundle::where('barcode_bundle', $barcode)->orWhere('old_barcode_bundle', $barcode)->first();
-                $anyProduct = New_product::where('old_barcode_product', $barcode)->orWhere('new_barcode_product', $barcode)->first();
+                // Jika sistem menemukan produk/bundle, tapi tidak ada satupun yang tujuannya ke toko ini
+                if (($potentialBundles ?? collect())->isNotEmpty() || ($potentialProducts ?? collect())->isNotEmpty()) {
+                    $tokoDokumen = $bklDocument->destination->shop_name ?? 'Unknown';
+                    return (new ResponseResource(false, "Barang ditemukan, namun tidak ada satupun yang ditujukan untuk Toko {$tokoDokumen}. Silakan periksa kembali.", null))->response()->setStatusCode(422);
+                }
 
+                // Cek ekstensi fallback (Barang tidak valid, beda status, atau sudah di-scan semua)
+                $anyBundle = Bundle::where('barcode_bundle', $barcode)->orWhere('old_barcode_bundle', $barcode)->first();
+                if (!$anyBundle) {
+                    // Fallback juga bisa mengecek old barcode relasi bundle
+                    $pbCheck = Product_Bundle::where('new_barcode_product', $barcode)->orWhere('old_barcode_product', $barcode)->first();
+                    if ($pbCheck) {
+                        $anyBundle = Bundle::where('id', $pbCheck->bundle_id)->first();
+                    }
+                }
+
+                $anyProduct = New_product::where('old_barcode_product', $barcode)->orWhere('new_barcode_product', $barcode)->first();
                 $foundItem = $anyBundle ?? $anyProduct;
 
                 if (!$foundItem) {
@@ -913,35 +1009,23 @@ class BklController extends Controller
                 }
 
                 $statusItem = $anyBundle ? $anyBundle->product_status : $anyProduct->new_status_product;
-
                 if ($statusItem !== 'migrate') {
-                    return (new ResponseResource(false, "Gagal! Semua produk di toko dengan barcode '{$barcode}', berhasil di scan.", null))->response()->setStatusCode(422);
+                    return (new ResponseResource(false, "Gagal! Semua produk dengan barcode '{$barcode}' telah berhasil di-scan atau statusnya bukan migrate.", null))->response()->setStatusCode(422);
                 }
 
                 return (new ResponseResource(false, "Item ini sudah masuk daftar scan pada dokumen ini.", null))->response()->setStatusCode(409);
             }
 
-            $type = $bundle ? 'bundle' : 'product';
-            $itemId = $bundle ? $bundle->id : $product->id;
+            // Tetap simpan unique id/barcode spesifik dari parent barang yang terpilih
             $uniqueBarcodeToSave = $bundle ? $bundle->barcode_bundle : $product->new_barcode_product;
-
-            // Lacak tujuan produk
-            $tracedDestinationId = $this->traceProductDestination($itemId, $type);
 
             if (!$tracedDestinationId) {
                 return (new ResponseResource(false, "Gagal melacak tujuan migrasi produk ini.", null))->response()->setStatusCode(422);
             }
 
-            // Validasi Dokumen Destination
+            // Jika dokumen belum punya tujuan, set tujuannya berdasarkan barang pintar yang terpilih di atas
             if (is_null($bklDocument->destination_id)) {
                 $bklDocument->update(['destination_id' => $tracedDestinationId]);
-            } else {
-                if ($bklDocument->destination_id != $tracedDestinationId) {
-                    $tokoAsli = Destination::find($tracedDestinationId)->shop_name ?? 'Unknown';
-                    $tokoDokumen = $bklDocument->destination->shop_name ?? 'Unknown';
-
-                    return (new ResponseResource(false, "Toko tidak cocok! Produk dari '{$tokoAsli}', dokumen ini untuk '{$tokoDokumen}'.", null))->response()->setStatusCode(422);
-                }
             }
 
             // Simpan hasil scan
