@@ -21,6 +21,7 @@ use Illuminate\Support\Facades\Log;
 use Maatwebsite\Excel\Facades\Excel;
 use App\Http\Resources\BuyerResource;
 use App\Http\Resources\ResponseResource;
+use App\Models\Product_Bundle;
 use Illuminate\Support\Facades\Validator;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
@@ -129,27 +130,31 @@ class SaleController extends Controller
     {
         $userId = auth()->id();
 
-        $saleDocument = SaleDocument::where('status_document_sale', 'proses')->where('user_id', $userId)->first();
+        $saleDocument = SaleDocument::where('status_document_sale', 'proses')
+            ->where('user_id', $userId)
+            ->first();
 
         $validator = Validator::make(
             $request->all(),
             [
                 'new_discount_sale' => 'nullable|numeric',
-                'sale_barcode' => 'required',
-                'buyer_id' => 'required|numeric',
-                'type_discount' => 'nullable|in:new,old',
+                'sale_barcode'      => 'required',
+                'buyer_id'          => 'required|numeric',
+                'type_discount'     => 'nullable|in:new,old',
             ]
         );
 
         if ($validator->fails()) {
-            return (new ResponseResource(false, "Input tidak valid!", $validator->errors()))->response()->setStatusCode(422);
+            return (new ResponseResource(false, "Input tidak valid!", $validator->errors()))
+                ->response()->setStatusCode(422);
         }
 
         // lock barcode ini agar tidak bisa diinputkan secara bersamaan
         $lockKey = "barcode:{$request->sale_barcode}";
         $lock = cache()->lock($lockKey, 5);
         if (!$lock->get()) {
-            return (new ResponseResource(false, "Data sedang diproses!", []))->response()->setStatusCode(422);
+            return (new ResponseResource(false, "Data sedang diproses!", []))
+                ->response()->setStatusCode(422);
         }
 
         DB::beginTransaction();
@@ -157,31 +162,50 @@ class SaleController extends Controller
             $productSale = Sale::where('product_barcode_sale', $request->input('sale_barcode'))
                 ->lockForUpdate()
                 ->first();
+
             if ($productSale) {
-                $resource = new ResponseResource(false, "Data sudah dimasukkan!", $productSale);
-                return $resource->response()->setStatusCode(422);
+                return (new ResponseResource(false, "Data sudah dimasukkan!", $productSale))
+                    ->response()->setStatusCode(422);
             }
 
             $buyer = Buyer::find($request->buyer_id);
             if (!$buyer) {
-                return (new ResponseResource(false, "Data Buyer tidak ditemukan!", []))->response()->setStatusCode(404);
+                return (new ResponseResource(false, "Data Buyer tidak ditemukan!", []))
+                    ->response()->setStatusCode(404);
             }
-
 
             $newProduct = New_product::where('new_barcode_product', $request->sale_barcode)->first();
-            $staging = StagingProduct::where('new_barcode_product', $request->sale_barcode)->first();
-            $bundle = Bundle::where('barcode_bundle', $request->sale_barcode)->first();
+            $staging    = StagingProduct::where('new_barcode_product', $request->sale_barcode)->first();
+            $bundle     = Bundle::where('barcode_bundle', $request->sale_barcode)->first();
+
+            // Jika bundle tidak ditemukan dari barcode utamanya, cari di relasi ProductBundle
+            if (!$bundle) {
+                $productBundle = Product_Bundle::where('new_barcode_product', $request->sale_barcode)->first();
+
+                if ($productBundle) {
+                    // Ambil bundle induk berdasarkan foreign key (asumsi nama kolom 'bundle_id')
+                    $bundle = \App\Models\Bundle::find($productBundle->bundle_id);
+
+                    // Jika terbukti barang ini bagian dari bundle, paksa sistem untuk treat sebagai Bundle
+                    if ($bundle) {
+                        $newProduct = null;
+                        $staging = null;
+                    }
+                }
+            }
 
             if ($staging) {
-                return (new ResponseResource(false, "Product staging tidak bisa di sale silahkan produknya di display terlebih dahulu", []))->response()->setStatusCode(422);
+                return (new ResponseResource(false, "Product staging tidak bisa di sale silahkan produknya di display terlebih dahulu", []))
+                    ->response()->setStatusCode(422);
             }
-            
+
             if (
                 $newProduct?->new_status_product === 'sale' ||
                 // $staging?->new_status_product === 'sale' ||
                 $bundle?->product_status === 'sale'
             ) {
-                return (new ResponseResource(false, "Data sudah dimasukkan!", []))->response()->setStatusCode(422);
+                return (new ResponseResource(false, "Data sudah dimasukkan!", []))
+                    ->response()->setStatusCode(422);
             }
 
             // Pengecekan kategori dan harga untuk newProduct dan staging
@@ -189,7 +213,8 @@ class SaleController extends Controller
                 // Check apakah category ada
                 $category = \App\Models\Category::where('name_category', $newProduct->new_category_product)->first();
                 if (!$category) {
-                    return (new ResponseResource(false, "Category '{$newProduct->new_category_product}' tidak ditemukan, silakan cek halaman category!", $newProduct->new_barcode_product))->response()->setStatusCode(422);
+                    return (new ResponseResource(false, "Category '{$newProduct->new_category_product}' tidak ditemukan, silakan cek halaman category!", $newProduct->new_barcode_product))
+                        ->response()->setStatusCode(422);
                 }
 
                 // Kalkulasi harga yang seharusnya berdasarkan discount category
@@ -200,12 +225,12 @@ class SaleController extends Controller
                 // Check apakah new_price_product sesuai dengan kalkulasi (gunakan ceiling untuk toleransi pembulatan)
                 if ($actualPrice != $expectedPriceCeil) {
                     return (new ResponseResource(false, "Harga tidak sesuai", [
-                        'barcode' => $newProduct->new_barcode_product,
-                        'price_now' => $newProduct->new_price_product,
+                        'barcode'        => $newProduct->new_barcode_product,
+                        'price_now'      => $newProduct->new_price_product,
                         'expected_price' => $expectedPriceCeil
                     ]))->response()->setStatusCode(422);
                 }
-            } 
+            }
             // else if ($staging) {
             //     // Check apakah category ada
             //     $category = \App\Models\Category::where('name_category', $staging->new_category_product)->first();
@@ -221,104 +246,107 @@ class SaleController extends Controller
             //     // Check apakah new_price_product sesuai dengan kalkulasi (gunakan ceiling untuk toleransi pembulatan)
             //     if ($actualPrice != $expectedPriceCeil) {
             //         return (new ResponseResource(false, "Harga tidak sesuai", [
-            //             'barcode' => $staging->new_barcode_product,
-            //             'price_now' => $staging->new_price_product,
+            //             'barcode'        => $staging->new_barcode_product,
+            //             'price_now'      => $staging->new_price_product,
             //             'expected_price' => $expectedPriceCeil
             //         ]))->response()->setStatusCode(422);
             //     }
             // }
 
-            if ($newProduct) {
-                $data = [
-                    $newProduct->new_name_product,
-                    $newProduct->new_category_product,
-                    $newProduct->new_barcode_product,
-                    $newProduct->display_price,
-                    $newProduct->new_price_product,
-                    $newProduct->new_discount,
-                    $newProduct->old_price_product,
-                    $newProduct->code_document,
-                    $newProduct->type,
-                    $newProduct->old_barcode_product,
-                    $newProduct->new_status_product,
-                    $newProduct->is_so,
-                    $newProduct->actual_new_quality ?? $newProduct->new_quality,
-                    $newProduct->actual_old_price_product ?? $newProduct->old_price_product,
-                    $newProduct->created_at
+            // Menggunakan Associative Array
+            $productData = [];
 
+            if ($newProduct) {
+                $productData = [
+                    'name'             => $newProduct->new_name_product,
+                    'category'         => $newProduct->new_category_product,
+                    'barcode'          => $newProduct->new_barcode_product,
+                    'display_price'    => $newProduct->display_price,
+                    'new_price'        => $newProduct->new_price_product,
+                    'new_discount'     => $newProduct->new_discount,
+                    'old_price'        => $newProduct->old_price_product,
+                    'code_document'    => $newProduct->code_document,
+                    'type'             => $newProduct->type,
+                    'old_barcode'      => $newProduct->old_barcode_product,
+                    'status_product'   => $newProduct->new_status_product,
+                    'is_so'            => $newProduct->is_so,
+                    'quality'          => $newProduct->actual_new_quality ?? $newProduct->new_quality,
+                    'actual_old_price' => $newProduct->actual_old_price_product ?? $newProduct->old_price_product,
+                    'created_at'       => $newProduct->created_at
                 ];
                 $newProduct->update([
                     'new_status_product' => 'sale',
-                    'date_out' => now(),
-                    'type_out' => 'sale'
+                    'date_out'           => now(),
+                    'type_out'           => 'sale'
                 ]);
-            } 
+            }
             // else if ($staging) {
-            //     $data = [
-            //         $staging->new_name_product,
-            //         $staging->new_category_product,
-            //         $staging->new_barcode_product,
-            //         $staging->display_price,
-            //         $staging->new_price_product,
-            //         $staging->new_discount,
-            //         $staging->old_price_product,
-            //         $staging->code_document,
-            //         $staging->type,
-            //         $staging->old_barcode_product,
-            //         $staging->new_status_product,
-            //         $staging->is_so,
-            //         $staging->actual_new_quality ?? $staging->new_quality,
-            //         $staging->actual_old_price_product ?? $staging->old_price_product,
-            //         $staging->created_at
+            //     $productData = [
+            //         'name'             => $staging->new_name_product,
+            //         'category'         => $staging->new_category_product,
+            //         'barcode'          => $staging->new_barcode_product,
+            //         'display_price'    => $staging->display_price,
+            //         'new_price'        => $staging->new_price_product,
+            //         'new_discount'     => $staging->new_discount,
+            //         'old_price'        => $staging->old_price_product,
+            //         'code_document'    => $staging->code_document,
+            //         'type'             => $staging->type,
+            //         'old_barcode'      => $staging->old_barcode_product,
+            //         'status_product'   => $staging->new_status_product,
+            //         'is_so'            => $staging->is_so,
+            //         'quality'          => $staging->actual_new_quality ?? $staging->new_quality,
+            //         'actual_old_price' => $staging->actual_old_price_product ?? $staging->old_price_product,
+            //         'created_at'       => $staging->created_at
             //     ];
             //     $staging->update([
             //         'new_status_product' => 'sale',
-            //         'date_out' => now(),
-            //         'type_out' => 'sale'
+            //         'date_out'           => now(),
+            //         'type_out'           => 'sale'
             //     ]);
             // } 
             elseif ($bundle) {
-                $data = [
-                    $bundle->name_bundle,
-                    $bundle->category,
-                    $bundle->barcode_bundle,
-                    $bundle->total_price_custom_bundle,
-                    $bundle->total_price_custom_bundle,
-                    0,
-                    $bundle->total_price_bundle,
-                    null,
-                    $bundle->type,
-                    null,
-                    $bundle->product_status,
-                    $bundle->is_so,
-                    json_encode(['lolos' => 'lolos']),
-                    $bundle->total_price_bundle,
-                    $bundle->created_at
+                $productData = [
+                    'name'             => $bundle->name_bundle,
+                    'category'         => $bundle->category,
+                    'barcode'          => $bundle->barcode_bundle,
+                    'display_price'    => $bundle->total_price_custom_bundle,
+                    'new_price'        => $bundle->total_price_custom_bundle,
+                    'new_discount'     => 0,
+                    'old_price'        => $bundle->total_price_bundle,
+                    'code_document'    => null,
+                    'type'             => $bundle->type,
+                    'old_barcode'      => null,
+                    'status_product'   => $bundle->product_status,
+                    'is_so'            => $bundle->is_so,
+                    'quality'          => json_encode(['lolos' => 'lolos']),
+                    'actual_old_price' => $bundle->total_price_bundle,
+                    'created_at'       => $bundle->created_at
                 ];
                 $bundle->update(['product_status' => 'sale']);
             } else {
-                return (new ResponseResource(false, "Barcode tidak ditemukan!", []))->response()->setStatusCode(404);
+                return (new ResponseResource(false, "Barcode tidak ditemukan!", []))
+                    ->response()->setStatusCode(404);
             }
 
             if (!$saleDocument) {
                 $saleDocumentRequest = [
-                    'code_document_sale' => codeDocumentSale($userId),
-                    'buyer_id_document_sale' => $buyer->id,
-                    'buyer_name_document_sale' => $buyer->name_buyer,
-                    'buyer_phone_document_sale' => $buyer->phone_buyer,
-                    'buyer_address_document_sale' => $buyer->address_buyer,
-                    'buyer_point_document_sale' => 0,
-                    'new_discount_sale' => $request->new_discount_sale,
-                    'total_product_document_sale' => 0,
+                    'code_document_sale'            => codeDocumentSale($userId),
+                    'buyer_id_document_sale'        => $buyer->id,
+                    'buyer_name_document_sale'      => $buyer->name_buyer,
+                    'buyer_phone_document_sale'     => $buyer->phone_buyer,
+                    'buyer_address_document_sale'   => $buyer->address_buyer,
+                    'buyer_point_document_sale'     => 0,
+                    'new_discount_sale'             => $request->new_discount_sale,
+                    'total_product_document_sale'   => 0,
                     'total_old_price_document_sale' => 0,
-                    'total_price_document_sale' => 0,
-                    'total_display_document_sale' => 0,
-                    'status_document_sale' => 'proses',
-                    'cardbox_qty' => 0,
-                    'cardbox_unit_price' => 0,
-                    'cardbox_total_price' => 0,
-                    'voucher' => 0,
-                    'type_discount' => $request->type_discount ?? null
+                    'total_price_document_sale'     => 0,
+                    'total_display_document_sale'   => 0,
+                    'status_document_sale'          => 'proses',
+                    'cardbox_qty'                   => 0,
+                    'cardbox_unit_price'            => 0,
+                    'cardbox_total_price'           => 0,
+                    'voucher'                       => 0,
+                    'type_discount'                 => $request->type_discount ?? null
                 ];
 
                 $createSaleDocument = (new SaleDocumentController)->store(new Request($saleDocumentRequest));
@@ -328,38 +356,36 @@ class SaleController extends Controller
                 $saleDocument = $createSaleDocument->getData()->data->resource;
             }
 
-            //kondisin jika terdapat inputan diskon
-            if ($saleDocument->type_discount == 'old') {
+            // kondisi jika terdapat inputan diskon
+            $oldPrice = $productData['old_price'];
+            $newPrice = $productData['new_price'];
+
+            if ($saleDocument->type_discount == 'old' || $saleDocument->type_discount == 'new') {
                 if ($saleDocument->new_discount_sale != 0) {
                     $newDiscountSale = $saleDocument->new_discount_sale;
                     $discountWithPercent = $newDiscountSale / 100;
-                    $productPriceSale = $data[6] - $data[6] * $discountWithPercent ?? $data[4] - $data[4] * $discountWithPercent;
+
+                    $basePrice = ($saleDocument->type_discount == 'old')
+                        ? ($oldPrice ?? $newPrice)
+                        : ($newPrice ?? $oldPrice);
+
+                    $productPriceSale = $basePrice - ($basePrice * $discountWithPercent);
                     $displayPrice = $productPriceSale;
-                    $totalDiscountSale = $data[6] * $discountWithPercent ?? $data[4] * $discountWithPercent;
+                    $totalDiscountSale = $basePrice * $discountWithPercent;
                 } else {
-                    return (new ResponseResource(false, "discount product sale is zero", $saleDocument->new_discount_sale))->response()->setStatusCode(404);
-                }
-            } else if ($saleDocument->type_discount == 'new') {
-                if ($saleDocument->new_discount_sale != 0) {
-                    $newDiscountSale = $saleDocument->new_discount_sale;
-                    $discountWithPercent = $newDiscountSale / 100;
-                    $productPriceSale = $data[4] - $data[4] * $discountWithPercent ?? $data[6] - $data[6] * $discountWithPercent;
-                    $displayPrice = $productPriceSale;
-                    $totalDiscountSale = $data[4] * $discountWithPercent ?? $data[6] * $discountWithPercent;
-                } else {
-                    return (new ResponseResource(false, "discount product sale is zero", $saleDocument->new_discount_sale))->response()->setStatusCode(404);
+                    return (new ResponseResource(false, "discount product sale is zero", $saleDocument->new_discount_sale))
+                        ->response()->setStatusCode(404);
                 }
             } else {
-                $newDiscountSale = $data[5] ?? null;
-                $productPriceSale = $data[3];
-                $totalDiscountSale = $data[4] - $data[3];
-                $displayPrice = $data[3];
+                $newDiscountSale   = $productData['new_discount'] ?? null;
+                $productPriceSale  = $productData['display_price'];
+                $totalDiscountSale = $newPrice - $productData['display_price'];
+                $displayPrice      = $productData['display_price'];
             }
 
             // Versi data yang akan masuk
             $countPriceSale = Sale::where('code_document_sale', $saleDocument->code_document_sale)->sum('display_price');
-
-            $totalPriceWithNewSale = $countPriceSale + $displayPrice; // Menjumlahkan total dengan harga barang baru
+            $totalPriceWithNewSale = $countPriceSale + $displayPrice;
 
             // Cek apakah total harga mencapai 5 juta
             if ($totalPriceWithNewSale >= 5000000) {
@@ -374,66 +400,62 @@ class SaleController extends Controller
 
                 // Update semua entri sebelumnya di tabel Sale menggunakan display_price
                 $salesToUpdate = Sale::where('code_document_sale', $saleDocument->code_document_sale);
-
-                // Menggunakan display_price sebagai dasar perhitungan
                 $salesToUpdate->update(['product_price_sale' => DB::raw("display_price * (1 - $discountLoyalty / 100)")]);
             } else {
-                $discountLoyalty = 0; // Inisialisasi jika tidak memenuhi syarat
+                $discountLoyalty = 0;
             }
 
             // Menghitung diskon untuk barang yang dibeli
-            $totalDiscountSale = $displayPrice * ($discountLoyalty / 100);
-            $productPriceSale -= $totalDiscountSale; // Mengurangi harga dengan diskon
+            $loyaltyDiscountAmount = $displayPrice * ($discountLoyalty / 100);
+            $totalDiscountSale    += $loyaltyDiscountAmount;
+            $productPriceSale     -= $loyaltyDiscountAmount;
 
             // Check quality data
-            $qualityData = is_string($data[12]) ? json_decode($data[12], true) : $data[12];
-            $statusProduct = 'display'; // default status
+            $qualityData = is_string($productData['quality'])
+                ? json_decode($productData['quality'], true)
+                : $productData['quality'];
 
-            // Jika qualityData null → display
-            // Jika qualityData ada value (array):
-            //   - lolos = null → abnormal
-            //   - lolos != null → display (apapun nilainya)
+            $statusProduct = 'display';
+
             if (is_array($qualityData)) {
                 $lolosValue = $qualityData['lolos'] ?? null;
                 if ($lolosValue === null) {
                     $statusProduct = 'abnormal';
                 }
-                // else: lolos != null, tetap display
             }
 
-            $sale = Sale::create(
-                [
-                    'user_id' => auth()->id(),
-                    'code_document_sale' => $saleDocument->code_document_sale,
-                    'product_name_sale' => $data[0],
-                    'product_category_sale' => $data[1],
-                    'product_barcode_sale' => $data[2],
-                    'product_old_price_sale' => ceil($data[6] ?? $data[4]),
-                    'product_price_sale' => ceil($productPriceSale),
-                    'product_qty_sale' => 1,
-                    'status_sale' => 'proses',
-                    'status_product' => $statusProduct,
-                    'total_discount_sale' => ceil($totalDiscountSale),
-                    'new_discount_sale' => ceil($newDiscountSale),
-                    'display_price' => ceil($displayPrice),
-                    'code_document' => $data[7] ?? null,
-                    'type' => $data[8],
-                    'old_barcode_product' => $data[9] ?? null,
-                    'type_discount' => $request->type_discount,
-                    'is_so' => $data[11] ?? null,
-                    'actual_status_product' => $statusProduct ?? null,
-                    'actual_product_old_price_sale' => $data[13] ?? null,
-                    'actual_created_at' => $data[14] ?? null,
-                ]
-            );
+            $sale = Sale::create([
+                'user_id'                       => $userId,
+                'code_document_sale'            => $saleDocument->code_document_sale,
+                'product_name_sale'             => $productData['name'],
+                'product_category_sale'         => $productData['category'],
+                'product_barcode_sale'          => $productData['barcode'],
+                'product_old_price_sale'        => ceil($oldPrice ?? $newPrice),
+                'product_price_sale'            => ceil($productPriceSale),
+                'product_qty_sale'              => 1,
+                'status_sale'                   => 'proses',
+                'status_product'                => $statusProduct,
+                'total_discount_sale'           => ceil($totalDiscountSale),
+                'new_discount_sale'             => ceil($newDiscountSale),
+                'display_price'                 => ceil($displayPrice),
+                'code_document'                 => $productData['code_document'],
+                'type'                          => $productData['type'],
+                'old_barcode_product'           => $productData['old_barcode'],
+                'type_discount'                 => $request->type_discount,
+                'is_so'                         => $productData['is_so'],
+                'actual_status_product'         => $statusProduct ?? null,
+                'actual_product_old_price_sale' => $productData['actual_old_price'],
+                'actual_created_at'             => $productData['created_at'],
+            ]);
 
             DB::commit();
             $lock->release();
-            return new ResponseResource(true, "data berhasil di tambahkan!", $sale);
+            return new ResponseResource(true, "Data berhasil ditambahkan!", $sale);
         } catch (\Exception $e) {
             DB::rollBack();
             $lock->release();
-            return (new ResponseResource(false, "Data gagal ditambahkan!", $e->getMessage()))->response()->setStatusCode(500);
+            return (new ResponseResource(false, "Data gagal ditambahkan!", $e->getMessage()))
+                ->response()->setStatusCode(500);
         }
     }
 
@@ -715,7 +737,7 @@ class SaleController extends Controller
 
             if ($startDate && $endDate) {
                 $query->whereDate('created_at', '>=', $startDate)
-                      ->whereDate('created_at', '<=', $endDate);
+                    ->whereDate('created_at', '<=', $endDate);
             }
 
             $sales = $query->latest()->get();
@@ -751,7 +773,6 @@ class SaleController extends Controller
                 'download_url' => $downloadUrl,
                 'file_name' => $fileName
             ]);
-
         } catch (\Exception $e) {
             return (new ResponseResource(false, "Gagal export: " . $e->getMessage(), null))
                 ->response()->setStatusCode(500);

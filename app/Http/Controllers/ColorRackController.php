@@ -11,6 +11,7 @@ use App\Models\New_product;
 use App\Http\Resources\ResponseResource;
 use App\Models\Bundle;
 use App\Models\ColorRackHistory;
+use App\Models\Product_Bundle;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
@@ -345,6 +346,18 @@ class ColorRackController extends Controller
             ->whereNull('category')
             ->first();
 
+        if (!$bundle) {
+            $productBundle = Product_Bundle::where('new_barcode_product', $barcode)->first();
+
+            if ($productBundle) {
+                $bundle = Bundle::where('id', $productBundle->bundle_id) 
+                    ->whereDoesntHave('colorRackProduct')
+                    ->where('product_status', 'not sale')
+                    ->whereNull('category')
+                    ->first();
+            }
+        }
+
         $product = null;
 
         if (!$bundle) {
@@ -354,8 +367,8 @@ class ColorRackController extends Controller
             })
                 ->whereDoesntHave('colorRackProduct')
                 ->whereIn('new_status_product', ['display', 'expired', 'slow_moving'])
-                ->whereNotNull('new_tag_product') 
-                ->whereNull('new_category_product') 
+                ->whereNotNull('new_tag_product')
+                ->whereNull('new_category_product')
                 ->where(function ($query) {
                     $query->whereRaw("JSON_UNQUOTE(JSON_EXTRACT(new_quality, '$.lolos')) = 'lolos'")
                         ->orWhereRaw("JSON_UNQUOTE(JSON_EXTRACT(JSON_UNQUOTE(new_quality), '$.lolos')) = 'lolos'");
@@ -366,7 +379,14 @@ class ColorRackController extends Controller
 
         if (!$bundle && !$product) {
             $anyProductExists = New_product::where('old_barcode_product', $barcode)->orWhere('new_barcode_product', $barcode)->exists();
+
             $anyBundleExists = Bundle::where('barcode_bundle', $barcode)->orWhere('old_barcode_bundle', $barcode)->exists();
+            if (!$anyBundleExists) {
+                $pbCheck = Product_Bundle::where('new_barcode_product', $barcode)->first();
+                if ($pbCheck) {
+                    $anyBundleExists = Bundle::where('id', $pbCheck->bundle_id)->exists();
+                }
+            }
 
             if ($anyProductExists || $anyBundleExists) {
                 return (new ResponseResource(false, 'Item ditolak! Kemungkinan sudah masuk ke rak, berstatus migrate/sale, atau tidak memenuhi kriteria Lolos Color.', null))
