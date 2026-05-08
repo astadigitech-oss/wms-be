@@ -13,6 +13,7 @@ use App\Models\Destination;
 use App\Models\Migrate;
 use App\Models\MigrateDocument;
 use App\Models\New_product;
+use App\Models\Product_Bundle;
 use App\Services\Olsera\OlseraService;
 use App\Services\Pos\PosService;
 use Illuminate\Http\Exceptions\HttpResponseException;
@@ -879,6 +880,23 @@ class BklController extends Controller
                 ->where('product_status', 'migrate')
                 ->first();
 
+            // Jika bundle tidak ditemukan, cek apakah barcode ini milik produk di dalam bundle
+            if (!$bundle) {
+                $productBundle = Product_Bundle::where('new_barcode_product', $barcode)->first();
+
+                if ($productBundle) {
+                    $bundle = Bundle::where('id', $productBundle->bundle_id)
+                        ->whereNotIn('id', function ($q) use ($bklDocument) {
+                            $q->select('bundle_id')
+                                ->from('bkl_scanned_products')
+                                ->where('bkl_document_id', $bklDocument->id)
+                                ->whereNotNull('bundle_id');
+                        })
+                        ->where('product_status', 'migrate')
+                        ->first();
+                }
+            }
+
             $product = null;
 
             if (!$bundle) {
@@ -904,6 +922,13 @@ class BklController extends Controller
 
             if (!$bundle && !$product) {
                 $anyBundle = Bundle::where('barcode_bundle', $barcode)->orWhere('old_barcode_bundle', $barcode)->first();
+                if (!$anyBundle) {
+                    $pbCheck = Product_Bundle::where('new_barcode_product', $barcode)->first();
+                    if ($pbCheck) {
+                        $anyBundle = Bundle::where('id', $pbCheck->bundle_id)->first();
+                    }
+                }
+
                 $anyProduct = New_product::where('old_barcode_product', $barcode)->orWhere('new_barcode_product', $barcode)->first();
 
                 $foundItem = $anyBundle ?? $anyProduct;
@@ -923,6 +948,7 @@ class BklController extends Controller
 
             $type = $bundle ? 'bundle' : 'product';
             $itemId = $bundle ? $bundle->id : $product->id;
+
             $uniqueBarcodeToSave = $bundle ? $bundle->barcode_bundle : $product->new_barcode_product;
 
             // Lacak tujuan produk
