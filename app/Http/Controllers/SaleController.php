@@ -272,7 +272,8 @@ class SaleController extends Controller
                     'is_so'            => $newProduct->is_so,
                     'quality'          => $newProduct->actual_new_quality ?? $newProduct->new_quality,
                     'actual_old_price' => $newProduct->actual_old_price_product ?? $newProduct->old_price_product,
-                    'created_at'       => $newProduct->created_at
+                    'created_at'       => $newProduct->created_at,
+                    'weight'           => $newProduct->weight ?? null
                 ];
                 $newProduct->update([
                     'new_status_product' => 'sale',
@@ -296,7 +297,8 @@ class SaleController extends Controller
             //         'is_so'            => $staging->is_so,
             //         'quality'          => $staging->actual_new_quality ?? $staging->new_quality,
             //         'actual_old_price' => $staging->actual_old_price_product ?? $staging->old_price_product,
-            //         'created_at'       => $staging->created_at
+            //         'created_at'       => $staging->created_at,
+            //         'weight'       => $staging->weight ?? null
             //     ];
             //     $staging->update([
             //         'new_status_product' => 'sale',
@@ -320,7 +322,8 @@ class SaleController extends Controller
                     'is_so'            => $bundle->is_so,
                     'quality'          => json_encode(['lolos' => 'lolos']),
                     'actual_old_price' => $bundle->total_price_bundle,
-                    'created_at'       => $bundle->created_at
+                    'created_at'       => $bundle->created_at,
+                    'weight'           => null
                 ];
                 $bundle->update(['product_status' => 'sale']);
             } else {
@@ -446,6 +449,7 @@ class SaleController extends Controller
                 'actual_status_product'         => $statusProduct ?? null,
                 'actual_product_old_price_sale' => $productData['actual_old_price'],
                 'actual_created_at'             => $productData['created_at'],
+                'weight'                        => $productData['weight'] ?? null
             ]);
 
             DB::commit();

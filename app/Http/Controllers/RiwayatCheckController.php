@@ -899,7 +899,8 @@ class RiwayatCheckController extends Controller
             'Category',
             'Diskon',
             'After Diskon',
-            'Price Percentage'
+            'Price Percentage',
+            'Weight'
         ];
 
         // Menulis header langsung ke lembar kerja
@@ -929,7 +930,8 @@ class RiwayatCheckController extends Controller
                 $item->new_category_product ?? 'null',
                 $diskon ?? 'null',
                 $item->new_price_product ?? 'null',
-                $pricePercentage
+                $pricePercentage,
+                $item->weight ?? 'null'
             ];
         }
 
@@ -961,7 +963,8 @@ class RiwayatCheckController extends Controller
             'Diskon',
             'After Diskon',
             'Price Percentage',
-            'Keterangan'
+            'Keterangan',
+            'Weight'
         ];
 
         // Menulis header langsung ke lembar kerja
@@ -992,7 +995,8 @@ class RiwayatCheckController extends Controller
                 $diskon ?? 'null',
                 $item->new_price_product ?? 'null',
                 $pricePercentage,
-                'Abnormal'
+                'Abnormal',
+                $item->weight ?? 'null'
             ];
         }
 
@@ -1024,6 +1028,7 @@ class RiwayatCheckController extends Controller
             'Price Percentage',
             'Old Barcode',
             'Status Product',
+            'Weight'
         ];
 
         // Menulis header langsung ke lembar kerja
@@ -1047,6 +1052,7 @@ class RiwayatCheckController extends Controller
                 $pricePercentage,
                 $item->old_barcode_product ?? 'null',
                 $item->status_product ?? 'null',
+                $item->weight ?? 'null'
             ];
         }
 
@@ -1073,6 +1079,7 @@ class RiwayatCheckController extends Controller
             'Name Product',
             'Qty',
             'Unit Price',
+            'Weight'
         ];
 
         // Menulis header langsung ke lembar kerja
@@ -1094,7 +1101,7 @@ class RiwayatCheckController extends Controller
                 $item->old_name_product ?? 'null',
                 $item->old_quantity_product ?? 'null',
                 $item->old_price_product ?? 'null',
-
+                $item->weight ?? 'null'
             ];
         }
 
