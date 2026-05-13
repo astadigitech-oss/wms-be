@@ -559,7 +559,7 @@ class NewProductController extends Controller
             $newQuality = [
                 'lolos' => null,
                 'damaged' => $description,
-                'abnormal' => null
+                'abnormal' => null,
             ];
 
             $product->new_quality = json_encode($newQuality);
