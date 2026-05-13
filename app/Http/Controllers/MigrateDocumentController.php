@@ -272,130 +272,161 @@ class MigrateDocumentController extends Controller
 
     public function MigrateDocumentFinish(Request $request)
     {
-        DB::beginTransaction();
-
         $user = auth()->user();
         $userId = $user->id;
-        $successCount = 0;
-        $processedDocuments = [];
 
+        // 1. EAGER LOADING
+        $migrateDocuments = MigrateDocument::with('migrates')
+            ->where('user_id', $userId)
+            ->where('status_document_migrate', 'proses')
+            ->get();
+
+        if ($migrateDocuments->isEmpty()) {
+            return (new ResponseResource(false, 'Tidak ada dokumen yang perlu diproses.', null))->response()->setStatusCode(404);
+        }
+
+        $shopNames = $migrateDocuments->pluck('destiny_document_migrate')->unique();
+        $destinations = Destination::whereIn('shop_name', $shopNames)->get()->keyBy('shop_name');
+
+        $allRackIds = $migrateDocuments->flatMap->migrates->pluck('color_rack_id')->filter()->unique();
+
+        $allRackProducts = ColorRackProduct::with(['newProduct', 'bundle'])
+            ->whereIn('color_rack_id', $allRackIds)
+            ->get()
+            ->groupBy('color_rack_id');
+
+        $bundleIdsToUpdate = [];
+        $productIdsToUpdate = [];
+        $rackIdsToUpdate = [];
+        $apiPayloads = [];
+
+        DB::beginTransaction();
         try {
-            $migrateDocuments = MigrateDocument::with('migrates')->where('user_id', $userId)->where('status_document_migrate', 'proses')->get();
-
-            if ($migrateDocuments->isEmpty()) {
-                return (new ResponseResource(false, 'Tidak ada dokumen yang perlu diproses.', null))->response()->setStatusCode(404);
-            }
-
-            $posService = new PosService();
-
             foreach ($migrateDocuments as $migrateDocument) {
-                $destination = Destination::where('shop_name', $migrateDocument->destiny_document_migrate)->first();
+                $shopName = $migrateDocument->destiny_document_migrate;
+                $destination = $destinations->get($shopName);
 
                 if (!$destination || empty($destination->pos_token)) {
-                    throw new \Exception("Toko tujuan '{$migrateDocument->destiny_document_migrate}' tidak ditemukan atau belum memiliki POS Token. Silakan jalankan Seeder POS.");
+                    throw new \Exception("Toko tujuan '{$shopName}' tidak ditemukan atau belum memiliki POS Token.");
                 }
 
-                $storeToken = $destination->pos_token;
                 $allProductsToSend = collect();
 
                 foreach ($migrateDocument->migrates as $migrateItem) {
-                    if ($migrateItem->color_rack_id) {
-                        $rackProducts = ColorRackProduct::with(['newProduct', 'bundle'])->where('color_rack_id', $migrateItem->color_rack_id)->get();
+                    if (!$migrateItem->color_rack_id) continue;
 
-                        foreach ($rackProducts as $item) {
-                            if ($item->bundle_id && $item->bundle) {
-                                $allProductsToSend->push([
-                                    "code_document"    => $item->bundle->code_document_bundle ?? "-",
-                                    "old_barcode"      => $item->bundle->old_barcode_bundle,
-                                    "old_price"        => (float) $item->bundle->total_price_bundle,
-                                    "actual_price"     => (float) $item->bundle->total_price_bundle,
-                                    "barcode"          => $item->bundle->barcode_bundle,
-                                    "name"             => "[BUNDLE] " . $item->bundle->name_bundle,
-                                    "price"            => (float) $item->bundle->total_price_custom_bundle,
-                                    "quantity"         => 1,
-                                    "status"           => "active",
-                                    "tag_color"        => $item->bundle->name_color ?? "bundle",
-                                    "is_so"            => $item->bundle->is_so,
-                                    "is_extra_product" => false,
-                                    "user_so"          => $item->bundle->user_so
-                                ]);
+                    $rackIdsToUpdate[] = $migrateItem->color_rack_id;
+                    $rackProducts = $allRackProducts->get($migrateItem->color_rack_id, collect());
 
-                                $item->bundle->update(['product_status' => 'migrate']);
-                            } elseif ($item->new_product_id && $item->newProduct) {
-                                $product = $item->newProduct;
-                                $allProductsToSend->push([
-                                    "code_document"    => $product->code_document ?? "-",
-                                    "old_barcode"      => $product->old_barcode_product,
-                                    "old_price"        => (float) ($product->old_price_product),
-                                    "actual_price"     => (float) ($product->actual_old_price_product),
-                                    "barcode"          => $product->new_barcode_product,
-                                    "name"             => $product->new_name_product,
-                                    "price"            => (float) ($product->new_price_product),
-                                    "quantity"         => $product->new_quantity_product ?? 1,
-                                    "status"           => "active",
-                                    "tag_color"        => $product->new_tag_product ?? "color",
-                                    "is_so"            => $product->is_so,
-                                    "is_extra_product" => (bool) $product->is_extra,
-                                    "user_so"          => $product->user_so
-                                ]);
-
-                                $product->update(['new_status_product' => 'migrate']);
-                            }
+                    foreach ($rackProducts as $item) {
+                        if ($item->bundle_id && $item->bundle) {
+                            $bundleIdsToUpdate[] = $item->bundle_id;
+                            $allProductsToSend->push([
+                                "code_document"    => $item->bundle->code_document_bundle ?? "-",
+                                "old_barcode"      => $item->bundle->old_barcode_bundle,
+                                "old_price"        => (float) $item->bundle->total_price_bundle,
+                                "actual_price"     => (float) $item->bundle->total_price_bundle,
+                                "barcode"          => $item->bundle->barcode_bundle,
+                                "name"             => "[BUNDLE] " . $item->bundle->name_bundle,
+                                "price"            => (float) $item->bundle->total_price_custom_bundle,
+                                "quantity"         => 1,
+                                "status"           => "active",
+                                "tag_color"        => $item->bundle->name_color ?? "bundle",
+                                "is_so"            => $item->bundle->is_so,
+                                "is_extra_product" => false,
+                                "user_so"          => $item->bundle->user_so
+                            ]);
+                        } elseif ($item->new_product_id && $item->newProduct) {
+                            $productIdsToUpdate[] = $item->new_product_id;
+                            $product = $item->newProduct;
+                            $allProductsToSend->push([
+                                "code_document"    => $product->code_document ?? "-",
+                                "old_barcode"      => $product->old_barcode_product,
+                                "old_price"        => (float) ($product->old_price_product),
+                                "actual_price"     => (float) ($product->actual_old_price_product),
+                                "barcode"          => $product->new_barcode_product,
+                                "name"             => $product->new_name_product,
+                                "price"            => (float) ($product->new_price_product),
+                                "quantity"         => $product->new_quantity_product ?? 1,
+                                "status"           => "active",
+                                "tag_color"        => $product->new_tag_product ?? "color",
+                                "is_so"            => $product->is_so,
+                                "is_extra_product" => (bool) $product->is_extra,
+                                "user_so"          => $product->user_so
+                            ]);
                         }
-
-                        ColorRack::where('id', $migrateItem->color_rack_id)->update(['status' => 'migrate']);
                     }
                 }
 
-                $totalProducts = $allProductsToSend->count();
-                if ($totalProducts == 0) continue;
-
-                $chunks = $allProductsToSend->chunk(100);
-
-                foreach ($chunks as $index => $batch) {
-                    try {
-                        $posService->sendBatchProducts(
-                            $migrateDocument->code_document_migrate,
-                            $storeToken,
-                            array_values($batch->toArray())
-                        );
-
-                        Log::info("Berhasil mengirim Batch " . ($index + 1) . "/{$chunks->count()} ke POS untuk Dokumen {$migrateDocument->code_document_migrate}");
-                    } catch (\Exception $e) {
-                        throw new \Exception("Gagal saat mengirim batch ke-" . ($index + 1) . " ke POS: " . $e->getMessage());
-                    }
-                }
-
-                Migrate::where('code_document_migrate', $migrateDocument->code_document_migrate)
-                    ->update(['status_migrate' => 'selesai']);
+                $apiPayloads[] = [
+                    'document' => $migrateDocument,
+                    'token'    => $destination->pos_token,
+                    'products' => $allProductsToSend
+                ];
 
                 $migrateDocument->update([
-                    'total_product_document_migrate' => $totalProducts,
+                    'total_product_document_migrate' => $allProductsToSend->count(),
                     'status_document_migrate'        => 'selesai'
                 ]);
 
-                $pesanLog = "Memproses Migrasi Dokumen {$migrateDocument->code_document_migrate} ke {$migrateDocument->destiny_document_migrate} (via POS). Total: {$totalProducts} Item.";
-                logUserAction($request, $user, 'Migrate Document Finish', $pesanLog);
+                Migrate::where('code_document_migrate', $migrateDocument->code_document_migrate)
+                    ->update(['status_migrate' => 'selesai']);
+            }
 
-                $successCount++;
-                $processedDocuments[] = $migrateDocument;
+            if (!empty($bundleIdsToUpdate)) {
+                \App\Models\Bundle::whereIn('id', array_unique($bundleIdsToUpdate))->update(['product_status' => 'migrate']);
+            }
+            if (!empty($productIdsToUpdate)) {
+                \App\Models\New_product::whereIn('id', array_unique($productIdsToUpdate))->update(['new_status_product' => 'migrate']);
+            }
+            if (!empty($rackIdsToUpdate)) {
+                \App\Models\ColorRack::whereIn('id', array_unique($rackIdsToUpdate))->update(['status' => 'migrate']);
             }
 
             DB::commit();
-
-            $pesanSummary = "Berhasil menyelesaikan {$successCount} proses migrasi barang keluar ke POS.";
-            logUserAction($request, $user, 'Migrate Document Finish', $pesanSummary);
-
-            return new ResponseResource(true, "Berhasil memproses {$successCount} dokumen migrasi ke POS.", $processedDocuments);
         } catch (\Exception $e) {
             DB::rollBack();
-            Log::error("Migrate Finish Error: " . $e->getMessage());
-
-            logUserAction($request, $user, 'Migrate Document Error', "Gagal memproses migrasi");
-
-            return (new ResponseResource(false, 'Gagal memproses migrasi: ' . $e->getMessage(), []))
+            Log::error("Migrate Prepare Error: " . $e->getMessage());
+            return (new ResponseResource(false, 'Gagal menyiapkan data migrasi: ' . $e->getMessage(), []))
                 ->response()->setStatusCode(500);
         }
+
+        $posService = new PosService();
+        $successCount = 0;
+        $processedDocuments = [];
+
+        foreach ($apiPayloads as $payload) {
+            $doc = $payload['document'];
+            $products = $payload['products'];
+
+            if ($products->isEmpty()) {
+                $successCount++;
+                $processedDocuments[] = $doc;
+                continue;
+            }
+
+            try {
+                $posService->sendBatchProducts(
+                    $doc->code_document_migrate,
+                    $payload['token'],
+                    array_values($products->toArray())
+                );
+
+                $successCount++;
+                $processedDocuments[] = $doc;
+
+                $pesanLog = "Berhasil mengirim {$products->count()} Item sekaligus ke POS untuk Dokumen {$doc->code_document_migrate}.";
+                Log::info($pesanLog);
+                logUserAction($request, $user, 'Migrate Document Finish', $pesanLog);
+            } catch (\Exception $e) {
+                Log::error("POS API Error untuk Dokumen {$doc->code_document_migrate}: " . $e->getMessage());
+            }
+        }
+
+        $pesanSummary = "Berhasil memproses {$successCount} dari " . count($apiPayloads) . " dokumen migrasi.";
+        logUserAction($request, $user, 'Migrate Document Summary', $pesanSummary);
+
+        return new ResponseResource(true, $pesanSummary, $processedDocuments);
     }
 
     public function exportMigrateDetail($id)
