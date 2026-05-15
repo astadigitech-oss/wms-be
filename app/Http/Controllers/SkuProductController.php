@@ -457,7 +457,8 @@ class SkuProductController extends Controller
 
         try {
             $product = SkuProduct::find($request->product_id);
-            $bundlePrice = $product->price_product * $request->items_per_bundle;
+            $unitPrice = $product->price_product;
+            $bundlePrice = $unitPrice * $request->items_per_bundle;
 
             $naturalType = null;
             $naturalTypeName = '';
@@ -482,10 +483,22 @@ class SkuProductController extends Controller
                         $naturalTypeName = 'Small';
                     }
                 } else {
-                    return response()->json([
-                        'status' => 'error',
-                        'message' => 'Range harga tidak terdaftar di Tag Big/Small manapun.'
-                    ], 422);
+                    if ($unitPrice <= 19999) {
+                        $selectedType = strtolower($request->selected_type);
+
+                        if (in_array($selectedType, ['big', 'small'])) {
+                            $naturalType = $selectedType;
+                            $naturalTypeName = ucfirst($selectedType);
+                        } else {
+                            $naturalType = 'small';
+                            $naturalTypeName = 'Small';
+                        }
+                    } else {
+                        return response()->json([
+                            'status' => 'error',
+                            'message' => 'Range harga tidak terdaftar di Tag Big/Small manapun.'
+                        ], 422);
+                    }
                 }
             }
 
