@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Exports\ColorRackDataExport;
 use App\Exports\ColorRackHistoryExport;
+use App\Exports\ColorRackProductExport;
 use Illuminate\Http\Request;
 use App\Models\ColorRack;
 use App\Models\ColorRackProduct;
@@ -350,7 +351,7 @@ class ColorRackController extends Controller
             $productBundle = Product_Bundle::where('new_barcode_product', $barcode)->first();
 
             if ($productBundle) {
-                $bundle = Bundle::where('id', $productBundle->bundle_id) 
+                $bundle = Bundle::where('id', $productBundle->bundle_id)
                     ->whereDoesntHave('colorRackProduct')
                     ->where('product_status', 'not sale')
                     ->whereNull('category')
@@ -843,5 +844,49 @@ class ColorRackController extends Controller
 
         return (new ResponseResource(true, 'List Rak Siap Migrasi', $racks))
             ->response()->setStatusCode(200);
+    }
+
+    public function exportProductRack(Request $request, $id)
+    {
+        try {
+            $rack = ColorRack::find($id);
+
+            if (!$rack) {
+                return (new ResponseResource(false, 'Data Rack tidak ditemukan', null))
+                    ->response()->setStatusCode(404);
+            }
+
+            $searchQuery = $request->query('q');
+
+            $folderName = 'exports/color_racks_products';
+
+            $safeRackName = preg_replace('/[^A-Za-z0-9\-]/', '_', $rack->name);
+            $fileName = "DATA_PRODUK_RAK_{$safeRackName}_" . date('YmdHis') . ".xlsx";
+            $filePath = $folderName . '/' . $fileName;
+
+            if (!Storage::disk('public_direct')->exists($folderName)) {
+                Storage::disk('public_direct')->makeDirectory($folderName);
+            }
+
+            if (Storage::disk('public_direct')->exists($filePath)) {
+                Storage::disk('public_direct')->delete($filePath);
+            }
+
+            Excel::store(new ColorRackProductExport($id, $searchQuery), $filePath, 'public_direct');
+
+            $downloadUrl = url($filePath) . '?t=' . time();
+
+            return (new ResponseResource(true, "File Data Produk Rak berhasil diexport", [
+                'download_url' => $downloadUrl,
+                'file_name'    => $fileName,
+                'rack_info'    => [
+                    'id'   => $rack->id,
+                    'name' => $rack->name
+                ]
+            ]))->response()->setStatusCode(200);
+        } catch (\Exception $e) {
+            return (new ResponseResource(false, "Gagal export: " . $e->getMessage(), null))
+                ->response()->setStatusCode(500);
+        }
     }
 }

@@ -135,7 +135,7 @@ class LoyaltyService
     {
         $allRanks = LoyaltyRank::orderBy('min_transactions', 'asc')->get();
         $lowestRank = $allRanks->first();
-        $listBuyerIdSpecial = [496];
+        $listBuyerIdSpecial = [];
 
         if (in_array($buyer_id, $listBuyerIdSpecial)) {
             $buyerLoyalty = BuyerLoyalty::where('buyer_id', $buyer_id)->first();
@@ -166,7 +166,8 @@ class LoyaltyService
             ->where('created_at', '>=', '2025-06-01');
 
         if ($current_transaction_date) {
-            $query->where('created_at', '<=', Carbon::parse($current_transaction_date)->endOfDay());
+            // $query->where('created_at', '<=', Carbon::parse($current_transaction_date)->endOfDay());
+            $query->where('created_at', '<=', $current_transaction_date);
         }
 
         $transactions = $query->orderBy('created_at', 'asc')->get(['created_at', 'id']);
