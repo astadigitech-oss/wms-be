@@ -433,6 +433,7 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Kasir leade
     Route::get('color-racks/history', [ColorRackController::class, 'getRackHistory']);
     Route::get('color-racks/stats', [ColorRackController::class, 'getRackInsertionStats']);
     Route::get('color-ready-migrate', [ColorRackController::class, 'listReadyToMigrate']);
+    Route::get('color-racks/{id}/export', [ColorRackController::class, 'exportProductRack']);
 });
 
 // [WRITE / POST / ACTION - TANPA Audit]
