@@ -792,6 +792,19 @@ class StagingProductController extends Controller
             $document = Document::where('code_document', $code_document)->first();
             if ($document) {
 
+                $pendingProducts = ProductApprove::where('code_document', $code_document)
+                    ->where('is_pending', true)
+                    ->pluck('new_barcode_product')
+                    ->toArray();
+
+                if (!empty($pendingProducts)) {
+                    return (new ResponseResource(
+                        false,
+                        "Terdapat produk yang perlu di-approve terlebih dahulu sebelum di proses parsial.",
+                        $pendingProducts
+                    ))->response()->setStatusCode(422);
+                }
+
                 $productApprovesTags = ProductApprove::where('code_document', $code_document)
                     ->whereNotNull('new_tag_product')->where('new_quality->lolos', '!=', null)
                     ->get();

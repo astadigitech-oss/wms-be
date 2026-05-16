@@ -562,11 +562,13 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Audit'])->group(functio
     Route::get('panel-spv/detail/{user}', [UserController::class, 'showFormatBarcode']);
     Route::get('active_so_category', [SummarySoCategoryController::class, 'checkSoCategoryActive']);
     Route::get('notifications/manual-product/{id}', [NotificationController::class, 'detailManualProduct']);
+    Route::get('notifications/pending-approval/{id}', [NotificationController::class, 'detailPendingApproval']);
 });
 
 // [WRITE / POST / ACTION - TANPA Audit]
 Route::middleware(['auth:sanctum', 'check.role:Admin,Spv'])->group(function () {
     Route::post('notifications/manual-product/{id}/action', [NotificationController::class, 'actionManualProduct']);
+    Route::post('notifications/pending-approval/{id}/action', [NotificationController::class, 'actionProductApproval']);
     Route::resource('categories', CategoryController::class)->except(['destroy', 'show', 'index']);
     Route::resource('color_tags', ColorTagController::class)->except(['index', 'show', 'destroy']);
     Route::resource('color_tags2', ColorTag2Controller::class)->except(['index', 'show', 'destroy']);
