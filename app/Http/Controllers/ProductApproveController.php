@@ -209,11 +209,14 @@ class ProductApproveController extends Controller
                 $inputData['is_pending'] = true;
                 $pendingProduct = ProductApprove::create($inputData);
 
+                $roleName = $user && $user->role ? $user->role->role_name : 'User';
+
                 Notification::create([
                     'notification_name' => 'Perubahan Data Inbound: ' . $inputData['new_barcode_product'],
                     'status' => 'pending_approval',
                     'user_id' => $userId,
                     'external_id' => $pendingProduct->id,
+                    'role' => $roleName,
                 ]);
 
                 UserScanWeb::updateOrCreateDailyScan($userId, $document->id);
