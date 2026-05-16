@@ -510,13 +510,13 @@ class ProductApproveController extends Controller
 
                 $roleName = $user && $user->role ? $user->role->role_name : 'User';
 
-                Notification::create([
-                    'notification_name' => 'Approval Perubahan Data: ' . $inputData['new_barcode_product'],
-                    'status' => 'pending_approval',
-                    'user_id' => $userId,
-                    'external_id' => $newProduct->id,
-                    'role' => $roleName,
-                ]);
+                // Notification::create([
+                //     'notification_name' => 'Approval Perubahan Data: ' . $inputData['new_barcode_product'],
+                //     'status' => 'pending_approval',
+                //     'user_id' => $userId,
+                //     'external_id' => $newProduct->id,
+                //     'role' => $roleName,
+                // ]);
 
                 UserScanWeb::updateOrCreateDailyScan($userId, $document->id);
                 $this->updateDocumentStatus($inputData['code_document']);

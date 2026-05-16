@@ -898,7 +898,8 @@ class StagingProductController extends Controller
                     'new_status_product',
                     'new_quality',
                     'new_category_product',
-                    'weight'
+                    'weight',
+                    DB::raw("(SELECT barcode FROM racks WHERE racks.id = rack_id LIMIT 1) as barcode_rack")
                 )
                 ->whereNotIn('new_status_product', ['dump', 'sale', 'migrate', 'repair', 'scrap_qcd'])
                 ->where(function ($query) {
@@ -924,7 +925,8 @@ class StagingProductController extends Controller
                     DB::raw("CASE WHEN product_status = 'not sale' THEN 'display' ELSE product_status END as new_status_product"),
                     DB::raw("NULL as new_quality"),
                     'category as new_category_product',
-                    DB::raw("NULL as weight")
+                    DB::raw("NULL as weight"),
+                    DB::raw("(SELECT barcode FROM racks WHERE racks.id = rack_id LIMIT 1) as barcode_rack")
                 )
                 ->whereNotNull('category')
                 ->where('source', 'staging')
