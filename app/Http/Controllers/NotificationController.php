@@ -439,7 +439,9 @@ class NotificationController extends Controller
                 return response()->json(['message' => 'Notifikasi tidak valid atau tidak ditemukan'], 404);
             }
 
-            $productApprove = \App\Models\ProductApprove::find($notification->external_id);
+            $barcode = str_replace('Approval Perubahan Data: ', '', $notification->notification_name);
+
+            $productApprove = \App\Models\ProductApprove::where('new_barcode_product', $barcode)->first();
 
             if (!$productApprove) {
                 return response()->json(['message' => 'Data produk pending tidak ditemukan'], 404);
@@ -506,7 +508,8 @@ class NotificationController extends Controller
                 return response()->json(['message' => 'Notifikasi tidak valid atau bukan pending approval'], 404);
             }
 
-            $productApprove = \App\Models\ProductApprove::find($notification->external_id);
+            $barcode = str_replace('Approval Perubahan Data: ', '', $notification->notification_name);
+            $productApprove = \App\Models\ProductApprove::where('new_barcode_product', $barcode)->first();
 
             if (!$productApprove) {
                 $notification->delete();

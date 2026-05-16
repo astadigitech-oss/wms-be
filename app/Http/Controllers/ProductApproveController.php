@@ -189,45 +189,36 @@ class ProductApproveController extends Controller
                 return (new ResponseResource(false, "The new barcode already exists", $inputData))->response()->setStatusCode(429);
             }
 
+            // === TAMBAHAN PENGECEKAN DAN PEMBUATAN NOTIFIKASI SAJA ===
             $user = auth()->user();
             $isAdminOrSpv = false;
             if ($user && $user->role) {
                 $isAdminOrSpv = in_array($user->role->role_name, ['Admin', 'Spv']);
             }
 
-            $oldProduct = Product_old::where('old_barcode_product', $oldBarcode)
-                ->where('code_document', $request->input('code_document'))
-                ->first();
-
+            $oldProduct = Product_old::where('old_barcode_product', $oldBarcode)->first();
             $isDifferent = false;
+
             if ($oldProduct) {
-                $isDifferent = ($request->input('new_name_product') !== $oldProduct->old_name_product) ||
-                    ((int)$request->input('new_quantity_product') !== (int)$oldProduct->old_quantity_product);
+                $nameChanged = trim($request->input('new_name_product')) !== trim($oldProduct->old_name_product);
+                $qtyChanged = (int)$request->input('new_quantity_product') !== (int)$oldProduct->old_quantity_product;
+                $isDifferent = ($nameChanged || $qtyChanged);
             }
 
             if ($isDifferent && !$isAdminOrSpv) {
+                // Sisipkan is_pending agar terbawa ke Redis
                 $inputData['is_pending'] = true;
-                $pendingProduct = ProductApprove::create($inputData);
-
-                $roleName = $user && $user->role ? $user->role->role_name : 'User';
+                $roleName = $user && $user->role ? $user->role->role_name : 'Crew';
 
                 Notification::create([
-                    'notification_name' => 'Perubahan Data Inbound: ' . $inputData['new_barcode_product'],
+                    'notification_name' => 'Approval Perubahan Data: ' . $inputData['new_barcode_product'],
                     'status' => 'pending_approval',
                     'user_id' => $userId,
-                    'external_id' => $pendingProduct->id,
                     'role' => $roleName,
+                    // external_id tidak diisi karena datanya baru akan dicreate lewat Redis nanti
                 ]);
-
-                UserScanWeb::updateOrCreateDailyScan($userId, $document->id);
-                $this->updateDocumentStatus($request->input('code_document'));
-
-                DB::commit();
-
-                // Return dengan ResponseResource sesuai format Anda
-                return new ResponseResource(true, "Perubahan nama/qty terdeteksi. Menunggu persetujuan Admin atau Spv.", $pendingProduct);
             }
-
+            // =========================================================
 
             $riwayatCheck = RiwayatCheck::where('code_document', $request->input('code_document'))->first();
             // $totalDataIn = 1 + $riwayatCheck->total_data_in;
@@ -490,40 +481,25 @@ class ProductApproveController extends Controller
                 $isAdminOrSpv = in_array($user->role->role_name, ['Admin', 'Spv']);
             }
 
-            // Ambil data produk lama berdasarkan barcode
             $oldProduct = Product_old::where('old_barcode_product', $inputData['old_barcode_product'])->first();
-
             $isDifferent = false;
+
             if ($oldProduct) {
-                // Gunakan trim() untuk membersihkan spasi tersembunyi
                 $nameChanged = trim($request->input('new_name_product')) !== trim($oldProduct->old_name_product);
                 $qtyChanged = (int)$request->input('new_quantity_product') !== (int)$oldProduct->old_quantity_product;
-
                 $isDifferent = ($nameChanged || $qtyChanged);
             }
 
-            // Jika ada perbedaan dan bukan admin/spv, masukkan ke pending
             if ($isDifferent && !$isAdminOrSpv) {
-                $inputData['is_pending'] = true;
-                $newProduct = ProductApprove::create($inputData);
-                $newProduct->discount_category = $inputData['discount_category'] ?? null;
+                $inputData['is_pending'] = true; 
+                $roleName = $user && $user->role ? $user->role->role_name : 'Crew';
 
-                $roleName = $user && $user->role ? $user->role->role_name : 'User';
-
-                // Notification::create([
-                //     'notification_name' => 'Approval Perubahan Data: ' . $inputData['new_barcode_product'],
-                //     'status' => 'pending_approval',
-                //     'user_id' => $userId,
-                //     'external_id' => $newProduct->id,
-                //     'role' => $roleName,
-                // ]);
-
-                UserScanWeb::updateOrCreateDailyScan($userId, $document->id);
-                $this->updateDocumentStatus($inputData['code_document']);
-
-                DB::commit();
-
-                return new ProductapproveResource(true, true, "Perubahan nama/qty terdeteksi. Menunggu persetujuan Admin/Spv.", $newProduct);
+                Notification::create([
+                    'notification_name' => 'Approval Perubahan Data: ' . $inputData['new_barcode_product'],
+                    'status' => 'pending_approval',
+                    'user_id' => $userId,
+                    'role' => $roleName,
+                ]);
             }
 
 
