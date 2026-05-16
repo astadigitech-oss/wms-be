@@ -194,11 +194,12 @@ class ProductOldController extends Controller
         // Get products from inventory tables (new_products, staging_products, product_bundles)
         $inventoryQuery = $this->getInventoryProductsQuery($code_document, $quality, $search);
 
-        // Get products from sales table
-        $salesQuery = $this->getSalesProductsQuery($code_document, $search);
-
-        // Combine all queries using Union
-        $combined = $inventoryQuery->union($salesQuery)->paginate(50);
+        if ($quality === 'lolos') {
+            $salesQuery = $this->getSalesProductsQuery($code_document, $search);
+            $combined = $inventoryQuery->union($salesQuery)->paginate(50);
+        } else {
+            $combined = $inventoryQuery->paginate(50);
+        }
 
         return new ResponseResource(true, "list {$quality}", $combined);
     }
@@ -208,10 +209,12 @@ class ProductOldController extends Controller
      */
     private function getInventoryProductsQuery($code_document, $quality, $search = null)
     {
+        // Pastikan 'product_approves' juga terdaftar agar sinkron dengan data show()
         $tables = [
             'new_products' => New_product::class,
             'staging_products' => StagingProduct::class,
             'product_bundles' => Product_Bundle::class,
+            'product_approves' => \App\Models\ProductApprove::class,
         ];
 
         $queries = [];
@@ -221,22 +224,27 @@ class ProductOldController extends Controller
                 ->where(function ($q) use ($quality) {
                     $q->whereNotNull("actual_new_quality->{$quality}")
                         ->orWhere(function ($subQ) use ($quality) {
-                            $subQ->whereNull("actual_new_quality->{$quality}")
+                            $subQ->whereNull("actual_new_quality")
                                 ->whereNotNull("new_quality->{$quality}");
                         });
-                })
-                ->selectRaw("
-                    id,
-                    code_document, 
-                    new_name_product, 
-                    old_barcode_product, 
-                    new_barcode_product, 
-                    new_quantity_product, 
-                    old_price_product,
-                    actual_old_price_product,
-                    actual_new_quality,
-                    '{$tableName}' as table_source
-                ");
+                });
+
+            if ($tableName === 'new_products') {
+                $query->whereNot('new_status_product', 'sale');
+            }
+
+            $query->selectRaw("
+                id,
+                code_document, 
+                new_name_product, 
+                old_barcode_product, 
+                new_barcode_product, 
+                new_quantity_product, 
+                old_price_product,
+                actual_old_price_product,
+                actual_new_quality,
+                '{$tableName}' as table_source
+            ");
 
             if ($search) {
                 $query->where(function ($subQuery) use ($search) {
