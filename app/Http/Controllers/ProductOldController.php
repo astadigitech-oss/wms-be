@@ -298,17 +298,42 @@ class ProductOldController extends Controller
     public function discrepancy(Request $request, $code_document)
     {
         $search = $request->input('q');
+        $perPage = $request->input('per_page', 50);
 
-        $products = Product_old::where('code_document', $code_document);
+        $isSku = str_contains($code_document, 'SKU') || \App\Models\SkuDocument::where('code_document', $code_document)->exists();
 
-        if ($search) {
-            $products->where(function ($query) use ($search) {
-                $query->where('old_barcode_product', 'LIKE', '%' . $search . '%')
-                    ->orWhere('old_name_product', 'LIKE', '%' . $search . '%');
-            });
+        if ($isSku) {
+            $query = \App\Models\SkuProduct::where('code_document', $code_document)
+                ->where('quantity_product', '>', 0)
+                ->selectRaw("
+                    id, 
+                    code_document, 
+                    barcode_product as old_barcode_product, 
+                    name_product as old_name_product, 
+                    quantity_product as old_quantity_product, 
+                    price_product as old_price_product,
+                    created_at,
+                    updated_at
+                ");
+
+            if ($search) {
+                $query->where(function ($subQuery) use ($search) {
+                    $subQuery->where('barcode_product', 'LIKE', '%' . $search . '%')
+                        ->orWhere('name_product', 'LIKE', '%' . $search . '%');
+                });
+            }
+        } else {
+            $query = \App\Models\Product_old::where('code_document', $code_document);
+
+            if ($search) {
+                $query->where(function ($subQuery) use ($search) {
+                    $subQuery->where('old_barcode_product', 'LIKE', '%' . $search . '%')
+                        ->orWhere('old_name_product', 'LIKE', '%' . $search . '%');
+                });
+            }
         }
 
-        $productsPaginated = $products->paginate(50);
+        $productsPaginated = $query->paginate($perPage);
 
         return new ResponseResource(true, "list discrepancy", $productsPaginated);
     }

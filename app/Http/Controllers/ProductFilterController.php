@@ -105,6 +105,7 @@ class ProductFilterController extends Controller
             $productData = $product->toArray();
             $productData['user_id'] = $userId;
             $productData['source'] = $source;
+            $productData['actual_old_price_product'] = $product->actual_old_price_product;
 
             $productFilter = Product_Filter::create($productData);
             $product->delete();

@@ -389,6 +389,19 @@ class BklController extends Controller
             ->when($querySearch, function ($query) use ($querySearch) {
                 $query->where('code_document_bkl', 'like', '%' . $querySearch . '%');
             })
+            ->where(function ($query) {
+                $query->where('status', '!=', 'done')
+                    ->orWhere(function ($q) {
+                        $q->where('status', 'done')
+                            ->whereHas('scannedProducts', function ($subQuery) {
+                                $subQuery->whereHas('newProduct', function ($q2) {
+                                    $q2->whereIn('new_status_product', ['display', 'expired', 'slow_moving']);
+                                })->orWhereHas('bundle', function ($q3) {
+                                    $q3->where('product_status', 'not sale');
+                                });
+                            });
+                    });
+            })
             ->latest()
             ->paginate(10);
 
@@ -450,7 +463,7 @@ class BklController extends Controller
                 ->from('bkl_scanned_products')
                 ->join('bkl_documents', 'bkl_scanned_products.bkl_document_id', '=', 'bkl_documents.id')
                 ->join('new_products', 'bkl_scanned_products.new_product_id', '=', 'new_products.id')
-                ->where('bkl_documents.status', 'done') // TETAP DONE
+                ->where('bkl_documents.status', 'done')
                 ->whereIn('new_products.new_status_product', ['display', 'expired', 'slow_moving'])
                 ->groupBy('bkl_scanned_products.barcode');
         }, 'unique_products')->sum('price');

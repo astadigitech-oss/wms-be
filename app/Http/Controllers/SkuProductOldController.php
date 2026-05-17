@@ -93,7 +93,7 @@ class SkuProductOldController extends Controller
                     'name' => $product->old_name_product,
                     'initial_stock' => $initialStock,
                     'total_input' => $totalInput,
-                    'issue' => "Perhitungan tidak sesuai ($status item)", 
+                    'issue' => "Perhitungan tidak sesuai ($status item)",
                     'details' => "Actual: {$product->actual_quantity_product}, Damaged: {$product->damaged_quantity_product}, Lost: {$product->lost_quantity_product}" // Sebelumnya 'rincian'
                 ];
                 continue;
@@ -335,23 +335,29 @@ class SkuProductOldController extends Controller
 
     private function createRiwayatCheck($userId, $code_document)
     {
-        $totalPrice = SkuProductOld::where('code_document', $code_document)->sum('old_price_product');
+        $stats = SkuProductOld::where('code_document', $code_document)
+            ->selectRaw('SUM(old_quantity_product) as total_qty, SUM(old_price_product * old_quantity_product) as total_value')
+            ->first();
+
+        $totalQty = $stats->total_qty ?? 0;
+        $totalPrice = $stats->total_value ?? 0;
+
         $doc = SkuDocument::where('code_document', $code_document)->first();
 
         RiwayatCheck::create([
             'user_id' => $userId,
             'code_document' => $code_document,
             'base_document' => $doc->base_document ?? 'SKU Import',
-            'total_data' => $doc->total_column_in_document ?? 0,
+            'total_data' => $totalQty,
             'status_approve' => 'done',
             'total_price' => $totalPrice,
             'percentage_in' => 0,
-            'status_file' => true,
+            'status_file' => 0,
             'total_data_in' => 0,
             'total_data_lolos' => 0,
             'total_data_damaged' => 0,
             'total_data_abnormal' => 0,
-            'total_discrepancy' => $doc->total_column_in_document ?? 0,
+            'total_discrepancy' => $totalQty,
             'precentage_total_data' => 0,
             'percentage_lolos' => 0,
             'percentage_damaged' => 0,
@@ -360,7 +366,7 @@ class SkuProductOldController extends Controller
             'value_data_lolos' => 0,
             'value_data_damaged' => 0,
             'value_data_abnormal' => 0,
-            'value_data_discrepancy' => 0
+            'value_data_discrepancy' => $totalPrice
         ]);
     }
 }

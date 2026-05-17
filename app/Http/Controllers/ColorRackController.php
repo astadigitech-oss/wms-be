@@ -369,7 +369,10 @@ class ColorRackController extends Controller
                 ->whereDoesntHave('colorRackProduct')
                 ->whereIn('new_status_product', ['display', 'expired', 'slow_moving'])
                 ->whereNotNull('new_tag_product')
-                ->whereNull('new_category_product')
+                ->where(function ($query) {
+                    $query->whereNull('new_category_product')
+                        ->orWhere('new_category_product', '');
+                })
                 ->where(function ($query) {
                     $query->whereRaw("JSON_UNQUOTE(JSON_EXTRACT(new_quality, '$.lolos')) = 'lolos'")
                         ->orWhereRaw("JSON_UNQUOTE(JSON_EXTRACT(JSON_UNQUOTE(new_quality), '$.lolos')) = 'lolos'");
