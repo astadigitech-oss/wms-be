@@ -314,12 +314,11 @@ class ProductApproveController extends Controller
 
             if (isset($modelClass)) {
                 Redis::rpush($redisKey, json_encode($inputData));
+
                 $listSize = Redis::llen($redisKey);
 
                 if ($listSize >= $batchSize) {
-                    ProductBatch::dispatch($listSize);
-                } else if ($listSize == 1) {
-                    ProductBatch::dispatch()->delay(now()->addSeconds(10));
+                    ProductBatch::dispatch($batchSize);
                 }
             }
             $this->deleteOldProduct($inputData['code_document'], $request->input('old_barcode_product'));
@@ -492,7 +491,7 @@ class ProductApproveController extends Controller
             }
 
             if ($isDifferent && !$isAdminOrSpv) {
-                $inputData['is_pending'] = true;
+                $inputData['is_pending'] = true; 
                 $roleName = $user && $user->role ? $user->role->role_name : 'Crew';
 
                 Notification::create([
