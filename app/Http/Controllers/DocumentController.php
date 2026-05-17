@@ -348,7 +348,7 @@ class DocumentController extends Controller
             $repairProductAbnormalStats = RepairProduct::where('code_document', $code_document)->where($notSale)->where(fn($q) => $q->whereNotNull('actual_new_quality->abnormal')->orWhere(fn($sub) => $sub->whereNull('actual_new_quality')->whereNotNull('new_quality->abnormal')))->selectRaw($abnormalExpr)->first();
             $repairProductNonStats = RepairProduct::where('code_document', $code_document)->where($notSale)->where(fn($q) => $q->whereNotNull('actual_new_quality->non')->orWhere(fn($sub) => $sub->whereNull('actual_new_quality')->whereNotNull('new_quality->non')))->selectRaw($nonExpr)->first();
 
-            $salesStats = Sale::where('code_document', $code_document)->selectRaw($statsExpr)->first();
+            $salesStats = Sale::where('code_document', $code_document)->selectRaw("COUNT(*) as total_count, SUM(COALESCE(actual_product_old_price_sale, product_old_price_sale)) as total_price")->first();
             $b2bStats = BulkySale::where('code_document', $code_document)->selectRaw("COUNT(*) as total_count, SUM(COALESCE(old_price_bulky_sale, actual_old_price_product)) as total_price")->first();
 
             $b2bLolosStats = BulkySale::where('code_document', $code_document)->where('status_product_before', 'display')->selectRaw("COUNT(*) as lolos_count, SUM(COALESCE(old_price_bulky_sale, actual_old_price_product)) as lolos_price")->first();

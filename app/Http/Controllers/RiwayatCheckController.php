@@ -466,10 +466,37 @@ class RiwayatCheckController extends Controller
         $getProductRepair = [];
         $totalOldPriceRepair = 0;
 
+        $notSale = function ($q) {
+            $q->where('new_status_product', '!=', 'sale')->orWhereNull('new_status_product');
+        };
+
+        $processedDefectBarcodes = [];
+
         if ($getHistory->status_file === 1) {
             $defects = ProductDefect::where('riwayat_check_id', $getHistory->id)->whereNotNull('new_barcode_product')->get();
+
+            $defectBarcodes = $defects->pluck('new_barcode_product')->filter()->toArray();
+            $processedDefectBarcodes = $defectBarcodes;
+
+            $newProductsRef = \App\Models\New_product::where('code_document', $code_document)
+                ->whereIn('new_barcode_product', $defectBarcodes)
+                ->get()->keyBy('new_barcode_product');
+
+            $stagingProductsRef = \App\Models\StagingProduct::where('code_document', $code_document)
+                ->whereIn('new_barcode_product', $defectBarcodes)
+                ->get()->keyBy('new_barcode_product');
+
             foreach ($defects as $product) {
                 $product->actual_old_price_product = $product->old_price_product;
+
+                // Cek apakah barcode ada di New_product atau StagingProduct
+                $reference = $newProductsRef->get($product->new_barcode_product) ?? $stagingProductsRef->get($product->new_barcode_product);
+
+                // Set value nama dan qty berdasarkan referensi yang ditemukan
+                $product->new_name_product = $reference ? ($reference->new_name_product ?? $reference->old_name_product) : 'null';
+                $product->new_quantity_product = $reference ? ($reference->new_quantity_product ?? 1) : 1;
+                $product->old_name_product = $product->new_name_product;
+
                 if ($product->type === 'damaged') {
                     $product->damaged_value = 'damaged';
                     $getProductDamaged[] = $product;
@@ -485,8 +512,10 @@ class RiwayatCheckController extends Controller
                 }
             }
             $totalOldPriceDiscrepancy = $getHistory->value_data_discrepancy ?? 0;
-        } else {
-            // 1. Discrepancy
+        }
+
+        // 9. Discrepancy 
+        if ($getHistory->status_file !== 1) {
             if ($isSku) {
                 \App\Models\SkuProduct::where('code_document', $code_document)
                     ->where('quantity_product', '>', 0)
@@ -498,11 +527,12 @@ class RiwayatCheckController extends Controller
                             $product->old_price_product = $product->price_product;
 
                             $getProductDiscrepancy[] = $product;
-                            $totalOldPriceDiscrepancy += ($product->price_product * $product->quantity_product);
+                            $qty = $product->quantity_product ?? 1;
+                            $totalOldPriceDiscrepancy += ($product->price_product * $qty);
                         }
                     });
             } else {
-                Product_old::where('code_document', $code_document)
+                \App\Models\Product_old::where('code_document', $code_document)
                     ->chunk(2000, function ($products) use (&$getProductDiscrepancy, &$totalOldPriceDiscrepancy) {
                         foreach ($products as $product) {
                             $getProductDiscrepancy[] = $product;
@@ -510,160 +540,105 @@ class RiwayatCheckController extends Controller
                         }
                     });
             }
-
-            // 2. New_product (Damaged)
-            New_product::where('code_document', $code_document)->whereNot('new_status_product', 'sale')
-                ->where(fn($q) => $q->whereNotNull('actual_new_quality->damaged')->orWhere(fn($subQ) => $subQ->whereNull('actual_new_quality->damaged')->whereNotNull('new_quality->damaged')))
-                ->chunk(2000, function ($products) use (&$getProductDamaged, &$totalOldPriceDamaged, $isSku) {
-                    foreach ($products as $product) {
-                        $product->actual_old_price_product = $product->actual_old_price_product ?? $product->old_price_product;
-                        $quality = is_array($product->actual_new_quality ?? $product->new_quality) ? ($product->actual_new_quality ?? $product->new_quality) : (json_decode($product->actual_new_quality ?? $product->new_quality, true) ?? []);
-                        $product->damaged_value = $quality['damaged'] ?? null;
-                        $getProductDamaged[] = $product;
-                        $totalOldPriceDamaged += ($product->actual_old_price_product * ($isSku ? ($product->new_quantity_product ?? 1) : 1));
-                    }
-                });
-
-            // 3. New_product (Abnormal)
-            New_product::where('code_document', $code_document)->whereNot('new_status_product', 'sale')
-                ->where(fn($q) => $q->whereNotNull('actual_new_quality->abnormal')->orWhere(fn($subQ) => $subQ->whereNull('actual_new_quality->abnormal')->whereNotNull('new_quality->abnormal')))
-                ->chunk(2000, function ($products) use (&$getProductAbnormal, &$totalOldPriceAbnormal, $isSku) {
-                    foreach ($products as $product) {
-                        $product->actual_old_price_product = $product->actual_old_price_product ?? $product->old_price_product;
-                        $quality = is_array($product->actual_new_quality ?? $product->new_quality) ? ($product->actual_new_quality ?? $product->new_quality) : (json_decode($product->actual_new_quality ?? $product->new_quality, true) ?? []);
-                        $product->abnormal_value = $quality['abnormal'] ?? null;
-                        $getProductAbnormal[] = $product;
-                        $totalOldPriceAbnormal += ($product->actual_old_price_product * ($isSku ? ($product->new_quantity_product ?? 1) : 1));
-                    }
-                });
-
-            // 4. New_product (Non)
-            New_product::where('code_document', $code_document)->whereNot('new_status_product', 'sale')
-                ->where(fn($q) => $q->whereNotNull('actual_new_quality->non')->orWhere(fn($subQ) => $subQ->whereNull('actual_new_quality')->whereNotNull('new_quality->non')))
-                ->chunk(2000, function ($products) use (&$getProductNon, &$totalOldPriceNon, $isSku) {
-                    foreach ($products as $product) {
-                        $product->actual_old_price_product = $product->actual_old_price_product ?? $product->old_price_product;
-                        $quality = is_array($product->actual_new_quality ?? $product->new_quality) ? ($product->actual_new_quality ?? $product->new_quality) : (json_decode($product->actual_new_quality ?? $product->new_quality, true) ?? []);
-                        $product->non_value = $quality['non'] ?? null;
-                        $getProductNon[] = $product;
-                        $totalOldPriceNon += ($product->actual_old_price_product * ($isSku ? ($product->new_quantity_product ?? 1) : 1));
-                    }
-                });
-
-            // 5. New_product (Lolos)
-            New_product::where('code_document', $code_document)->whereNot('new_status_product', 'sale')
-                ->where(fn($q) => $q->whereNotNull('actual_new_quality->lolos')->orWhere(fn($subQ) => $subQ->whereNull('actual_new_quality->lolos')->whereNotNull('new_quality->lolos')))
-                ->chunk(2000, function ($products) use (&$getProductLolos, &$totalOldPriceLolos, $isSku) {
-                    foreach ($products as $product) {
-                        $product->actual_old_price_product = $product->actual_old_price_product ?? $product->old_price_product;
-                        $quality = is_array($product->actual_new_quality ?? $product->new_quality) ? ($product->actual_new_quality ?? $product->new_quality) : (json_decode($product->actual_new_quality ?? $product->new_quality, true) ?? []);
-                        $product->lolos_value = $quality['lolos'] ?? null;
-                        $getProductLolos[] = $product;
-                        $totalOldPriceLolos += ($product->actual_old_price_product * ($isSku ? ($product->new_quantity_product ?? 1) : 1));
-                    }
-                });
-
-            // 6. Staging 
-            StagingProduct::where('code_document', $code_document)->whereNot('new_status_product', 'sale')
-                ->chunk(2000, function ($products) use (&$getProductStagings, &$totalOldPriceStaging, &$getProductDamaged, &$totalOldPriceDamaged, &$getProductAbnormal, &$totalOldPriceAbnormal, &$getProductNon, &$totalOldPriceNon, $isSku) {
-                    foreach ($products as $product) {
-                        $product->actual_old_price_product = $product->actual_old_price_product ?? $product->old_price_product;
-                        $quality = is_array($product->actual_new_quality ?? $product->new_quality) ? ($product->actual_new_quality ?? $product->new_quality) : (json_decode($product->actual_new_quality ?? $product->new_quality, true) ?? []);
-                        $qty = $isSku ? ($product->new_quantity_product ?? 1) : 1;
-
-                        if (!empty($quality['damaged'])) {
-                            $product->damaged_value = $quality['damaged'];
-                            $getProductDamaged[] = $product;
-                            $totalOldPriceDamaged += ($product->actual_old_price_product * $qty);
-                        } elseif (!empty($quality['abnormal'])) {
-                            $product->abnormal_value = $quality['abnormal'];
-                            $getProductAbnormal[] = $product;
-                            $totalOldPriceAbnormal += ($product->actual_old_price_product * $qty);
-                        } elseif (!empty($quality['non'])) {
-                            $product->non_value = $quality['non'];
-                            $getProductNon[] = $product;
-                            $totalOldPriceNon += ($product->actual_old_price_product * $qty);
-                        } else {
-                            $product->lolos_value = $quality['lolos'] ?? null;
-                            $getProductStagings[] = $product;
-                            $totalOldPriceStaging += ($product->actual_old_price_product * $qty);
-                        }
-                    }
-                });
-
-            // 7. Product Approve
-            ProductApprove::where('code_document', $code_document)->whereNot('new_status_product', 'sale')
-                ->chunk(2000, function ($products) use (&$getProductPA, &$totalOldPricePA, &$getProductDamaged, &$totalOldPriceDamaged, &$getProductAbnormal, &$totalOldPriceAbnormal, &$getProductNon, &$totalOldPriceNon, $isSku) {
-                    foreach ($products as $product) {
-                        $product->actual_old_price_product = $product->actual_old_price_product ?? $product->old_price_product;
-                        $quality = is_array($product->actual_new_quality ?? $product->new_quality) ? ($product->actual_new_quality ?? $product->new_quality) : (json_decode($product->actual_new_quality ?? $product->new_quality, true) ?? []);
-                        $qty = $isSku ? ($product->new_quantity_product ?? 1) : 1;
-
-                        if (!empty($quality['damaged'])) {
-                            $product->damaged_value = $quality['damaged'];
-                            $getProductDamaged[] = $product;
-                            $totalOldPriceDamaged += ($product->actual_old_price_product * $qty);
-                        } elseif (!empty($quality['abnormal'])) {
-                            $product->abnormal_value = $quality['abnormal'];
-                            $getProductAbnormal[] = $product;
-                            $totalOldPriceAbnormal += ($product->actual_old_price_product * $qty);
-                        } elseif (!empty($quality['non'])) {
-                            $product->non_value = $quality['non'];
-                            $getProductNon[] = $product;
-                            $totalOldPriceNon += ($product->actual_old_price_product * $qty);
-                        } else {
-                            $product->lolos_value = $quality['lolos'] ?? null;
-                            $getProductPA[] = $product;
-                            $totalOldPricePA += ($product->actual_old_price_product * $qty);
-                        }
-                    }
-                });
-
-            // 8. Product Bundle
-            Product_Bundle::where('code_document', $code_document)->whereNot('new_status_product', 'sale')
-                ->chunk(2000, function ($products) use (&$getProductBundle, &$totalOldPriceBundle, &$getProductDamaged, &$totalOldPriceDamaged, &$getProductAbnormal, &$totalOldPriceAbnormal, &$getProductNon, &$totalOldPriceNon, $isSku) {
-                    foreach ($products as $product) {
-                        $product->actual_old_price_product = $product->actual_old_price_product ?? $product->old_price_product;
-                        $quality = is_array($product->actual_new_quality ?? $product->new_quality) ? ($product->actual_new_quality ?? $product->new_quality) : (json_decode($product->actual_new_quality ?? $product->new_quality, true) ?? []);
-                        $qty = $isSku ? ($product->new_quantity_product ?? 1) : 1;
-
-                        if (!empty($quality['damaged'])) {
-                            $product->damaged_value = $quality['damaged'];
-                            $getProductDamaged[] = $product;
-                            $totalOldPriceDamaged += ($product->actual_old_price_product * $qty);
-                        } elseif (!empty($quality['abnormal'])) {
-                            $product->abnormal_value = $quality['abnormal'];
-                            $getProductAbnormal[] = $product;
-                            $totalOldPriceAbnormal += ($product->actual_old_price_product * $qty);
-                        } elseif (!empty($quality['non'])) {
-                            $product->non_value = $quality['non'];
-                            $getProductNon[] = $product;
-                            $totalOldPriceNon += ($product->actual_old_price_product * $qty);
-                        } else {
-                            $product->lolos_value = $quality['lolos'] ?? null;
-                            $getProductBundle[] = $product;
-                            $totalOldPriceBundle += ($product->actual_old_price_product * $qty);
-                        }
-                    }
-                });
-
-            // 9. Migrate Bulky (Ke Sheet Repair) MENGGUNAKAN ELOQUENT
-            \App\Models\MigrateBulkyProduct::where('code_document_inbound', $code_document)
-                ->chunk(2000, function ($products) use (&$getProductRepair, &$totalOldPriceRepair, $isSku) {
-                    foreach ($products as $product) {
-                        $price = $product->old_price_product ?? 0;
-                        $qty = $isSku ? ($product->new_quantity_product ?? 1) : 1;
-
-                        $product->actual_old_price_product = $price;
-                        $product->lolos_value = 'lolos';
-
-                        $getProductRepair[] = $product;
-                        $totalOldPriceRepair += ($price * $qty);
-                    }
-                });
         }
 
-        // ---> PERBAIKAN SHEET SALES SKU <---
+        $tablesToFetch = [
+            'new' => New_product::where('code_document', $code_document)->where($notSale),
+            'staging' => StagingProduct::where('code_document', $code_document)->where($notSale),
+            'approve' => ProductApprove::where('code_document', $code_document)->where($notSale),
+            'bundle' => Product_Bundle::where('code_document', $code_document)->where($notSale),
+        ];
+
+        foreach ($tablesToFetch as $tableKey => $query) {
+            $query->chunk(2000, function ($products) use (
+                &$getProductDamaged,
+                &$totalOldPriceDamaged,
+                &$getProductAbnormal,
+                &$totalOldPriceAbnormal,
+                &$getProductNon,
+                &$totalOldPriceNon,
+                &$getProductLolos,
+                &$totalOldPriceLolos,
+                &$getProductStagings,
+                &$totalOldPriceStaging,
+                &$getProductPA,
+                &$totalOldPricePA,
+                &$getProductBundle,
+                &$totalOldPriceBundle,
+                $isSku,
+                $tableKey,
+                $processedDefectBarcodes
+            ) {
+                foreach ($products as $product) {
+                    $product->actual_old_price_product = $product->actual_old_price_product ?? $product->old_price_product;
+
+                    $quality = is_array($product->actual_new_quality ?? $product->new_quality)
+                        ? ($product->actual_new_quality ?? $product->new_quality)
+                        : (json_decode($product->actual_new_quality ?? $product->new_quality, true) ?? []);
+
+                    $qty = $isSku ? ($product->new_quantity_product ?? 1) : 1;
+                    $price = $product->actual_old_price_product;
+
+                    // Cek apakah data cacat ini sudah masuk via ProductDefect
+                    $inDefect = in_array($product->new_barcode_product, $processedDefectBarcodes);
+
+                    if ($inDefect) {
+                        continue;
+                    }
+
+                    $isDamaged = !empty($quality['damaged']);
+                    $isAbnormal = !empty($quality['abnormal']);
+                    $isNon = !empty($quality['non']);
+
+                    if (($tableKey === 'new' || $tableKey === 'staging') && $isDamaged) {
+                        $product->damaged_value = $quality['damaged'];
+                        $getProductDamaged[] = $product;
+                        $totalOldPriceDamaged += ($price * $qty);
+                    } elseif (($tableKey === 'new' || $tableKey === 'staging') && $isAbnormal) {
+                        $product->abnormal_value = $quality['abnormal'];
+                        $getProductAbnormal[] = $product;
+                        $totalOldPriceAbnormal += ($price * $qty);
+                    } elseif (($tableKey === 'new' || $tableKey === 'staging') && $isNon) {
+                        $product->non_value = $quality['non'];
+                        $getProductNon[] = $product;
+                        $totalOldPriceNon += ($price * $qty);
+                    } else {
+                        if ($tableKey === 'new') {
+                            $product->lolos_value = $quality['lolos'] ?? 'lolos';
+                            $getProductLolos[] = $product;
+                            $totalOldPriceLolos += ($price * $qty);
+                        } elseif ($tableKey === 'staging') {
+                            $product->lolos_value = $quality['lolos'] ?? 'pending';
+                            $getProductStagings[] = $product;
+                            $totalOldPriceStaging += ($price * $qty);
+                        } elseif ($tableKey === 'approve') {
+                            $getProductPA[] = $product;
+                            $totalOldPricePA += ($price * $qty);
+                        } elseif ($tableKey === 'bundle') {
+                            $getProductBundle[] = $product;
+                            $totalOldPriceBundle += ($price * $qty);
+                        }
+                    }
+                }
+            });
+        }
+
+        // 8. Repair => Migrate Bulky Product
+        \App\Models\MigrateBulkyProduct::where('code_document_inbound', $code_document)
+            ->chunk(2000, function ($products) use (&$getProductRepair, &$totalOldPriceRepair, $isSku) {
+                foreach ($products as $product) {
+                    $price = $product->old_price_product ?? 0;
+                    $qty = $isSku ? ($product->new_quantity_product ?? 1) : 1;
+
+                    $product->actual_old_price_product = $price;
+                    $product->lolos_value = 'lolos';
+
+                    $getProductRepair[] = $product;
+                    $totalOldPriceRepair += ($price * $qty);
+                }
+            });
+
+        // 7. Sales => Sales & Bulky Sales 
         $totalPriceSales = 0;
         $allSalesData = collect();
 
@@ -675,7 +650,6 @@ class RiwayatCheckController extends Controller
                 $price = $item->actual_old_price_product ?? $item->old_price_product ?? 0;
                 $qty = $item->new_quantity_product ?? 1;
 
-                // Mapping agar kompatibel dengan createExcelSale
                 $item->actual_product_old_price_sale = $price;
                 $item->product_qty_sale = $qty;
                 $item->product_name_sale = $item->new_name_product ?? $item->old_name_product;
@@ -698,7 +672,7 @@ class RiwayatCheckController extends Controller
             }
         }
 
-        // --- KALKULASI SEMUA PERSENTASE SECARA GLOBAL ---
+        // Kalkulasi Persentase
         $totalH = $getHistory->total_price;
         $price_persentage_damaged = $totalH != 0 ? round(($totalOldPriceDamaged / $totalH) * 100, 2) : 0;
         $price_persentage_abnormal = $totalH != 0 ? round(($totalOldPriceAbnormal / $totalH) * 100, 2) : 0;
@@ -716,7 +690,6 @@ class RiwayatCheckController extends Controller
             return response()->json(['status' => false, 'message' => "Data kosong, tidak bisa di export"], 422);
         }
 
-        // BIKIN EXCEL
         $spreadsheet = new Spreadsheet();
         $sheet = $spreadsheet->getActiveSheet();
 
@@ -783,7 +756,6 @@ class RiwayatCheckController extends Controller
         $sheet = $spreadsheet->createSheet();
         $sheet->setTitle($title);
 
-        // Menetapkan header
         $headers = [
             'Code Document',
             'Old Barcode',
@@ -799,48 +771,52 @@ class RiwayatCheckController extends Controller
             'Weight'
         ];
 
-        // Menulis header langsung ke lembar kerja
         $sheet->fromArray($headers, null, 'A1');
 
-        // Memproses data dan menyiapkan array untuk dimasukkan ke Excel
         $dataArray = [];
         foreach ($data as $item) {
-            // Gunakan actual_old_price_product dengan fallback
-            $actualOldPrice = $item->actual_old_price_product ?? $item->old_price_product;
+            $item = is_array($item) ? (object) $item : $item;
+
+            $actualOldPrice = $item->actual_old_price_product ?? $item->old_price_product ?? 0;
+            $newPrice = $item->new_price_product ?? 0;
 
             $diskon = $actualOldPrice != 0
-                ? (($actualOldPrice - $item->new_price_product) / $actualOldPrice) * 100
+                ? (($actualOldPrice - $newPrice) / $actualOldPrice) * 100
                 : 0;
 
             $keterangan = $item->lolos_value ?? $item->damaged_value ?? $item->abnormal_value ?? $item->non_value ??  'null';
 
-            // Menambahkan data ke array
-            $dataArray[] = [
+            // Masukkan data ke array sementara (row)
+            $row = [
                 $item->code_document ?? $item->code_document_inbound ?? 'null',
                 $item->old_barcode_product ?? 'null',
                 $item->new_barcode_product ?? 'null',
-                $item->new_name_product ?? 'null',
+                $item->new_name_product ?? $item->old_name_product ?? 'null',
                 $keterangan,
-                $item->new_quantity_product ?? 'null',
-                $actualOldPrice ?? 'null',
+                $item->new_quantity_product ?? $item->old_quantity_product ?? 1,
+                $actualOldPrice,
                 $item->new_category_product ?? 'null',
-                $diskon ?? 'null',
-                $item->new_price_product ?? 'null',
+                round($diskon, 2),
+                $newPrice,
                 $pricePercentage,
                 $item->weight ?? 'null'
             ];
+
+            // Bersihkan karakter UTF-8 yang rusak pada setiap string di row ini
+            $dataArray[] = array_map(function ($value) {
+                return is_string($value) ? mb_convert_encoding($value, 'UTF-8', 'UTF-8') : $value;
+            }, $row);
         }
 
-        // Menulis data dalam bentuk array ke lembar Excel mulai dari baris ke-2
         $sheet->fromArray($dataArray, null, 'A2');
 
-        // Menambahkan total dan persentase di bagian akhir
-        $totalRow = count($dataArray) + 2; // Baris setelah data
+        $totalRow = count($dataArray) + 2;
         $sheet->setCellValue("A{$totalRow}", 'Total Price');
         $sheet->setCellValue("B{$totalRow}", $totalOldPrice);
         $sheet->setCellValue("C{$totalRow}", 'Price Percentage');
         $sheet->setCellValue("D{$totalRow}", $pricePercentage);
     }
+
     private function createExcelSheetAbnormal($spreadsheet, $title, $data, $totalOldPrice, $pricePercentage)
     {
         $sheet = $spreadsheet->createSheet();
@@ -878,8 +854,8 @@ class RiwayatCheckController extends Controller
 
             $keterangan = $item->lolos_value ?? $item->damaged_value ?? $item->abnormal_value ?? 'null';
 
-            // Menambahkan data ke array
-            $dataArray[] = [
+            // Menambahkan data ke array sementara
+            $row = [
                 $item->code_document ?? 'null',
                 $item->old_barcode_product ?? 'null',
                 $item->new_barcode_product ?? 'null',
@@ -894,6 +870,11 @@ class RiwayatCheckController extends Controller
                 'Abnormal',
                 $item->weight ?? 'null'
             ];
+
+            // Bersihkan karakter UTF-8 yang rusak
+            $dataArray[] = array_map(function ($value) {
+                return is_string($value) ? mb_convert_encoding($value, 'UTF-8', 'UTF-8') : $value;
+            }, $row);
         }
 
         // Menulis data dalam bentuk array ke lembar Excel mulai dari baris ke-2
@@ -935,7 +916,7 @@ class RiwayatCheckController extends Controller
                 $item->actual_old_price_product ??
                 $item->old_price_bulky_sale;
 
-            $dataArray[] = [
+            $row = [
                 $item->code_document_sale ?? $item->code_document ?? 'null',
                 $item->product_name_sale ?? $item->name_product_bulky_sale ?? 'null',
                 $item->product_barcode_sale ?? $item->barcode_bulky_sale ?? 'null',
@@ -948,6 +929,11 @@ class RiwayatCheckController extends Controller
                 $item->status_product ?? $item->status_product_before ?? 'null',
                 $item->weight ?? 'null'
             ];
+
+            // Bersihkan karakter UTF-8 yang rusak
+            $dataArray[] = array_map(function ($value) {
+                return is_string($value) ? mb_convert_encoding($value, 'UTF-8', 'UTF-8') : $value;
+            }, $row);
         }
 
         $sheet->fromArray($dataArray, null, 'A2');
@@ -959,6 +945,7 @@ class RiwayatCheckController extends Controller
         $sheet->setCellValue("C{$totalRow}", 'Price Percentage');
         $sheet->setCellValue("D{$totalRow}", $pricePercentage);
     }
+
     private function createExcelSheetDiscrepancy($spreadsheet, $title, $data, $totalOldPrice, $pricePercentage)
     {
         $sheet = $spreadsheet->createSheet();
@@ -986,8 +973,8 @@ class RiwayatCheckController extends Controller
 
             $keterangan = $item->lolos_value ?? $item->damaged_value ?? $item->abnormal_value ?? 'null';
 
-            // Menambahkan data ke array
-            $dataArray[] = [
+            // Menambahkan data ke array sementara
+            $row = [
                 $item->code_document ?? 'null',
                 $item->old_barcode_product ?? 'null',
                 $item->old_name_product ?? 'null',
@@ -995,6 +982,11 @@ class RiwayatCheckController extends Controller
                 $item->old_price_product ?? 'null',
                 $item->weight ?? 'null'
             ];
+
+            // Bersihkan karakter UTF-8 yang rusak
+            $dataArray[] = array_map(function ($value) {
+                return is_string($value) ? mb_convert_encoding($value, 'UTF-8', 'UTF-8') : $value;
+            }, $row);
         }
 
         // Menulis data dalam bentuk array ke lembar Excel mulai dari baris ke-2
