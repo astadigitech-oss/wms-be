@@ -189,6 +189,37 @@ class ProductApproveController extends Controller
                 return (new ResponseResource(false, "The new barcode already exists", $inputData))->response()->setStatusCode(429);
             }
 
+            // === TAMBAHAN PENGECEKAN DAN PEMBUATAN NOTIFIKASI SAJA ===
+            $user = auth()->user();
+            $isAdminOrSpv = false;
+            if ($user && $user->role) {
+                $isAdminOrSpv = in_array($user->role->role_name, ['Admin', 'Spv']);
+            }
+
+            $oldProduct = Product_old::where('old_barcode_product', $oldBarcode)->first();
+            $isDifferent = false;
+
+            if ($oldProduct) {
+                $nameChanged = trim($request->input('new_name_product')) !== trim($oldProduct->old_name_product);
+                $qtyChanged = (int)$request->input('new_quantity_product') !== (int)$oldProduct->old_quantity_product;
+                $isDifferent = ($nameChanged || $qtyChanged);
+            }
+
+            if ($isDifferent && !$isAdminOrSpv) {
+                // Sisipkan is_pending agar terbawa ke Redis
+                $inputData['is_pending'] = true;
+                $roleName = $user && $user->role ? $user->role->role_name : 'Crew';
+
+                Notification::create([
+                    'notification_name' => 'Approval Perubahan Data: ' . $inputData['new_barcode_product'],
+                    'status' => 'pending_approval',
+                    'user_id' => $userId,
+                    'role' => $roleName,
+                    // external_id tidak diisi karena datanya baru akan dicreate lewat Redis nanti
+                ]);
+            }
+            // =========================================================
+
             $riwayatCheck = RiwayatCheck::where('code_document', $request->input('code_document'))->first();
             // $totalDataIn = 1 + $riwayatCheck->total_data_in;
             // $checkSoCategory = SummarySoCategory::where('type', 'process')->first();
@@ -439,9 +470,37 @@ class ProductApproveController extends Controller
 
             // Set display price
             $inputData['display_price'] = $inputData['new_price_product'] ?? $inputData['old_price_product'];
-            
+
             $category = Category::where('name_category', $inputData['new_category_product'])->first();
             $inputData['discount_category'] = $category ? $category->discount_category : null;
+
+
+            $user = auth()->user();
+            $isAdminOrSpv = false;
+            if ($user && $user->role) {
+                $isAdminOrSpv = in_array($user->role->role_name, ['Admin', 'Spv']);
+            }
+
+            $oldProduct = Product_old::where('old_barcode_product', $inputData['old_barcode_product'])->first();
+            $isDifferent = false;
+
+            if ($oldProduct) {
+                $nameChanged = trim($request->input('new_name_product')) !== trim($oldProduct->old_name_product);
+                $qtyChanged = (int)$request->input('new_quantity_product') !== (int)$oldProduct->old_quantity_product;
+                $isDifferent = ($nameChanged || $qtyChanged);
+            }
+
+            if ($isDifferent && !$isAdminOrSpv) {
+                $inputData['is_pending'] = true; 
+                $roleName = $user && $user->role ? $user->role->role_name : 'Crew';
+
+                Notification::create([
+                    'notification_name' => 'Approval Perubahan Data: ' . $inputData['new_barcode_product'],
+                    'status' => 'pending_approval',
+                    'user_id' => $userId,
+                    'role' => $roleName,
+                ]);
+            }
 
 
             $this->deleteOldProduct($inputData['code_document'], $inputData['old_barcode_product']);
@@ -485,7 +544,7 @@ class ProductApproveController extends Controller
             $newProduct->discount_category = $inputData['discount_category'] ?? null;
 
             DB::commit();
-            
+
             return new ProductapproveResource(true, true, "New Produk Berhasil ditambah", $newProduct);
         } catch (\Exception $e) {
             DB::rollback();

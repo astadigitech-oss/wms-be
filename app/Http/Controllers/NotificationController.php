@@ -248,15 +248,15 @@ class NotificationController extends Controller
     {
         $userId = auth()->id();
         $userRole = User::where('id', $userId)->with('role')->first();
-        
-        $query = $request->input('search') ?? $request->input('q'); 
-        
+
+        $query = $request->input('search') ?? $request->input('q');
+
         $page = $request->input('page', 1);
         $perPage = 30;
 
         $notifQuery = Notification::query()
             ->latest('notifications.created_at');
-            
+
         if (!in_array($userRole->role->id, [1, 2, 5, 8])) {
             $notifQuery->whereNot('status', 'sale');
         }
@@ -264,11 +264,11 @@ class NotificationController extends Controller
         if (!empty($query)) {
             $notifQuery->where(function ($qBuilder) use ($query) {
                 $qBuilder->where('status', 'LIKE', '%' . $query . '%')
-                         ->orWhere('notification_name', 'LIKE', '%' . $query . '%');
+                    ->orWhere('notification_name', 'LIKE', '%' . $query . '%');
             });
         }
 
-        
+
         $notifications = $notifQuery->paginate($perPage);
 
         return new ResponseResource(true, "Notifications", $notifications);
@@ -426,6 +426,127 @@ class NotificationController extends Controller
 
             return new ResponseResource(true, "Detail approval produk manual", $dataResponse);
         } catch (\Exception $e) {
+            return response()->json(['error' => $e->getMessage()], 500);
+        }
+    }
+
+    public function detailPendingApproval($notificationId)
+    {
+        try {
+            $notification = Notification::find($notificationId);
+
+            if (!$notification || $notification->status !== 'pending_approval') {
+                return response()->json(['message' => 'Notifikasi tidak valid atau tidak ditemukan'], 404);
+            }
+
+            $barcode = str_replace('Approval Perubahan Data: ', '', $notification->notification_name);
+
+            $productApprove = \App\Models\ProductApprove::where('new_barcode_product', $barcode)->first();
+
+            if (!$productApprove) {
+                return response()->json(['message' => 'Data produk pending tidak ditemukan'], 404);
+            }
+
+            $productOld = \App\Models\Product_old::where('old_barcode_product', $productApprove->old_barcode_product)
+                ->where('code_document', $productApprove->code_document)
+                ->first();
+
+            $dataResponse = [
+                'notification_id' => $notification->id,
+                'notification_name' => $notification->notification_name,
+                'requested_by' => \App\Models\User::find($notification->user_id)->name ?? 'Unknown',
+                'status_notif' => $notification->status,
+                'comparison_data' => [
+                    'old_data' => [
+                        'old_name_product' => $productOld ? $productOld->old_name_product : 'Data tidak ditemukan',
+                        'old_quantity_product' => $productOld ? $productOld->old_quantity_product : 0,
+                        'old_price_product' => $productOld ? $productOld->old_price_product : 0,
+                    ],
+                    'new_data' => [
+                        'new_barcode_product' => $productApprove->new_barcode_product,
+                        'new_name_product' => $productApprove->new_name_product,
+                        'new_quantity_product' => $productApprove->new_quantity_product,
+                        'new_price_product' => $productApprove->new_price_product,
+                        'new_category_product' => $productApprove->new_category_product,
+                        'new_tag_product' => $productApprove->new_tag_product,
+                        'new_status_product' => $productApprove->new_status_product,
+                        'new_quality' => json_decode($productApprove->new_quality, true),
+                    ]
+                ],
+                'created_at' => $notification->created_at
+            ];
+
+            return new ResponseResource(true, "Detail perbandingan data untuk approval", $dataResponse);
+        } catch (\Exception $e) {
+            return response()->json(['error' => $e->getMessage()], 500);
+        }
+    }
+
+    public function actionProductApproval(Request $request, $notificationId)
+    {
+        $user = \App\Models\User::with('role')->find(auth()->id());
+        $roleName = $user->role->role_name ?? '';
+
+        if (!in_array($roleName, ['Admin', 'Spv'])) {
+            $response = new \App\Http\Resources\ResponseResource(false, "User tidak diizinkan", null);
+            return $response->response()->setStatusCode(403);
+        }
+
+        $validator = \Illuminate\Support\Facades\Validator::make($request->all(), [
+            'action' => 'required|in:approve,reject'
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json($validator->errors(), 422);
+        }
+
+        DB::beginTransaction();
+        try {
+            $notification = Notification::find($notificationId);
+
+            if (!$notification || $notification->status !== 'pending_approval') {
+                return response()->json(['message' => 'Notifikasi tidak valid atau bukan pending approval'], 404);
+            }
+
+            $barcode = str_replace('Approval Perubahan Data: ', '', $notification->notification_name);
+            $productApprove = \App\Models\ProductApprove::where('new_barcode_product', $barcode)->first();
+
+            if (!$productApprove) {
+                $notification->delete();
+                return response()->json(['message' => 'Data produk pending sudah tidak ditemukan'], 404);
+            }
+
+            if ($request->action === 'approve') {
+                $productApprove->update(['is_pending' => false]);
+
+                DB::statement(
+                    "DELETE FROM product_olds WHERE code_document = ? AND old_barcode_product = ? LIMIT 1",
+                    [$productApprove->code_document, $productApprove->old_barcode_product]
+                );
+
+                $notification->update([
+                    'notification_name' => 'Approved - ' . str_replace('Approval Perubahan Data: ', '', $notification->notification_name),
+                    'status' => 'pending_approval',
+                    'approved' => '2'
+                ]);
+
+                $message = "Perubahan produk disetujui.";
+            } else {
+                $productApprove->delete();
+
+                $notification->update([
+                    'notification_name' => 'Rejected - ' . str_replace('Approval Perubahan Data: ', '', $notification->notification_name),
+                    'status' => 'pending_approval',
+                    'approved' => '1'
+                ]);
+
+                $message = "Perubahan produk ditolak dan data dibatalkan.";
+            }
+
+            DB::commit();
+            return new \App\Http\Resources\ResponseResource(true, $message, null);
+        } catch (\Exception $e) {
+            DB::rollBack();
             return response()->json(['error' => $e->getMessage()], 500);
         }
     }

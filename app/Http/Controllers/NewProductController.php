@@ -879,21 +879,21 @@ class NewProductController extends Controller
                                 $quantity = $value !== '' ? (int)$value : 0;
                                 $newProductDataToInsert[$key] = $quantity;
                             } elseif ($key === 'old_price_product' || $key === 'display_price') {
-                                $newProductDataToInsert[$key] = (float)str_replace(',', '', $value);
+                                $newProductDataToInsert[$key] = $value !== '' ? (float)str_replace(',', '', $value) : 0;
                             } elseif ($key === 'weight') {
                                 $newProductDataToInsert[$key] = $value !== '' ? (float)str_replace(',', '', $value) : null;
                             } else {
                                 $newProductDataToInsert[$key] = $value;
                             }
+                        } else {
+                            $newProductDataToInsert[$key] = null;
                         }
                     }
 
-                    // Skip jika old_price_product lebih dari 99.999
                     if (isset($newProductDataToInsert['old_price_product']) && $newProductDataToInsert['old_price_product'] > 99999) {
-                        continue; // Lanjutkan ke item berikutnya jika harga di atas 99.999
+                        continue;
                     }
 
-                    // Proses untuk old_price_product kurang dari 100.000
                     if (isset($newProductDataToInsert['old_price_product']) && $newProductDataToInsert['old_price_product'] < 100000) {
                         $colors = Color_tag::where('min_price_color', '<=', $newProductDataToInsert['old_price_product'])
                             ->where('max_price_color', '>=', $newProductDataToInsert['old_price_product'])
@@ -906,12 +906,16 @@ class NewProductController extends Controller
                         }
                     }
 
+                    $newProductDataToInsert['new_discount'] = 0;
+                    $newProductDataToInsert['new_price_product'] = $newProductDataToInsert['new_price_product'] ?? $newProductDataToInsert['display_price'] ?? 0;
+                    if ($newProductDataToInsert['new_price_product'] === '') {
+                        $newProductDataToInsert['new_price_product'] = 0;
+                    }
+
                     $newProductDataToInsert = array_merge($newProductDataToInsert, [
                         'code_document' => $code_document,
                         'type' => 'type1',
                         'user_id' => $user_id,
-                        // 'user_so' => $user_id,
-                        // 'is_so' => "done",
                         'is_so' => null,
                         'new_tag_product' => $newProductDataToInsert['new_tag_product'] ?? null,
                         'new_quality' => json_encode(['lolos' => 'lolos']),

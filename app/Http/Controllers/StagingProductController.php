@@ -792,6 +792,19 @@ class StagingProductController extends Controller
             $document = Document::where('code_document', $code_document)->first();
             if ($document) {
 
+                $pendingProducts = ProductApprove::where('code_document', $code_document)
+                    ->where('is_pending', true)
+                    ->pluck('new_barcode_product')
+                    ->toArray();
+
+                if (!empty($pendingProducts)) {
+                    return (new ResponseResource(
+                        false,
+                        "Terdapat produk yang perlu di-approve terlebih dahulu sebelum di proses parsial.",
+                        $pendingProducts
+                    ))->response()->setStatusCode(422);
+                }
+
                 $productApprovesTags = ProductApprove::where('code_document', $code_document)
                     ->whereNotNull('new_tag_product')->where('new_quality->lolos', '!=', null)
                     ->get();
@@ -885,7 +898,8 @@ class StagingProductController extends Controller
                     'new_status_product',
                     'new_quality',
                     'new_category_product',
-                    'weight'
+                    'weight',
+                    DB::raw("(SELECT barcode FROM racks WHERE racks.id = rack_id LIMIT 1) as barcode_rack")
                 )
                 ->whereNotIn('new_status_product', ['dump', 'sale', 'migrate', 'repair', 'scrap_qcd'])
                 ->where(function ($query) {
@@ -911,7 +925,8 @@ class StagingProductController extends Controller
                     DB::raw("CASE WHEN product_status = 'not sale' THEN 'display' ELSE product_status END as new_status_product"),
                     DB::raw("NULL as new_quality"),
                     'category as new_category_product',
-                    DB::raw("NULL as weight")
+                    DB::raw("NULL as weight"),
+                    DB::raw("(SELECT barcode FROM racks WHERE racks.id = rack_id LIMIT 1) as barcode_rack")
                 )
                 ->whereNotNull('category')
                 ->where('source', 'staging')
