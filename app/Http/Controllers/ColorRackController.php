@@ -325,7 +325,10 @@ class ColorRackController extends Controller
 
     public function addProduct(Request $request, $id)
     {
-        $request->validate(['barcode' => 'required|string']);
+        $request->validate([
+            'barcode'     => 'required|string',
+            'tag'         => 'nullable|in:Small,Big'
+        ]);
 
         $rack = ColorRack::find($id);
         if (!$rack) {
@@ -349,7 +352,6 @@ class ColorRackController extends Controller
 
         if (!$bundle) {
             $productBundle = Product_Bundle::where('new_barcode_product', $barcode)->first();
-
             if ($productBundle) {
                 $bundle = Bundle::where('id', $productBundle->bundle_id)
                     ->whereDoesntHave('colorRackProduct')
@@ -381,6 +383,13 @@ class ColorRackController extends Controller
                 ->first();
         }
 
+        if ($product && strtolower($product->new_tag_product) === 'brown') {
+            if (!$request->filled('tag')) {
+                return (new ResponseResource(false, 'produk brown perlu pilih tag Big atau Small', $product))
+                    ->response()->setStatusCode(422);
+            }
+        }
+
         if (!$bundle && !$product) {
             $anyProductExists = New_product::where('old_barcode_product', $barcode)->orWhere('new_barcode_product', $barcode)->exists();
 
@@ -404,6 +413,17 @@ class ColorRackController extends Controller
         DB::beginTransaction();
         try {
             $responseData = null;
+
+            if ($product && strtolower($product->new_tag_product) === 'brown' && $request->filled('tag')) {
+                $size = strtolower($request->tag);
+                $price = ($size === 'small') ? 12000 : 24000;
+
+                $product->update([
+                    'new_tag_product'   => $size,
+                    'new_price_product' => $price,
+                    'display_price'     => $price,
+                ]);
+            }
 
             if ($bundle) {
                 $rackProduct = ColorRackProduct::create([
