@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Exports\MigrateDetailExport;
 use App\Http\Resources\ResponseResource;
 use App\Models\ColorRack;
 use App\Models\ColorRackProduct;
@@ -15,20 +16,21 @@ use App\Services\Pos\PosService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
+use Maatwebsite\Excel\Facades\Excel;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 
 class MigrateDocumentController extends Controller
 {
-    /**
-     * Display a listing of the resource.
-     */
+
     public function index()
     {
         $querySearch = request()->q;
 
-        $migrateDocument = MigrateDocument::where('status_document_migrate', 'selesai')
+        $migrateDocuments = MigrateDocument::with('migrates.colorRack.colorRackProducts')
+            ->where('status_document_migrate', 'selesai')
             ->when($querySearch, function ($query) use ($querySearch) {
                 $query->where(function ($subQuery) use ($querySearch) {
                     $subQuery->where('code_document_migrate', 'like', '%' . $querySearch . '%')
@@ -38,7 +40,30 @@ class MigrateDocumentController extends Controller
             ->latest()
             ->paginate(15);
 
-        $resource = new ResponseResource(true, "list dokumen migrate", $migrateDocument);
+        $migrateDocuments->getCollection()->transform(function ($document) {
+            $totalProdukDokumen = 0;
+
+            if ($document->migrates) {
+                foreach ($document->migrates as $migrate) {
+                    if ($migrate->colorRack) {
+                        $validProductCount = $migrate->colorRack->colorRackProducts->filter(function ($cp) {
+                            return $cp->new_product_id !== null || $cp->bundle_id !== null;
+                        })->count();
+
+                        $totalProdukDokumen += $validProductCount;
+                    }
+                }
+            }
+
+            $document->total_product_document_migrate = $totalProdukDokumen;
+
+            $document->makeHidden(['migrates']);
+
+            return $document;
+        });
+
+        $resource = new ResponseResource(true, "list dokumen migrate", $migrateDocuments);
+
         return $resource->response();
     }
 
@@ -76,7 +101,31 @@ class MigrateDocumentController extends Controller
      */
     public function show(MigrateDocument $migrateDocument)
     {
-        $migrateDocument->load('migrates.colorRack');
+        $migrateDocument->load('migrates.colorRack.colorRackProducts');
+
+        $totalProdukDokumen = 0;
+
+        $migrateDocument->migrates->transform(function ($migrate) use (&$totalProdukDokumen) {
+            if ($migrate->colorRack) {
+
+                $validProductCount = $migrate->colorRack->colorRackProducts->filter(function ($cp) {
+                    return $cp->new_product_id !== null || $cp->bundle_id !== null;
+                })->count();
+
+                $migrate->product_total = $validProductCount;
+
+                // Akumulasi ke total keseluruhan dokumen
+                $totalProdukDokumen += $validProductCount;
+
+                $migrate->colorRack->makeHidden('colorRackProducts');
+            } else {
+                $migrate->product_total = 0;
+            }
+
+            return $migrate;
+        });
+
+        $migrateDocument->total_product_document_migrate = $totalProdukDokumen;
 
         $resource = new ResponseResource(true, "Data document migrate", $migrateDocument);
 
@@ -434,145 +483,39 @@ class MigrateDocumentController extends Controller
         set_time_limit(300);
         ini_set('memory_limit', '512M');
 
-        $spreadsheet = new Spreadsheet();
-        $sheet = $spreadsheet->getActiveSheet();
-
         $migrate = MigrateDocument::with([
             'migrates.colorRack.colorRackProducts.newProduct',
             'migrates.colorRack.colorRackProducts.bundle'
         ])->where('id', $id)->first();
 
-        $fileName = 'Migrate_Not_Found_' . time() . '.xlsx';
-
         if (!$migrate) {
-            $sheet->setCellValueByColumnAndRow(1, 1, 'No data found');
-        } else {
-            $fileName = 'Migrate_' . $migrate->code_document_migrate . '.xlsx';
-
-            $destinationName = $migrate->destiny_document_migrate;
-            $destObj = \App\Models\Destination::find($migrate->destiny_document_migrate);
-            if ($destObj) {
-                $destinationName = $destObj->shop_name;
-            }
-
-            $migrateHeaders = [
-                'ID Dokumen',
-                'Kode Dokumen',
-                'Destinasi (Toko)',
-                'Total Produk',
-                'Status Dokumen'
-            ];
-
-            $migrateData = [
-                $migrate->id,
-                $migrate->code_document_migrate,
-                $destinationName,
-                $migrate->total_product_document_migrate,
-                strtoupper($migrate->status_document_migrate)
-            ];
-
-            // Tulis Header Umum
-            $columnIndex = 1;
-            foreach ($migrateHeaders as $header) {
-                $sheet->setCellValueByColumnAndRow($columnIndex, 1, $header);
-                $sheet->setCellValueByColumnAndRow($columnIndex, 2, $migrateData[$columnIndex - 1]);
-                $columnIndex++;
-            }
-
-            $rowIndex = 4;
-            $productHeaders = [
-                'Nama Rak Color',
-                'Barcode Rak',
-                'Tipe Item',
-                'Nama Produk / Bundle',
-                'Barcode Item',
-                'Harga Awal',
-                'Harga POS (Actual)',
-                'Status Fisik WMS'
-            ];
-
-            $productColumnIndex = 1;
-            foreach ($productHeaders as $header) {
-                $sheet->setCellValueByColumnAndRow($productColumnIndex, $rowIndex, $header);
-                $sheet->getStyleByColumnAndRow($productColumnIndex, $rowIndex)->getFont()->setBold(true);
-                $productColumnIndex++;
-            }
-            $rowIndex++;
-
-            if ($migrate->migrates->isNotEmpty()) {
-                foreach ($migrate->migrates as $migrateItem) {
-                    $rack = $migrateItem->colorRack;
-                    $rackName = $rack ? $rack->name : 'Rak Dihapus';
-                    $rackBarcode = $rack ? $rack->barcode : '-';
-
-                    if ($rack && $rack->colorRackProducts->isNotEmpty()) {
-                        foreach ($rack->colorRackProducts as $cp) {
-                            $type = '-';
-                            $itemName = '-';
-                            $itemBarcode = '-';
-                            $oldPrice = 0;
-                            $newPrice = 0;
-                            $status = '-';
-
-                            // Jika item adalah BUNDLE
-                            if ($cp->bundle_id && $cp->bundle) {
-                                $type        = 'Bundle';
-                                $itemName    = '[BUNDLE] ' . $cp->bundle->name_bundle;
-                                $itemBarcode = $cp->bundle->barcode_bundle;
-                                $oldPrice    = $cp->bundle->total_price_bundle;
-                                $newPrice    = $cp->bundle->total_price_custom_bundle;
-                                $status      = $cp->bundle->product_status;
-                            }
-                            // Jika item adalah PRODUK BIASA
-                            elseif ($cp->new_product_id && $cp->newProduct) {
-                                $type        = 'Produk';
-                                $itemName    = $cp->newProduct->new_name_product;
-                                $itemBarcode = $cp->newProduct->new_barcode_product;
-                                $oldPrice    = $cp->newProduct->old_price_eq ?? $cp->newProduct->old_price_product ?? 0;
-                                $newPrice    = $cp->newProduct->new_price_eq ?? $cp->newProduct->new_price_product ?? 0;
-                                $status      = $cp->newProduct->new_status_product;
-                            } else {
-                                continue;
-                            }
-
-                            $sheet->setCellValueByColumnAndRow(1, $rowIndex, $rackName);
-                            $sheet->setCellValueByColumnAndRow(2, $rowIndex, $rackBarcode);
-                            $sheet->setCellValueByColumnAndRow(3, $rowIndex, $type);
-                            $sheet->setCellValueByColumnAndRow(4, $rowIndex, $itemName);
-                            $sheet->setCellValueByColumnAndRow(5, $rowIndex, $itemBarcode);
-                            $sheet->setCellValueByColumnAndRow(6, $rowIndex, $oldPrice);
-                            $sheet->setCellValueByColumnAndRow(7, $rowIndex, $newPrice);
-                            $sheet->setCellValueByColumnAndRow(8, $rowIndex, strtoupper($status));
-
-                            $rowIndex++;
-                        }
-                    } else {
-                        // Jika ternyata rak kosong/dihapus isinya, tetap tampilkan baris raknya sebagai info
-                        $sheet->setCellValueByColumnAndRow(1, $rowIndex, $rackName);
-                        $sheet->setCellValueByColumnAndRow(2, $rowIndex, $rackBarcode);
-                        $sheet->setCellValueByColumnAndRow(3, $rowIndex, 'KOSONG');
-                        $rowIndex++;
-                    }
-                }
-            }
+            return new ResponseResource(false, "Dokumen tidak ditemukan", null);
         }
 
-        $writer = new Xlsx($spreadsheet);
-        $publicPath = 'exports';
-        $filePath = public_path($publicPath) . '/' . $fileName;
+        try {
+            $fileName = 'Migrate_' . $migrate->code_document_migrate . '_' . time() . '.xlsx';
+            $publicPath = 'exports/migrates';
+            $filePath = $publicPath . '/' . $fileName;
 
-        if (!file_exists(public_path($publicPath))) {
-            mkdir(public_path($publicPath), 0777, true);
+            if (!Storage::disk('public_direct')->exists($publicPath)) {
+                Storage::disk('public_direct')->makeDirectory($publicPath);
+            }
+
+            if (Storage::disk('public_direct')->exists($filePath)) {
+                Storage::disk('public_direct')->delete($filePath);
+            }
+
+            Excel::store(
+                new MigrateDetailExport($migrate),
+                $filePath,
+                'public_direct'
+            );
+
+            $downloadUrl = url($filePath) . '?t=' . time();
+
+            return new ResponseResource(true, "Berhasil mengunduh dokumen detail migrasi", $downloadUrl);
+        } catch (\Exception $e) {
+            return new ResponseResource(false, "Gagal mengunduh file: " . $e->getMessage(), []);
         }
-
-        if (file_exists($filePath)) {
-            unlink($filePath);
-        }
-
-        $writer->save($filePath);
-
-        $downloadUrl = url($publicPath . '/' . $fileName) . '?t=' . time();
-
-        return new ResponseResource(true, "Berhasil mengunduh dokumen detail migrasi", $downloadUrl);
     }
 }
