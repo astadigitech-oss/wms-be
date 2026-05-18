@@ -958,9 +958,14 @@ class ProductApproveController extends Controller
         }
     }
 
-    public function getRedisBatchDetails()
+    public function getRedisBatchDetails(Request $request)
     {
         try {
+            $querySearch = $request->input('q');
+            $perPage = (int) $request->input('per_page', 10);
+            $page = (int) $request->input('page', 1);         
+
+            // Ambil semua data dari Redis
             $redisData = Redis::lrange('product_batch', 0, -1);
 
             // Jika antrean kosong
@@ -968,8 +973,13 @@ class ProductApproveController extends Controller
                 return response()->json([
                     'success' => true,
                     'message' => "Antrean kosong, tidak ada data di Redis.",
-                    'total_data' => 0,
-                    'data' => []
+                    'data' => [
+                        'current_page' => $page,
+                        'data' => [],
+                        'total' => 0,
+                        'per_page' => $perPage,
+                        'last_page' => 1
+                    ]
                 ], 200);
             }
 
@@ -977,11 +987,39 @@ class ProductApproveController extends Controller
                 return json_decode($item, true);
             }, $redisData);
 
+            if (!empty($querySearch)) {
+                $searchLower = strtolower($querySearch);
+
+                $decodedData = array_filter($decodedData, function ($item) use ($searchLower) {
+                    $oldBarcode = strtolower($item['old_barcode_product'] ?? '');
+                    $newBarcode = strtolower($item['new_barcode_product'] ?? '');
+                    $nameProduct = strtolower($item['new_name_product'] ?? '');
+
+                    // Cari kecocokan di salah satu field tersebut
+                    return str_contains($oldBarcode, $searchLower) ||
+                        str_contains($newBarcode, $searchLower) ||
+                        str_contains($nameProduct, $searchLower);
+                });
+
+                $decodedData = array_values($decodedData);
+            }
+
+            $totalData = count($decodedData);
+            $lastPage = (int) ceil($totalData / $perPage) ?: 1;
+            $offset = ($page - 1) * $perPage;
+
+            $paginatedData = array_slice($decodedData, $offset, $perPage);
+
             return response()->json([
                 'success' => true,
                 'message' => "Berhasil mengambil data dari antrean Redis.",
-                'total_data' => count($decodedData),
-                'data' => $decodedData
+                'data' => [
+                    'current_page' => $page,
+                    'data' => $paginatedData,
+                    'total' => $totalData,
+                    'per_page' => $perPage,
+                    'last_page' => $lastPage
+                ]
             ], 200);
         } catch (\Exception $e) {
             return response()->json([
