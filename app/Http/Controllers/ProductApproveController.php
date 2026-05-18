@@ -189,7 +189,6 @@ class ProductApproveController extends Controller
                 return (new ResponseResource(false, "The new barcode already exists", $inputData))->response()->setStatusCode(429);
             }
 
-            // === TAMBAHAN PENGECEKAN DAN PEMBUATAN NOTIFIKASI SAJA ===
             $user = auth()->user();
             $isAdminOrSpv = false;
             if ($user && $user->role) {

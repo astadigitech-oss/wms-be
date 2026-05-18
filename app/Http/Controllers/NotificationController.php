@@ -12,6 +12,7 @@ use App\Models\ProductApprove;
 use Illuminate\Support\Facades\DB;
 use App\Http\Resources\ResponseResource;
 use App\Models\Document;
+use App\Models\Product_old;
 use App\Models\StagingApprove;
 use App\Models\StagingProduct;
 use Illuminate\Support\Facades\Validator;
@@ -532,6 +533,16 @@ class NotificationController extends Controller
 
                 $message = "Perubahan produk disetujui.";
             } else {
+                $newProduct = new Product_old([
+                    'code_document' => $productApprove->code_document,
+                    'old_barcode_product' => $productApprove->old_barcode_product,
+                    'old_name_product' => $productApprove->new_name_product,
+                    'old_quantity_product' => $productApprove->new_quantity_product,
+                    'old_price_product' => $productApprove->old_price_product,
+                ]);
+
+                $newProduct->save();
+                
                 $productApprove->delete();
 
                 $notification->update([
