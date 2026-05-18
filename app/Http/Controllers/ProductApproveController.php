@@ -929,4 +929,65 @@ class ProductApproveController extends Controller
             return response()->json(['error' => $e->getMessage()], 500);
         }
     }
+
+    public function forceProcessRedisBatch()
+    {
+        try {
+            $count = Redis::llen('product_batch');
+
+            if ($count > 0) {
+                ProductBatch::dispatchSync($count);
+
+                return response()->json([
+                    'success' => true,
+                    'message' => "Sukses! $count data berhasil dipaksa masuk ke database.",
+                    'processed_count' => $count
+                ], 200);
+            } else {
+                return response()->json([
+                    'success' => true,
+                    'message' => "Antrean kosong, tidak ada data yang perlu dimasukkan.",
+                    'processed_count' => 0
+                ], 200);
+            }
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Terjadi kesalahan saat memproses antrean: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    public function getRedisBatchDetails()
+    {
+        try {
+            $redisData = Redis::lrange('product_batch', 0, -1);
+
+            // Jika antrean kosong
+            if (empty($redisData)) {
+                return response()->json([
+                    'success' => true,
+                    'message' => "Antrean kosong, tidak ada data di Redis.",
+                    'total_data' => 0,
+                    'data' => []
+                ], 200);
+            }
+
+            $decodedData = array_map(function ($item) {
+                return json_decode($item, true);
+            }, $redisData);
+
+            return response()->json([
+                'success' => true,
+                'message' => "Berhasil mengambil data dari antrean Redis.",
+                'total_data' => count($decodedData),
+                'data' => $decodedData
+            ], 200);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Terjadi kesalahan saat membaca Redis: ' . $e->getMessage()
+            ], 500);
+        }
+    }
 }

@@ -202,6 +202,7 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Crew,Captai
 Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Audit'])->group(function () {
     Route::get('/top-buyers', [BuyerController::class, 'getMonthlyTopBuyers']);
     Route::get('/export-monthly-points', [BuyerController::class, 'exportBuyerMonthlyPoints']);
+    Route::get('/redis/details', [ProductApproveController::class, 'getRedisBatchDetails']);
 });
 
 // [WRITE / POST / ACTION - TANPA Audit]
@@ -210,6 +211,7 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader'])->group(f
     Route::post('/bulkingInventory', [NewProductController::class, 'processExcelFilesCategory']);
     Route::post('/bulking_tag_warna', [NewProductController::class, 'processExcelFilesTagColor']);
     Route::post('/export-buyers/action/{id}', [BuyerController::class, 'actionExportRequest']);
+    Route::post('/redis/force-process', [ProductApproveController::class, 'forceProcessRedisBatch']);
 });
 
 // ========================================================================================================
