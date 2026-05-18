@@ -448,7 +448,8 @@ class NotificationController extends Controller
                 return response()->json(['message' => 'Data produk pending tidak ditemukan'], 404);
             }
 
-            $productOld = \App\Models\Product_old::where('old_barcode_product', $productApprove->old_barcode_product)
+            $productOld = \App\Models\Product_old::withTrashed()
+                ->where('old_barcode_product', $productApprove->old_barcode_product)
                 ->where('code_document', $productApprove->code_document)
                 ->first();
 
@@ -517,13 +518,17 @@ class NotificationController extends Controller
                 return response()->json(['message' => 'Data produk pending sudah tidak ditemukan'], 404);
             }
 
+            $productOld = \App\Models\Product_old::withTrashed()
+                ->where('code_document', $productApprove->code_document)
+                ->where('old_barcode_product', $productApprove->old_barcode_product)
+                ->first();
+
             if ($request->action === 'approve') {
                 $productApprove->update(['is_pending' => false]);
 
-                DB::statement(
-                    "DELETE FROM product_olds WHERE code_document = ? AND old_barcode_product = ? LIMIT 1",
-                    [$productApprove->code_document, $productApprove->old_barcode_product]
-                );
+                if ($productOld) {
+                    $productOld->forceDelete();
+                }
 
                 $notification->update([
                     'notification_name' => 'Approved - ' . str_replace('Approval Perubahan Data: ', '', $notification->notification_name),
@@ -533,16 +538,10 @@ class NotificationController extends Controller
 
                 $message = "Perubahan produk disetujui.";
             } else {
-                $newProduct = new Product_old([
-                    'code_document' => $productApprove->code_document,
-                    'old_barcode_product' => $productApprove->old_barcode_product,
-                    'old_name_product' => $productApprove->new_name_product,
-                    'old_quantity_product' => $productApprove->new_quantity_product,
-                    'old_price_product' => $productApprove->old_price_product,
-                ]);
+                if ($productOld) {
+                    $productOld->restore();
+                }
 
-                $newProduct->save();
-                
                 $productApprove->delete();
 
                 $notification->update([

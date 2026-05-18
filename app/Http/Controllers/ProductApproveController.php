@@ -418,10 +418,15 @@ class ProductApproveController extends Controller
 
     private function deleteOldProduct($code_document, $old_barcode_product)
     {
-        return DB::statement(
-            "DELETE FROM product_olds WHERE code_document = ? AND old_barcode_product = ? LIMIT 1",
-            [$code_document, $old_barcode_product]
-        );
+        $product = \App\Models\Product_old::where('code_document', $code_document)
+            ->where('old_barcode_product', $old_barcode_product)
+            ->first();
+
+        if ($product) {
+            return $product->delete();
+        }
+
+        return false;
     }
 
     private function updateDocumentStatus($codeDocument)
@@ -490,7 +495,7 @@ class ProductApproveController extends Controller
             }
 
             if ($isDifferent && !$isAdminOrSpv) {
-                $inputData['is_pending'] = true; 
+                $inputData['is_pending'] = true;
                 $roleName = $user && $user->role ? $user->role->role_name : 'Crew';
 
                 Notification::create([
