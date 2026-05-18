@@ -386,7 +386,7 @@ class ColorRackController extends Controller
         if ($product && strtolower($product->new_tag_product) === 'brown') {
             if (!$request->filled('tag')) {
                 return (new ResponseResource(false, 'produk brown perlu pilih tag Big atau Small', $product))
-                    ->response()->setStatusCode(200);
+                    ->response()->setStatusCode(422);
             }
         }
 
