@@ -30,31 +30,37 @@ class ProductOldController extends Controller
             return new ResponseResource(false, "Barcode tidak boleh kosong.", null);
         }
 
-        // $checkBarcode = New_product::where('code_document', $codeDocument)
-        //     ->where('old_barcode_product', $oldBarcode)
-        //     ->exists();
+        $isPending = \App\Models\ProductApprove::where('code_document', $codeDocument)
+            ->where('old_barcode_product', $oldBarcode)
+            ->exists();
 
-        // if ($checkBarcode) {
-        //     return new ResponseResource(false, "barcode dari file sudah ada di display.", []);
-        // }
+        if ($isPending) {
+            return new ResponseResource(false, "Produk ini sudah di-scan dan sedang menunggu approval Supervisor/Admin.", []);
+        }
+
+        $isProcessed = \App\Models\New_product::where('code_document', $codeDocument)
+            ->where('old_barcode_product', $oldBarcode)
+            ->exists();
+
+        if ($isProcessed) {
+            return new ResponseResource(false, "Produk ini sudah selesai diproses.", []);
+        }
 
         $product = Product_old::where('code_document', $codeDocument)
             ->where('old_barcode_product', $oldBarcode)
             ->first();
 
         if (!$product) {
-            return new ResponseResource(false, "Produk tidak ditemukan.", []);
+            return new ResponseResource(false, "Produk tidak ditemukan atau sudah dihapus atau sedang diproses.", []);
         }
 
-        // $newBarcode = $this->generateUniqueBarcode();
         $response = ['product' => $product];
 
         if ($product->old_price_product <= 99999) {
-            $response['color_tags'] = Color_tag::where('min_price_color', '<=', $product->old_price_product)
+            $response['color_tags'] = \App\Models\Color_tag::where('min_price_color', '<=', $product->old_price_product)
                 ->where('max_price_color', '>=', $product->old_price_product)
                 ->get();
         }
-
 
         return new ResponseResource(true, "Produk ditemukan.", $response);
     }
