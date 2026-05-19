@@ -17,7 +17,8 @@ use App\Models\StagingApprove;
 use App\Models\StagingProduct;
 use Illuminate\Support\Facades\Validator;
 use Carbon\Carbon;
-
+use Illuminate\Support\Facades\Storage;
+use Maatwebsite\Excel\Facades\Excel;
 
 class NotificationController extends Controller
 {
@@ -523,6 +524,9 @@ class NotificationController extends Controller
                 ->where('old_barcode_product', $productApprove->old_barcode_product)
                 ->first();
 
+            $history = \App\Models\ProductEditHistory::where('notification_id', $notification->id)->first();
+            $adminId = auth()->id();
+
             if ($request->action === 'approve') {
                 $productApprove->update(['is_pending' => false]);
 
@@ -535,6 +539,13 @@ class NotificationController extends Controller
                     'status' => 'pending_approval',
                     'approved' => '2'
                 ]);
+
+                if ($history) {
+                    $history->update([
+                        'status' => 'approved',
+                        'approver_id' => $adminId
+                    ]);
+                }
 
                 $message = "Perubahan produk disetujui.";
             } else {
@@ -550,6 +561,13 @@ class NotificationController extends Controller
                     'approved' => '1'
                 ]);
 
+                if ($history) {
+                    $history->update([
+                        'status' => 'rejected',
+                        'approver_id' => $adminId
+                    ]);
+                }
+
                 $message = "Perubahan produk ditolak dan data dibatalkan.";
             }
 
@@ -557,6 +575,142 @@ class NotificationController extends Controller
             return new \App\Http\Resources\ResponseResource(true, $message, null);
         } catch (\Exception $e) {
             DB::rollBack();
+            return response()->json(['error' => $e->getMessage()], 500);
+        }
+    }
+
+    public function getEditHistories(Request $request)
+    {
+        try {
+            $query = $request->input('q');
+
+            $histories = \App\Models\ProductEditHistory::with(['requestUser', 'approverUser'])
+                ->whereIn('id', function ($subquery) {
+                    $subquery->selectRaw('MAX(id)')
+                        ->from('product_edit_histories')
+                        ->groupBy('barcode_product');
+                })
+                ->when($query, function ($q) use ($query) {
+                    return $q->where('barcode_product', 'LIKE', '%' . $query . '%');
+                })
+                ->latest()
+                ->paginate(30);
+
+            $data = $histories->map(function ($history) {
+                return [
+                    'history_id' => $history->id,
+                    'code_document' => $history->code_document,
+                    'barcode_produk' => $history->barcode_product,
+                    'status' => ucfirst($history->status),
+                    'time_request' => $history->created_at->format('Y-m-d H:i:s'),
+                    'time_approval' => $history->status !== 'pending' ? $history->updated_at->format('Y-m-d H:i:s') : null,
+                    'user_request' => $history->requestUser->name ?? 'Unknown',
+                    'user_approver' => $history->approverUser->name ?? '-',
+                    'old_value' => $history->old_value,
+                    'new_value' => $history->new_value,
+                ];
+            });
+
+            $response = [
+                'current_page' => $histories->currentPage(),
+                'data' => $data,
+                'total' => $histories->total(),
+                'last_page' => $histories->lastPage(),
+            ];
+
+            return new \App\Http\Resources\ResponseResource(true, "Berhasil mengambil riwayat perubahan data", $response);
+        } catch (\Exception $e) {
+            return response()->json(['error' => $e->getMessage()], 500);
+        }
+    }
+
+    public function getEditHistoryByDocument(Request $request, $code_document)
+    {
+        try {
+            $query = $request->input('q');
+
+            $histories = \App\Models\ProductEditHistory::with(['requestUser', 'approverUser'])
+                ->where('code_document', $code_document)
+                ->whereIn('id', function ($subquery) use ($code_document) {
+                    $subquery->selectRaw('MAX(id)')
+                        ->from('product_edit_histories')
+                        ->where('code_document', $code_document)
+                        ->groupBy('barcode_product');
+                })
+                ->when($query, function ($q) use ($query) {
+                    return $q->where('barcode_product', 'LIKE', '%' . $query . '%');
+                })
+                ->latest()
+                ->paginate(30);
+
+            if ($histories->isEmpty()) {
+                return new \App\Http\Resources\ResponseResource(false, "Tidak ada riwayat perubahan pada dokumen ini", null);
+            }
+
+            $data = $histories->map(function ($history) {
+                return [
+                    'history_id' => $history->id,
+                    'code_document' => $history->code_document,
+                    'barcode_produk' => $history->barcode_product,
+                    'status' => ucfirst($history->status),
+                    'time_request' => $history->created_at->format('Y-m-d H:i:s'),
+                    'time_approval' => $history->status !== 'pending' ? $history->updated_at->format('Y-m-d H:i:s') : null,
+                    'user_request' => $history->requestUser->name ?? 'Unknown',
+                    'user_approver' => $history->approverUser->name ?? '-',
+                    'old_value' => $history->old_value,
+                    'new_value' => $history->new_value,
+                ];
+            });
+
+            $response = [
+                'current_page' => $histories->currentPage(),
+                'data' => $data,
+                'total' => $histories->total(),
+                'last_page' => $histories->lastPage(),
+            ];
+
+            return new \App\Http\Resources\ResponseResource(true, "Berhasil mengambil riwayat perubahan dokumen: " . $code_document, $response);
+        } catch (\Exception $e) {
+            return response()->json(['error' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Export riwayat edit data ke Excel berdasarkan Code Document
+     */
+    public function exportEditHistoryByDocument(Request $request, $code_document)
+    {
+        try {
+            $historiesCount = \App\Models\ProductEditHistory::where('code_document', $code_document)->count();
+
+            if ($historiesCount === 0) {
+                return (new \App\Http\Resources\ResponseResource(false, "Tidak ada data riwayat untuk diekspor pada dokumen ini", null))
+                    ->response()->setStatusCode(404);
+            }
+
+            $safeDocumentName = str_replace('/', '_', $code_document);
+            $publicPath = 'exports/history_edits';
+
+            $existingFiles = Storage::disk('public')->files($publicPath);
+            foreach ($existingFiles as $file) {
+                if (strpos($file, 'History_Edit_Product_' . $safeDocumentName) !== false) {
+                    Storage::disk('public')->delete($file);
+                }
+            }
+
+            $timestamp = now()->format('Y-m-d_H-i-s');
+            $fileName = 'History_Edit_Product_' . $safeDocumentName . '_' . $timestamp . '.xlsx';
+
+            Excel::store(
+                new \App\Exports\ProductEditHistoryExport($code_document),
+                $publicPath . '/' . $fileName,
+                'public'
+            );
+
+            $downloadUrl = asset('storage/' . $publicPath . '/' . $fileName) . '?t=' . time();
+
+            return new \App\Http\Resources\ResponseResource(true, "File berhasil diekspor", $downloadUrl);
+        } catch (\Exception $e) {
             return response()->json(['error' => $e->getMessage()], 500);
         }
     }

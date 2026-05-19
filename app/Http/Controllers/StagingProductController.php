@@ -314,50 +314,112 @@ class StagingProductController extends Controller
             $original_new_price = $stagingProduct->new_price_product;
             $original_old_price = $stagingProduct->old_price_product;
 
+            $isDifferent = false;
+            if (
+                $original_barcode != $inputData['new_barcode_product'] ||
+                $stagingProduct->new_name_product != $inputData['new_name_product'] ||
+                $stagingProduct->new_quantity_product != $inputData['new_quantity_product'] ||
+                $original_new_price != $inputData['new_price_product'] ||
+                $original_old_price != $inputData['old_price_product'] ||
+                ($stagingProduct->new_category_product ?? '-') != ($inputData['new_category_product'] ?? '-') ||
+                ($stagingProduct->new_tag_product ?? '-') != ($inputData['new_tag_product'] ?? '-') ||
+                $stagingProduct->new_quality != json_encode($qualityData)
+            ) {
+                $isDifferent = true;
+            }
+
+            $oldValue = [
+                'barcode' => $original_barcode,
+                'name_product' => $stagingProduct->new_name_product,
+                'qty' => $stagingProduct->new_quantity_product,
+                'old_price' => $original_old_price,
+                'new_price' => $original_new_price,
+                'category' => $stagingProduct->new_category_product ?? '-',
+                'quality' => is_string($stagingProduct->new_quality) ? json_decode($stagingProduct->new_quality, true) : $stagingProduct->new_quality,
+            ];
+
+            $newValue = [
+                'barcode' => $inputData['new_barcode_product'],
+                'name_product' => $inputData['new_name_product'],
+                'qty' => $inputData['new_quantity_product'],
+                'old_price' => $inputData['old_price_product'],
+                'new_price' => $inputData['new_price_product'],
+                'category' => $inputData['new_category_product'] ?? '-',
+                'quality' => $qualityData,
+            ];
+
+            $response = $stagingProduct;
+
             if ($userRole->role->role_name != 'Admin' && $userRole->role->role_name != 'Spv') {
-                $response = ApproveQueue::create([
-                    'user_id' => auth()->id(),
-                    'product_id' => $stagingProduct->id,
-                    'type' => 'staging',
-                    'code_document' => $inputData['code_document'],
-                    'old_price_product' => $inputData['old_price_product'],
-                    'new_name_product' => $inputData['new_name_product'],
-                    'new_quantity_product' => $inputData['new_quantity_product'],
-                    'new_price_product' => $inputData['new_price_product'],
-                    'new_discount' => $inputData['new_discount'],
-                    'new_tag_product' => $inputData['new_tag_product'],
-                    'new_category_product' => $inputData['new_category_product'],
-                    'status' => '1'
-                ]);
+                if ($isDifferent) {
+                    $response = ApproveQueue::create([
+                        'user_id' => auth()->id(),
+                        'product_id' => $stagingProduct->id,
+                        'type' => 'staging',
+                        'code_document' => $inputData['code_document'] ?? '-',
+                        'old_price_product' => $inputData['old_price_product'],
+                        'new_name_product' => $inputData['new_name_product'],
+                        'new_quantity_product' => $inputData['new_quantity_product'],
+                        'new_price_product' => $inputData['new_price_product'],
+                        'new_discount' => $inputData['new_discount'] ?? 0,
+                        'new_tag_product' => $inputData['new_tag_product'],
+                        'new_category_product' => $inputData['new_category_product'],
+                        'status' => '1'
+                    ]);
 
-                $notification = Notification::create([
-                    'user_id' => auth()->id(),
-                    'notification_name' => "edit product staging" . " " . $inputData['new_barcode_product'],
-                    'role' => 'Spv',
-                    'read_at' => Carbon::now('Asia/Jakarta'),
-                    'riwayat_check_id' => null,
-                    'repair_id' => null,
-                    'status' => 'staging',
-                    'external_id' => $stagingProduct->id,
-                    'approved' => '0'
-                ]);
+                    $notification = Notification::create([
+                        'user_id' => auth()->id(),
+                        'notification_name' => "edit product staging" . " " . $inputData['new_barcode_product'],
+                        'role' => 'Spv',
+                        'read_at' => Carbon::now('Asia/Jakarta'),
+                        'riwayat_check_id' => null,
+                        'repair_id' => null,
+                        'status' => 'staging',
+                        'external_id' => $stagingProduct->id,
+                        'approved' => '0'
+                    ]);
 
-                logUserAction(
-                    $request,
-                    $request->user(),
-                    "staging/product/detail",
-                    "Barcode: " . $inputData['new_barcode_product'] .
-                        ", New Price: " . $inputData['new_price_product'] .
-                        ", Old Price: " . $inputData['old_price_product'] .
-                        ". Data Before Edit" .
-                        ", Before Edit Barcode: " . $original_barcode .
-                        ", Before Edit New Price: " . $original_new_price .
-                        ", Before Edit Old Price: " . $original_old_price .
-                        " wait for update product approve by spv" . $user
-                );
+                    \App\Models\ProductEditHistory::create([
+                        'notification_id' => $notification->id,
+                        'code_document' => $inputData['code_document'] ?? '-',
+                        'barcode_product' => $inputData['new_barcode_product'],
+                        'old_value' => $oldValue,
+                        'new_value' => $newValue,
+                        'request_user_id' => auth()->id(),
+                        'status' => 'pending'
+                    ]);
+
+                    logUserAction(
+                        $request,
+                        $request->user(),
+                        "staging/product/detail",
+                        "Barcode: " . $inputData['new_barcode_product'] .
+                            ", New Price: " . $inputData['new_price_product'] .
+                            ", Old Price: " . $inputData['old_price_product'] .
+                            ". Data Before Edit" .
+                            ", Before Edit Barcode: " . $original_barcode .
+                            ", Before Edit New Price: " . $original_new_price .
+                            ", Before Edit Old Price: " . $original_old_price .
+                            " wait for update product approve by spv" . $user
+                    );
+                }
             } else {
                 $response = $stagingProduct->update($inputData);
                 $stagingProduct->save();
+
+                if ($isDifferent) {
+                    \App\Models\ProductEditHistory::create([
+                        'notification_id' => null,
+                        'code_document' => $inputData['code_document'] ?? '-',
+                        'barcode_product' => $inputData['new_barcode_product'],
+                        'old_value' => $oldValue,
+                        'new_value' => $newValue,
+                        'request_user_id' => auth()->id(),
+                        'approver_id' => auth()->id(),
+                        'status' => 'approved'
+                    ]);
+                }
+
                 logUserAction(
                     $request,
                     $request->user(),

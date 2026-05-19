@@ -394,51 +394,112 @@ class NewProductController extends Controller
             $original_new_price = $new_product->new_price_product;
             $original_old_price = $new_product->old_price_product;
 
+            $isDifferent = false;
+            if (
+                $original_barcode != $inputData['new_barcode_product'] ||
+                $new_product->new_name_product != $inputData['new_name_product'] ||
+                $new_product->new_quantity_product != $inputData['new_quantity_product'] ||
+                $original_new_price != $inputData['new_price_product'] ||
+                $original_old_price != $inputData['old_price_product'] ||
+                ($new_product->new_category_product ?? '-') != ($inputData['new_category_product'] ?? '-') ||
+                ($new_product->new_tag_product ?? '-') != ($inputData['new_tag_product'] ?? '-') ||
+                $new_product->new_quality != json_encode($qualityData)
+            ) {
+                $isDifferent = true;
+            }
+
+            $oldValue = [
+                'barcode' => $original_barcode,
+                'name_product' => $new_product->new_name_product,
+                'qty' => $new_product->new_quantity_product,
+                'old_price' => $original_old_price,
+                'new_price' => $original_new_price,
+                'category' => $new_product->new_category_product ?? '-',
+                'quality' => is_string($new_product->new_quality) ? json_decode($new_product->new_quality, true) : $new_product->new_quality,
+            ];
+
+            $newValue = [
+                'barcode' => $inputData['new_barcode_product'],
+                'name_product' => $inputData['new_name_product'],
+                'qty' => $inputData['new_quantity_product'],
+                'old_price' => $inputData['old_price_product'],
+                'new_price' => $inputData['new_price_product'],
+                'category' => $inputData['new_category_product'] ?? '-',
+                'quality' => $qualityData,
+            ];
+            // ----------------------------------------------
+
+            $response = $new_product; // Default Response jika tdk ada perubahan
+
             if ($userRole->role->role_name != 'Admin' && $userRole->role->role_name != 'Spv') {
-                $response =  ApproveQueue::create([
-                    'user_id' => auth()->id(),
-                    'product_id' => $new_product->id,
-                    'type' => 'inventory',
-                    'code_document' => $inputData['code_document'],
-                    'old_price_product' => $inputData['old_price_product'],
-                    'new_name_product' => $inputData['new_name_product'],
-                    'new_quantity_product' => $inputData['new_quantity_product'],
-                    'new_price_product' => $inputData['new_price_product'],
-                    'new_discount' => $inputData['new_discount'],
-                    'new_tag_product' => $inputData['new_tag_product'],
-                    'new_category_product' => $inputData['new_category_product'],
-                    'status' => '1',
-                ]);
+                if ($isDifferent) {
+                    $response =  ApproveQueue::create([
+                        'user_id' => auth()->id(),
+                        'product_id' => $new_product->id,
+                        'type' => 'inventory',
+                        'code_document' => $inputData['code_document'] ?? '-',
+                        'old_price_product' => $inputData['old_price_product'],
+                        'new_name_product' => $inputData['new_name_product'],
+                        'new_quantity_product' => $inputData['new_quantity_product'],
+                        'new_price_product' => $inputData['new_price_product'],
+                        'new_discount' => $inputData['new_discount'] ?? 0,
+                        'new_tag_product' => $inputData['new_tag_product'],
+                        'new_category_product' => $inputData['new_category_product'],
+                        'status' => '1',
+                    ]);
 
-                //perubahan alur
-                // $new_product->update($inputData);
-                $notification = Notification::create([
-                    'user_id' => auth()->id(),
-                    'notification_name' => "edit product inventory" . " " . $inputData['new_barcode_product'],
-                    'role' => 'Spv',
-                    'read_at' => Carbon::now('Asia/Jakarta'),
-                    'riwayat_check_id' => null,
-                    'repair_id' => null,
-                    'status' => 'inventory',
-                    'external_id' => $new_product->id,
-                    'approved' => '0'
-                ]);
+                    $notification = Notification::create([
+                        'user_id' => auth()->id(),
+                        'notification_name' => "edit product inventory" . " " . $inputData['new_barcode_product'],
+                        'role' => 'Spv',
+                        'read_at' => Carbon::now('Asia/Jakarta'),
+                        'riwayat_check_id' => null,
+                        'repair_id' => null,
+                        'status' => 'inventory',
+                        'external_id' => $new_product->id,
+                        'approved' => '0'
+                    ]);
 
-                logUserAction(
-                    $request,
-                    $request->user(),
-                    "Inventory/product/category/detail",
-                    "barcode " . $inputData['new_barcode_product'] .
-                        ", new_price " . $inputData['new_price_product'] .
-                        ", old_price " . $inputData['old_price_product'] .
-                        ". before_edit_barcode " . $original_barcode .
-                        ", before_edit_new_price " . $original_new_price .
-                        ", before_edit_old_price " . $original_old_price .
-                        " wait for update product approve by spv" . $user
-                );
+                    \App\Models\ProductEditHistory::create([
+                        'notification_id' => $notification->id,
+                        'code_document' => $inputData['code_document'] ?? '-',
+                        'barcode_product' => $inputData['new_barcode_product'],
+                        'old_value' => $oldValue,
+                        'new_value' => $newValue,
+                        'request_user_id' => auth()->id(),
+                        'status' => 'pending'
+                    ]);
+
+                    logUserAction(
+                        $request,
+                        $request->user(),
+                        "Inventory/product/category/detail",
+                        "barcode " . $inputData['new_barcode_product'] .
+                            ", new_price " . $inputData['new_price_product'] .
+                            ", old_price " . $inputData['old_price_product'] .
+                            ". before_edit_barcode " . $original_barcode .
+                            ", before_edit_new_price " . $original_new_price .
+                            ", before_edit_old_price " . $original_old_price .
+                            " wait for update product approve by spv" . $user
+                    );
+                }
             } else {
                 $response = $new_product->update($inputData);
                 $new_product->save();
+
+                if ($isDifferent) {
+                    \App\Models\ProductEditHistory::create([
+                        'notification_id' => null,
+                        'code_document' => $inputData['code_document'] ?? '-',
+                        'barcode_product' => $inputData['new_barcode_product'],
+                        'old_value' => $oldValue,
+                        'new_value' => $newValue,
+                        'request_user_id' => auth()->id(),
+                        'approver_id' => auth()->id(),
+                        'status' => 'approved'
+                    ]);
+                }
+
                 logUserAction(
                     $request,
                     $request->user(),

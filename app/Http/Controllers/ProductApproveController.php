@@ -25,6 +25,7 @@ use App\Http\Resources\ResponseResource;
 use Illuminate\Support\Facades\Validator;
 use App\Http\Resources\ProductapproveResource;
 use App\Http\Resources\DuplicateRequestResource;
+use App\Models\ProductEditHistory;
 
 class ProductApproveController extends Controller
 {
@@ -204,20 +205,53 @@ class ProductApproveController extends Controller
                 $isDifferent = ($nameChanged || $qtyChanged);
             }
 
-            if ($isDifferent && !$isAdminOrSpv) {
-                // Sisipkan is_pending agar terbawa ke Redis
-                $inputData['is_pending'] = true;
-                $roleName = $user && $user->role ? $user->role->role_name : 'Crew';
+            if ($isDifferent) {
+                $historyData = [
+                    'code_document' => $inputData['code_document'],
+                    'barcode_product' => $inputData['new_barcode_product'],
+                    'old_value' => $oldProduct ? [
+                        'barcode' => $oldProduct->old_barcode_product,
+                        'name_product' => $oldProduct->old_name_product,
+                        'qty' => $oldProduct->old_quantity_product,
+                        'old_price' => $oldProduct->old_price_product,
+                        'category' => $oldProduct->new_category_product ?? '-',
+                        'quality' => isset($oldProduct->new_quality) ? json_decode($oldProduct->new_quality, true) : null,
+                    ] : null,
+                    'new_value' => [
+                        'barcode' => $inputData['new_barcode_product'],
+                        'name_product' => $inputData['new_name_product'],
+                        'qty' => $inputData['new_quantity_product'],
+                        'old_price' => $inputData['old_price_product'],
+                        'new_price' => $inputData['new_price_product'],
+                        'category' => $inputData['new_category_product'] ?? '-',
+                        'quality' => is_string($inputData['new_quality']) ? json_decode($inputData['new_quality'], true) : $inputData['new_quality'],
+                    ],
+                    'request_user_id' => $userId,
+                ];
 
-                Notification::create([
-                    'notification_name' => 'Approval Perubahan Data: ' . $inputData['new_barcode_product'],
-                    'status' => 'pending_approval',
-                    'user_id' => $userId,
-                    'role' => $roleName,
-                    // external_id tidak diisi karena datanya baru akan dicreate lewat Redis nanti
-                ]);
+                if ($isAdminOrSpv) {
+                    $historyData['notification_id'] = null;
+                    $historyData['status'] = 'approved';
+                    $historyData['approver_id'] = $userId;
+
+                    ProductEditHistory::create($historyData);
+                } else {
+                    $inputData['is_pending'] = true;
+                    $roleName = $user && $user->role ? $user->role->role_name : 'Crew';
+
+                    $notification = Notification::create([
+                        'notification_name' => 'Approval Perubahan Data: ' . $inputData['new_barcode_product'],
+                        'status' => 'pending_approval',
+                        'user_id' => $userId,
+                        'role' => $roleName,
+                    ]);
+
+                    $historyData['notification_id'] = $notification->id;
+                    $historyData['status'] = 'pending';
+
+                    ProductEditHistory::create($historyData);
+                }
             }
-            // =========================================================
 
             $riwayatCheck = RiwayatCheck::where('code_document', $request->input('code_document'))->first();
             // $totalDataIn = 1 + $riwayatCheck->total_data_in;
@@ -494,18 +528,53 @@ class ProductApproveController extends Controller
                 $isDifferent = ($nameChanged || $qtyChanged);
             }
 
-            if ($isDifferent && !$isAdminOrSpv) {
-                $inputData['is_pending'] = true;
-                $roleName = $user && $user->role ? $user->role->role_name : 'Crew';
+            if ($isDifferent) {
+                $historyData = [
+                    'code_document' => $inputData['code_document'],
+                    'barcode_product' => $inputData['new_barcode_product'],
+                    'old_value' => $oldProduct ? [
+                        'barcode' => $oldProduct->old_barcode_product,
+                        'name_product' => $oldProduct->old_name_product,
+                        'qty' => $oldProduct->old_quantity_product,
+                        'old_price' => $oldProduct->old_price_product,
+                        'category' => $oldProduct->new_category_product ?? '-',
+                        'quality' => isset($oldProduct->new_quality) ? json_decode($oldProduct->new_quality, true) : null,
+                    ] : null,
+                    'new_value' => [
+                        'barcode' => $inputData['new_barcode_product'],
+                        'name_product' => $inputData['new_name_product'],
+                        'qty' => $inputData['new_quantity_product'],
+                        'old_price' => $inputData['old_price_product'],
+                        'new_price' => $inputData['new_price_product'],
+                        'category' => $inputData['new_category_product'] ?? '-',
+                        'quality' => is_string($inputData['new_quality']) ? json_decode($inputData['new_quality'], true) : $inputData['new_quality'],
+                    ],
+                    'request_user_id' => $userId,
+                ];
 
-                Notification::create([
-                    'notification_name' => 'Approval Perubahan Data: ' . $inputData['new_barcode_product'],
-                    'status' => 'pending_approval',
-                    'user_id' => $userId,
-                    'role' => $roleName,
-                ]);
+                if ($isAdminOrSpv) {
+                    $historyData['notification_id'] = null;
+                    $historyData['status'] = 'approved';
+                    $historyData['approver_id'] = $userId;
+
+                    ProductEditHistory::create($historyData);
+                } else {
+                    $inputData['is_pending'] = true;
+                    $roleName = $user && $user->role ? $user->role->role_name : 'Crew';
+
+                    $notification = Notification::create([
+                        'notification_name' => 'Approval Perubahan Data: ' . $inputData['new_barcode_product'],
+                        'status' => 'pending_approval',
+                        'user_id' => $userId,
+                        'role' => $roleName,
+                    ]);
+
+                    $historyData['notification_id'] = $notification->id;
+                    $historyData['status'] = 'pending';
+
+                    ProductEditHistory::create($historyData);
+                }
             }
-
 
             $this->deleteOldProduct($inputData['code_document'], $inputData['old_barcode_product']);
 
@@ -963,7 +1032,7 @@ class ProductApproveController extends Controller
         try {
             $querySearch = $request->input('q');
             $perPage = (int) $request->input('per_page', 10);
-            $page = (int) $request->input('page', 1);         
+            $page = (int) $request->input('page', 1);
 
             // Ambil semua data dari Redis
             $redisData = Redis::lrange('product_batch', 0, -1);
