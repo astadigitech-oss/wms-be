@@ -11,6 +11,7 @@ use App\Models\Notification;
 use Illuminate\Http\Request;
 use App\Models\StagingProduct;
 use App\Http\Resources\ResponseResource;
+use App\Models\ProductEditHistory;
 use Illuminate\Support\Facades\DB;
 
 class ApproveQueueController extends Controller
@@ -84,7 +85,7 @@ class ApproveQueueController extends Controller
             if (!$approveQueue) {
                 return (new ResponseResource(false, "Approve queue not found", null))->response()->setStatusCode(404);
             }
-            if($approveQueue->status == '0'){                
+            if ($approveQueue->status == '0') {
                 return (new ResponseResource(false, "Sudah di approve", null))->response()->setStatusCode(404);
             }
 
@@ -123,8 +124,21 @@ class ApproveQueueController extends Controller
             $notification = Notification::where('user_id', $approveQueue->user_id)
                 ->where('status', $approveQueue->type)->where('external_id', $approveQueue->product_id)
                 ->first();
+
             $approveQueue->update(['status' => '0']);
-            $notification->update(['approved' => '2']); 
+
+            if ($notification) {
+                $notification->update(['approved' => '2']);
+
+                $history = ProductEditHistory::where('notification_id', $notification->id)->first();
+                if ($history) {
+                    $history->update([
+                        'status' => 'approved',
+                        'approver_id' => auth()->id()
+                    ]);
+                }
+            }
+
             logUserAction($request, $request->user(), "Notification/approve", "product " . $approveQueue->type . " dengan barcode " . $barcode . " di approve->" . $user);
 
             DB::commit();
@@ -146,7 +160,16 @@ class ApproveQueueController extends Controller
         $notification = Notification::where('user_id', $approveQueue->user_id)
             ->where('status', $approveQueue->type)->where('external_id', $approveQueue->product_id)
             ->first();
-        $notification->delete();
+        if ($notification) {
+            $history = ProductEditHistory::where('notification_id', $notification->id)->first();
+            if ($history) {
+                $history->update([
+                    'status' => 'rejected',
+                    'approver_id' => auth()->id()
+                ]);
+            }
+            $notification->delete();
+        }
         return new ResponseResource(true, "Reject successfully", null);
     }
 
