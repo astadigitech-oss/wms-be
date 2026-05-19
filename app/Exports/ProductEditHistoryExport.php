@@ -52,16 +52,16 @@ class ProductEditHistoryExport implements FromCollection, WithHeadings, WithMapp
             // Kolom Data Lama
             'Data Lama: Nama Produk',
             'Data Lama: Qty',
-            'Data Lama: Harga',
+            'Data Lama: Old Price',
+            'Data Lama: New Price',
             'Data Lama: Kategori',
             
             // Kolom Data Baru
             'Data Baru: Nama Produk',
             'Data Baru: Qty',
-            'Data Baru: Harga Lama (Awal)',
-            'Data Baru: Harga Baru (Update)',
+            'Data Baru: Old Price',
+            'Data Baru: New Price',
             'Data Baru: Kategori',
-            'Data Baru: Kualitas (Status)'
         ];
     }
 
@@ -99,6 +99,7 @@ class ProductEditHistoryExport implements FromCollection, WithHeadings, WithMapp
             $oldValue['name_product'] ?? '-',
             $oldValue['qty'] ?? 0,
             $oldValue['old_price'] ?? 0,
+            $oldValue['new_price'] ?? 0,
             $oldValue['category'] ?? '-',
 
             // Mapping Data Baru
@@ -107,7 +108,6 @@ class ProductEditHistoryExport implements FromCollection, WithHeadings, WithMapp
             $newValue['old_price'] ?? 0,
             $newValue['new_price'] ?? 0,
             $newValue['category'] ?? '-',
-            $qualityString,
         ];
     }
 

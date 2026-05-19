@@ -675,9 +675,6 @@ class NotificationController extends Controller
         }
     }
 
-    /**
-     * Export riwayat edit data ke Excel berdasarkan Code Document
-     */
     public function exportEditHistoryByDocument(Request $request, $code_document)
     {
         try {
@@ -689,29 +686,34 @@ class NotificationController extends Controller
             }
 
             $safeDocumentName = str_replace('/', '_', $code_document);
-            $publicPath = 'exports/history_edits';
+            $timestamp = now()->format('Y-m-d_H-i-s');
 
-            $existingFiles = Storage::disk('public')->files($publicPath);
-            foreach ($existingFiles as $file) {
-                if (strpos($file, 'History_Edit_Product_' . $safeDocumentName) !== false) {
-                    Storage::disk('public')->delete($file);
+            $folderName = 'exports/history_edits';
+            $fileName = 'History_Edit_Product_' . $safeDocumentName . '_' . $timestamp . '.xlsx';
+            $filePath = $folderName . '/' . $fileName;
+
+            if (!\Illuminate\Support\Facades\Storage::disk('public_direct')->exists($folderName)) {
+                \Illuminate\Support\Facades\Storage::disk('public_direct')->makeDirectory($folderName);
+            }
+
+            $existingFiles = \Illuminate\Support\Facades\Storage::disk('public_direct')->files($folderName);
+            foreach ($existingFiles as $oldFile) {
+                if (strpos($oldFile, 'History_Edit_Product_' . $safeDocumentName) !== false) {
+                    \Illuminate\Support\Facades\Storage::disk('public_direct')->delete($oldFile);
                 }
             }
 
-            $timestamp = now()->format('Y-m-d_H-i-s');
-            $fileName = 'History_Edit_Product_' . $safeDocumentName . '_' . $timestamp . '.xlsx';
-
-            Excel::store(
+            \Maatwebsite\Excel\Facades\Excel::store(
                 new \App\Exports\ProductEditHistoryExport($code_document),
-                $publicPath . '/' . $fileName,
-                'public'
+                $filePath,
+                'public_direct'
             );
 
-            $downloadUrl = asset('storage/' . $publicPath . '/' . $fileName) . '?t=' . time();
+            $downloadUrl = url($filePath) . '?t=' . time();
 
-            return new \App\Http\Resources\ResponseResource(true, "File berhasil diekspor", $downloadUrl);
+            return new \App\Http\Resources\ResponseResource(true, "File berhasil diunduh", $downloadUrl);
         } catch (\Exception $e) {
-            return response()->json(['error' => $e->getMessage()], 500);
+            return new \App\Http\Resources\ResponseResource(false, "Gagal mengunduh file: " . $e->getMessage(), []);
         }
     }
 }
