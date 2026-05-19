@@ -624,9 +624,16 @@ class NotificationController extends Controller
         }
     }
 
-    public function getEditHistoryByDocument(Request $request, $code_document)
+    public function getEditHistoryByDocument(Request $request, $id)
     {
         try {
+            $riwayatCheck = \App\Models\RiwayatCheck::find($id);
+
+            if (!$riwayatCheck) {
+                return (new \App\Http\Resources\ResponseResource(false, "Data Riwayat Check tidak ditemukan", null))->response()->setStatusCode(404);
+            }
+
+            $code_document = $riwayatCheck->code_document;
             $query = $request->input('q');
 
             $histories = \App\Models\ProductEditHistory::with(['requestUser', 'approverUser'])
@@ -675,9 +682,17 @@ class NotificationController extends Controller
         }
     }
 
-    public function exportEditHistoryByDocument(Request $request, $code_document)
+    public function exportEditHistoryByDocument(Request $request, $id)
     {
         try {
+            $riwayatCheck = \App\Models\RiwayatCheck::find($id);
+
+            if (!$riwayatCheck) {
+                return (new \App\Http\Resources\ResponseResource(false, "Data Riwayat Check tidak ditemukan", null))->response()->setStatusCode(404);
+            }
+
+            $code_document = $riwayatCheck->code_document;
+
             $historiesCount = \App\Models\ProductEditHistory::where('code_document', $code_document)->count();
 
             if ($historiesCount === 0) {

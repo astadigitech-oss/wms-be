@@ -565,10 +565,8 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Audit'])->group(functio
     Route::get('active_so_category', [SummarySoCategoryController::class, 'checkSoCategoryActive']);
     Route::get('notifications/manual-product/{id}', [NotificationController::class, 'detailManualProduct']);
     Route::get('notifications/pending-approval/{id}', [NotificationController::class, 'detailPendingApproval']);
-    Route::get('history-edit-products/export/{code_document}', [NotificationController::class, 'exportEditHistoryByDocument'])
-        ->where('code_document', '.*');
-    Route::get('history-edit-products/{code_document}', [NotificationController::class, 'getEditHistoryByDocument'])
-        ->where('code_document', '.*');
+    Route::get('history-edit-products/export/{id}', [NotificationController::class, 'exportEditHistoryByDocument']);
+    Route::get('history-edit-products/{id}', [NotificationController::class, 'getEditHistoryByDocument']);
     Route::get('history-edit-products', [NotificationController::class, 'getEditHistories']);
 });
 
