@@ -596,7 +596,7 @@ class NotificationController extends Controller
                 ->latest()
                 ->paginate(30);
 
-            $data = $histories->map(function ($history) {
+            $mappedData = $histories->map(function ($history) {
                 return [
                     'history_id' => $history->id,
                     'code_document' => $history->code_document,
@@ -609,14 +609,11 @@ class NotificationController extends Controller
                     'old_value' => $history->old_value,
                     'new_value' => $history->new_value,
                 ];
-            });
+            })->toArray();
 
-            $response = [
-                'current_page' => $histories->currentPage(),
-                'data' => $data,
-                'total' => $histories->total(),
-                'last_page' => $histories->lastPage(),
-            ];
+            $response = $histories->toArray();
+
+            $response['data'] = $mappedData;
 
             return new \App\Http\Resources\ResponseResource(true, "Berhasil mengambil riwayat perubahan data", $response);
         } catch (\Exception $e) {
@@ -628,12 +625,8 @@ class NotificationController extends Controller
     {
         try {
             $riwayatCheck = \App\Models\RiwayatCheck::find($id);
+            $code_document = $riwayatCheck ? $riwayatCheck->code_document : 'DOC_NOT_FOUND';
 
-            if (!$riwayatCheck) {
-                return (new \App\Http\Resources\ResponseResource(false, "Data Riwayat Check tidak ditemukan", null))->response()->setStatusCode(404);
-            }
-
-            $code_document = $riwayatCheck->code_document;
             $query = $request->input('q');
 
             $histories = \App\Models\ProductEditHistory::with(['requestUser', 'approverUser'])
@@ -650,11 +643,7 @@ class NotificationController extends Controller
                 ->latest()
                 ->paginate(30);
 
-            if ($histories->isEmpty()) {
-                return new \App\Http\Resources\ResponseResource(false, "Tidak ada riwayat perubahan pada dokumen ini", null);
-            }
-
-            $data = $histories->map(function ($history) {
+            $mappedData = $histories->map(function ($history) {
                 return [
                     'history_id' => $history->id,
                     'code_document' => $history->code_document,
@@ -667,16 +656,14 @@ class NotificationController extends Controller
                     'old_value' => $history->old_value,
                     'new_value' => $history->new_value,
                 ];
-            });
+            })->toArray();
 
-            $response = [
-                'current_page' => $histories->currentPage(),
-                'data' => $data,
-                'total' => $histories->total(),
-                'last_page' => $histories->lastPage(),
-            ];
+            $response = $histories->toArray();
 
-            return new \App\Http\Resources\ResponseResource(true, "Berhasil mengambil riwayat perubahan dokumen: " . $code_document, $response);
+            $response['data'] = $mappedData;
+
+            $msg = $riwayatCheck ? "Berhasil mengambil riwayat dokumen: " . $code_document : "Data tidak ditemukan";
+            return new \App\Http\Resources\ResponseResource(true, $msg, $response);
         } catch (\Exception $e) {
             return response()->json(['error' => $e->getMessage()], 500);
         }
