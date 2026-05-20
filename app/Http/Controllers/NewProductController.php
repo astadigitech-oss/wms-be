@@ -1960,7 +1960,7 @@ class NewProductController extends Controller
     public function getByCategory(Request $request)
     {
         $query = $request->input('q');
-        // $page = $request->input('page', 1);
+        $rackStatus = $request->input('rack_status');
 
         try {
             $productQuery = New_product::query()
@@ -2025,7 +2025,6 @@ class NewProductController extends Controller
                         ->orWhere('bundles.type', 'type2');
                 });
 
-            // 3. Pencarian (Search)
             if ($query) {
                 $productQuery->where(function ($queryBuilder) use ($query) {
                     $queryBuilder->where(function ($subQuery) use ($query) {
@@ -2035,7 +2034,7 @@ class NewProductController extends Controller
                             ->orWhere('new_products.new_name_product', 'LIKE', '%' . $query . '%')
                             ->orWhere('new_products.new_status_product', 'LIKE', '%' . $query . '%')
                             ->orWhere('racks.barcode', 'LIKE', '%' . $query . '%')
-                            ->orWhere('racks.name', 'LIKE', '%' . $query . '%');  
+                            ->orWhere('racks.name', 'LIKE', '%' . $query . '%');
                     });
                 });
 
@@ -2044,9 +2043,17 @@ class NewProductController extends Controller
                         ->orWhere('bundles.barcode_bundle', 'LIKE', '%' . $query . '%')
                         ->orWhere('bundles.category', 'LIKE', '%' . $query . '%')
                         ->orWhere('bundles.product_status', 'LIKE', '%' . $query . '%')
-                        ->orWhere('racks.barcode', 'LIKE', '%' . $query . '%') 
+                        ->orWhere('racks.barcode', 'LIKE', '%' . $query . '%')
                         ->orWhere('racks.name', 'LIKE', '%' . $query . '%');
                 });
+            }
+
+            if ($rackStatus === 'null') {
+                $productQuery->whereNull('racks.barcode');
+                $bundleQuery->whereNull('racks.barcode');
+            } elseif ($rackStatus === 'not_null') {
+                $productQuery->whereNotNull('racks.barcode');
+                $bundleQuery->whereNotNull('racks.barcode');
             }
 
             $mergedQuery = $productQuery->unionAll($bundleQuery)
