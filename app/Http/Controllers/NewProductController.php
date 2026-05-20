@@ -1963,82 +1963,94 @@ class NewProductController extends Controller
         // $page = $request->input('page', 1);
 
         try {
-
-            $productQuery = New_product::select(
-                'id',
-                'new_barcode_product',
-                'new_name_product',
-                'new_category_product',
-                'new_price_product',
-                'created_at',
-                'new_status_product',
-                'display_price',
-                'new_date_in_product',
-                'is_so',
-                DB::raw("'display' as source")
-            )
-                ->whereNotNull('new_category_product')
-                ->where('new_tag_product', NULL)
-                ->where('is_pending', false)
-                ->where(function ($query) {
-                    $query->whereRaw("JSON_UNQUOTE(JSON_EXTRACT(new_quality, '$.lolos')) = 'lolos'")
-                        ->orWhereRaw("JSON_UNQUOTE(JSON_EXTRACT(JSON_UNQUOTE(new_quality), '$.lolos')) = 'lolos'");
+            $productQuery = New_product::query()
+                ->leftJoin('racks', 'new_products.rack_id', '=', 'racks.id')
+                ->select(
+                    'new_products.id',
+                    'new_products.new_barcode_product',
+                    'new_products.new_name_product',
+                    'new_products.new_category_product',
+                    'new_products.new_price_product',
+                    'new_products.created_at',
+                    'new_products.new_status_product',
+                    'new_products.display_price',
+                    'new_products.new_date_in_product',
+                    'new_products.is_so',
+                    DB::raw("'display' as source"),
+                    'racks.barcode',
+                    'racks.name'
+                )
+                ->whereNotNull('new_products.new_category_product')
+                ->where('new_products.new_tag_product', NULL)
+                ->where('new_products.is_pending', false)
+                ->where(function ($q) {
+                    $q->whereRaw("JSON_UNQUOTE(JSON_EXTRACT(new_products.new_quality, '$.lolos')) = 'lolos'")
+                        ->orWhereRaw("JSON_UNQUOTE(JSON_EXTRACT(JSON_UNQUOTE(new_products.new_quality), '$.lolos')) = 'lolos'");
                 })
                 ->where(function ($status) {
-                    $status->where('new_status_product', 'display')
-                        ->orWhere('new_status_product', 'expired')
-                        ->orWhere('new_status_product', 'slow_moving');
-                })->where(function ($type) {
-                    $type->whereNull('type')
-                        ->orWhere('type', 'type1')
-                        ->orWhere('type', 'type2');
+                    $status->where('new_products.new_status_product', 'display')
+                        ->orWhere('new_products.new_status_product', 'expired')
+                        ->orWhere('new_products.new_status_product', 'slow_moving');
+                })
+                ->where(function ($type) {
+                    $type->whereNull('new_products.type')
+                        ->orWhere('new_products.type', 'type1')
+                        ->orWhere('new_products.type', 'type2');
                 });
 
-            $bundleQuery = Bundle::select(
-                'id',
-                'barcode_bundle as new_barcode_product',
-                'name_bundle as new_name_product',
-                'category as new_category_product',
-                'total_price_custom_bundle as new_price_product',
-                'created_at',
-                DB::raw("CASE WHEN product_status = 'not sale' THEN 'display' ELSE product_status END as new_status_product"),
-                'total_price_custom_bundle as display_price',
-                'created_at as new_date_in_product',
-                'is_so',
-                DB::raw("'bundle' as source")
-            )
-                ->whereNotNull('category')
-                ->where('source', 'display')
-                ->where('name_color',  NULL)
-                ->where('product_status', 'not sale')
+            $bundleQuery = Bundle::query()
+                ->leftJoin('racks', 'bundles.rack_id', '=', 'racks.id')
+                ->select(
+                    'bundles.id',
+                    'bundles.barcode_bundle as new_barcode_product',
+                    'bundles.name_bundle as new_name_product',
+                    'bundles.category as new_category_product',
+                    'bundles.total_price_custom_bundle as new_price_product',
+                    'bundles.created_at',
+                    DB::raw("CASE WHEN bundles.product_status = 'not sale' THEN 'display' ELSE bundles.product_status END as new_status_product"),
+                    'bundles.total_price_custom_bundle as display_price',
+                    'bundles.created_at as new_date_in_product',
+                    'bundles.is_so',
+                    DB::raw("'bundle' as source"),
+                    'racks.barcode',
+                    'racks.name'
+                )
+                ->whereNotNull('bundles.category')
+                ->where('bundles.source', 'display')
+                ->where('bundles.name_color', NULL)
+                ->where('bundles.product_status', 'not sale')
                 ->where(function ($type) {
-                    $type->whereNull('type')
-                        ->orWhere('type', 'type1')
-                        ->orWhere('type', 'type2');
-                });;
+                    $type->whereNull('bundles.type')
+                        ->orWhere('bundles.type', 'type1')
+                        ->orWhere('bundles.type', 'type2');
+                });
 
+            // 3. Pencarian (Search)
             if ($query) {
                 $productQuery->where(function ($queryBuilder) use ($query) {
                     $queryBuilder->where(function ($subQuery) use ($query) {
-                        $subQuery->where('new_category_product', 'LIKE', '%' . $query . '%')
-                            ->orWhere('new_barcode_product', 'LIKE', '%' . $query . '%')
-                            ->orWhere('old_barcode_product', 'LIKE', '%' . $query . '%')
-                            ->orWhere('new_name_product', 'LIKE', '%' . $query . '%')
-                            ->orWhere('new_status_product', 'LIKE', '%' . $query . '%');
+                        $subQuery->where('new_products.new_category_product', 'LIKE', '%' . $query . '%')
+                            ->orWhere('new_products.new_barcode_product', 'LIKE', '%' . $query . '%')
+                            ->orWhere('new_products.old_barcode_product', 'LIKE', '%' . $query . '%')
+                            ->orWhere('new_products.new_name_product', 'LIKE', '%' . $query . '%')
+                            ->orWhere('new_products.new_status_product', 'LIKE', '%' . $query . '%')
+                            ->orWhere('racks.barcode', 'LIKE', '%' . $query . '%')
+                            ->orWhere('racks.name', 'LIKE', '%' . $query . '%');  
                     });
                 });
+
                 $bundleQuery->where(function ($dataBundle) use ($query) {
-                    $dataBundle->where('name_bundle', 'LIKE', '%' . $query . '%')
-                        ->orWhere('barcode_bundle', 'LIKE', '%' . $query . '%')
-                        ->orWhere('category', 'LIKE', '%' . $query . '%')
-                        ->orWhere('product_status', 'LIKE', '%' . $query . '%');
+                    $dataBundle->where('bundles.name_bundle', 'LIKE', '%' . $query . '%')
+                        ->orWhere('bundles.barcode_bundle', 'LIKE', '%' . $query . '%')
+                        ->orWhere('bundles.category', 'LIKE', '%' . $query . '%')
+                        ->orWhere('bundles.product_status', 'LIKE', '%' . $query . '%')
+                        ->orWhere('racks.barcode', 'LIKE', '%' . $query . '%') 
+                        ->orWhere('racks.name', 'LIKE', '%' . $query . '%');
                 });
-                $page = 1;
             }
 
-            // $mergedQuery = $productQuery->unionAll($bundleQuery)->orderBy('created_at', 'desc')
-            //     ->paginate(33, ['*'], 'page', $page);
-            $mergedQuery = $productQuery->unionAll($bundleQuery)->orderBy('new_date_in_product', 'desc')
+            $mergedQuery = $productQuery->unionAll($bundleQuery)
+                ->orderBy('new_date_in_product', 'desc')
                 ->paginate(33);
 
             $mergedQuery->getCollection()->transform(function ($item) {
