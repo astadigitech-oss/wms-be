@@ -6,24 +6,26 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 
-class Document extends Model
+class Cogs extends Model
 {
     use HasFactory;
 
-    protected $guarded = ['id'];
+    protected $table = 'cogs';
 
-    public function user_scan_webs()
-    {
-        return $this->hasMany(UserScanWeb::class);
-    }
+    protected $fillable = [
+        'supplier',
+        'channel',
+        'type',
+        'amount',
+    ];
 
-    public function cogs(): BelongsToMany
+    public function documents(): BelongsToMany
     {
         return $this->belongsToMany(
-            Cogs::class,
+            Document::class,
             'cogs_reference',
-            'document_id',
-            'cogs_id'
+            'cogs_id',
+            'document_id'
         );
     }
 }
