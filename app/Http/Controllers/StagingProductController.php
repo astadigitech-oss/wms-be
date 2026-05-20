@@ -44,6 +44,7 @@ class StagingProductController extends Controller
     public function index(Request $request)
     {
         $searchQuery = $request->input('q');
+        $rackStatus = $request->input('rack_status');
         // $page = $request->input('page', 1);
 
         try {
@@ -121,6 +122,14 @@ class StagingProductController extends Controller
                         ->orWhere('racks.barcode', 'LIKE', '%' . $searchQuery . '%')
                         ->orWhere('racks.name', 'LIKE', '%' . $searchQuery . '%');
                 });
+            }
+
+            if ($rackStatus === 'null') {
+                $newProductsQuery->whereNull('racks.barcode');
+                $bundleQuery->whereNull('racks.barcode');
+            } elseif ($rackStatus === 'not_null') {
+                $newProductsQuery->whereNotNull('racks.barcode');
+                $bundleQuery->whereNotNull('racks.barcode');
             }
 
             $unionQuery = $newProductsQuery->unionAll($bundleQuery);
