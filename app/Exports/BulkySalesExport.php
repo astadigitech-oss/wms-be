@@ -20,7 +20,7 @@ class BulkySalesExport implements FromQuery, WithTitle, WithHeadings, WithMappin
     public function __construct($filterStatus, $querySearch)
     {
         $this->filterStatus = $filterStatus;
-        $this->querySearch = $querySearch;
+        $this->querySearch = $this->cleanString($querySearch);
     }
 
     public function query()
@@ -38,10 +38,10 @@ class BulkySalesExport implements FromQuery, WithTitle, WithHeadings, WithMappin
                 'bulky_sales.display_price',
                 'bulky_sales.status_product_before',
                 'bulky_sales.created_at',
-                'bulky_documents.name_document', 
+                'bulky_documents.name_document',
                 'bulky_documents.type as document_type',
                 'bulky_documents.is_sale as document_status',
-                'bag_products.name_bag' 
+                'bag_products.name_bag'
             )
             ->leftJoin('bulky_documents', 'bulky_sales.bulky_document_id', '=', 'bulky_documents.id')
             ->leftJoin('bag_products', 'bulky_sales.bag_product_id', '=', 'bag_products.id');
@@ -70,7 +70,7 @@ class BulkySalesExport implements FromQuery, WithTitle, WithHeadings, WithMappin
         return [
             'Document Name',
             'Document Type',
-            'Bag Name', 
+            'Bag Name',
             'Barcode Bulky Sale',
             'Old Barcode Product',
             'Product Name',
@@ -87,15 +87,22 @@ class BulkySalesExport implements FromQuery, WithTitle, WithHeadings, WithMappin
 
     private function cleanString($string)
     {
-        if (is_null($string) || $string === '') {
+        if (empty($string)) {
             return '';
         }
 
         $string = (string) $string;
-        $string = htmlspecialchars_decode(htmlspecialchars($string, ENT_IGNORE | ENT_SUBSTITUTE, 'UTF-8'));
-        $string = preg_replace('/[\x00-\x09\x0B\x0C\x0E-\x1F\x7F]/', '', $string);
+        $cleaned = '';
+        $length = strlen($string);
 
-        return trim($string);
+        for ($i = 0; $i < $length; $i++) {
+            $ord = ord($string[$i]);
+            if ($ord >= 32 && $ord <= 126) {
+                $cleaned .= $string[$i];
+            }
+        }
+
+        return trim($cleaned);
     }
 
     public function map($row): array
