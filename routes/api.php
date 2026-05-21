@@ -809,6 +809,7 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Admin Kasir
     Route::get('sku-products/history-bundling', [SkuProductController::class, 'getHistoryBundling']);
     Route::get('sku-product-old/{id}/export', [SkuProductOldController::class, 'export']);
     Route::get('sku-product/export-bundling', [SkuProductController::class, 'exportBundlingSku']);
+    Route::get('sku-product/export', [SkuProductController::class, 'exportSkuProducts']);
     Route::get('exportBundles', [BundleController::class, 'exportBundles']);
     Route::resource('sku-products', SkuProductController::class)->only(['index', 'show']);
     Route::resource('sku-product-old', SkuProductOldController::class)->only(['index', 'show']);

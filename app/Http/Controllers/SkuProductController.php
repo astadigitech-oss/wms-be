@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Exports\BundlingSkuExport;
+use App\Exports\SkuProductsExport;
 use App\Http\Resources\ResponseResource;
 use App\Models\Category;
 use App\Models\Color_tag;
@@ -12,7 +13,9 @@ use App\Models\SkuDocument;
 use App\Models\SkuProduct;
 use App\Models\StagingProduct;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Validator;
 use Maatwebsite\Excel\Facades\Excel;
 
@@ -664,6 +667,39 @@ class SkuProductController extends Controller
         } catch (\Exception $e) {
             return (new ResponseResource(false, "Gagal export: " . $e->getMessage(), null))
                 ->response()->setStatusCode(500);
+        }
+    }
+
+    public function exportSkuProducts(Request $request)
+    {
+        set_time_limit(600);
+        ini_set('memory_limit', '1024M');
+
+        try {
+            $publicPath = 'exports';
+            $directoryPath = storage_path('app/public/' . $publicPath);
+
+            if (!file_exists($directoryPath)) {
+                mkdir($directoryPath, 0777, true);
+            }
+
+            $oldFiles = File::glob($directoryPath . '/sku-products-*.xlsx');
+            foreach ($oldFiles as $file) {
+                if (is_file($file)) {
+                    unlink($file);
+                }
+            }
+
+            $timestamp = Carbon::now()->format('Ymd_His');
+            $fileName = 'sku-products-' . $timestamp . '.xlsx';
+
+            Excel::store(new SkuProductsExport($request), $publicPath . '/' . $fileName, 'public');
+
+            $downloadUrl = asset('storage/' . $publicPath . '/' . $fileName);
+
+            return new ResponseResource(true, "File Sku Products berhasil diunduh", $downloadUrl);
+        } catch (\Exception $e) {
+            return new ResponseResource(false, "Gagal mengunduh file: " . $e->getMessage(), []);
         }
     }
 }

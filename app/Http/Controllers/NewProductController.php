@@ -45,6 +45,7 @@ use App\Models\Rack;
 use App\Models\SoColor;
 use App\Models\SummarySoColor;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\File;
 
 class NewProductController extends Controller
 {
@@ -2467,14 +2468,22 @@ class NewProductController extends Controller
         ini_set('memory_limit', '1024M');
 
         try {
-            $fileName = 'product-by-color.xlsx';
             $publicPath = 'exports';
-            $filePath = storage_path('app/public/' . $publicPath . '/' . $fileName);
+            $directoryPath = storage_path('app/public/' . $publicPath);
 
-            // Buat direktori jika belum ada
-            if (!file_exists(dirname($filePath))) {
-                mkdir(dirname($filePath), 0777, true);
+            if (!file_exists($directoryPath)) {
+                mkdir($directoryPath, 0777, true);
             }
+
+            $oldFiles = File::glob($directoryPath . '/product-by-color-*.xlsx');
+            foreach ($oldFiles as $file) {
+                if (is_file($file)) {
+                    unlink($file); 
+                }
+            }
+
+            $timestamp = Carbon::now()->format('Ymd_His');
+            $fileName = 'product-by-color-' . $timestamp . '.xlsx';
 
             Excel::store(new ProductByColor($request), $publicPath . '/' . $fileName, 'public');
 
