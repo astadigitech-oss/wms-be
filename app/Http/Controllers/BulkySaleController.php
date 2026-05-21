@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Exports\BulkySalesExport;
 use App\Models\Buyer;
 use App\Models\Bundle;
 use App\Models\BulkySale;
@@ -20,6 +21,8 @@ use App\Http\Resources\ResponseResource;
 use App\Models\Bkl;
 use App\Models\BklProduct;
 use App\Models\Sale;
+use Illuminate\Support\Facades\File;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Validator;
 
 class BulkySaleController extends Controller
@@ -703,5 +706,42 @@ class BulkySaleController extends Controller
             ->paginate(15);
 
         return (new ResponseResource(true, "List data product category", $products))->response();
+    }
+
+    public function exportCargoProducts(Request $request)
+    {
+        set_time_limit(600);
+        ini_set('memory_limit', '1024M');
+
+        try {
+            $filterStatus = $request->input('status');
+            $searchQuery = $request->input('q');
+
+            $publicPath = 'exports';
+            $directoryPath = storage_path('app/public/' . $publicPath);
+
+            if (!file_exists($directoryPath)) {
+                mkdir($directoryPath, 0777, true);
+            }
+
+            $oldFiles = File::glob($directoryPath . '/bulky-sales-*.xlsx');
+            foreach ($oldFiles as $file) {
+                if (is_file($file)) {
+                    unlink($file);
+                }
+            }
+
+            $timestamp = Carbon::now()->format('Ymd_His');
+            $statusStr = $filterStatus ? '-' . $filterStatus : '-all';
+            $fileName = 'bulky-sales' . $statusStr . '-' . $timestamp . '.xlsx';
+
+            Excel::store(new BulkySalesExport($filterStatus, $searchQuery), $publicPath . '/' . $fileName, 'public');
+
+            $downloadUrl = asset('storage/' . $publicPath . '/' . $fileName);
+
+            return new ResponseResource(true, "File Bulky Sales berhasil diunduh", $downloadUrl);
+        } catch (\Exception $e) {
+            return new ResponseResource(false, "Gagal mengunduh file: " . $e->getMessage(), []);
+        }
     }
 }

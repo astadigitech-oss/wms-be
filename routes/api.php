@@ -729,6 +729,7 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Admin Kasir
     Route::get('sale-products', [SaleController::class, 'products']);
     Route::get('bulky-products-cargo', [BulkySaleController::class, 'productsCargo']);
     Route::get('list-color-cargo', [BagProductsController::class, 'getColorCargo']);
+    Route::get('export-cargo-products', [BulkySaleController::class, 'exportCargoProducts']);
     Route::get('buyers', [BuyerController::class, 'index']);
     Route::get('bulky-filter-approve/{user_id}', [PaletController::class, 'bulkyFilterApprove']);
     Route::get('bulky-filter-palet', [PaletController::class, 'listFilterToBulky']);
