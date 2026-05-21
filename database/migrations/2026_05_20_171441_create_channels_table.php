@@ -11,10 +11,10 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('cogs', function (Blueprint $table) {
+        Schema::create('channels', function (Blueprint $table) {
             $table->id();
-            $table->string('supplier');
-            $table->string('channel');
+            $table->foreignId('supplier_id')->constrained('suppliers')->onDelete('cascade')->onUpdate('cascade');
+            $table->string('name');
             $table->enum('type', ['percentage', 'unit']);
             $table->decimal('amount', 15, 2);
             $table->timestamps();
@@ -26,6 +26,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('cogs');
+        Schema::dropIfExists('channels');
     }
 };

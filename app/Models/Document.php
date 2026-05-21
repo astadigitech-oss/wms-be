@@ -17,13 +17,18 @@ class Document extends Model
         return $this->hasMany(UserScanWeb::class);
     }
 
-    public function cogs(): BelongsToMany
+    public function channels(): BelongsToMany
     {
         return $this->belongsToMany(
-            Cogs::class,
-            'cogs_reference',
-            'document_id',
-            'cogs_id'
-        );
+            Channel::class,
+            'cogs_reference', 
+            'document_id',    
+            'cogs_id'         
+        )->withPivot('created_at');
+    }
+    
+    public function cogs(): BelongsToMany
+    {
+        return $this->channels();
     }
 }
