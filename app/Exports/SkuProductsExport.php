@@ -3,14 +3,16 @@
 namespace App\Exports;
 
 use Illuminate\Http\Request;
-use App\Models\SkuProduct; // Sesuaikan dengan path model Anda
+use App\Models\SkuDocument;
+use App\Models\SkuProduct; 
 use Maatwebsite\Excel\Concerns\Exportable;
+use Maatwebsite\Excel\Concerns\WithMultipleSheets;
 use Maatwebsite\Excel\Concerns\FromQuery;
 use Maatwebsite\Excel\Concerns\WithTitle;
 use Maatwebsite\Excel\Concerns\WithHeadings;
 use Maatwebsite\Excel\Concerns\WithMapping;
 
-class SkuProductsExport implements FromQuery, WithTitle, WithHeadings, WithMapping
+class SkuProductsExport implements WithMultipleSheets
 {
     use Exportable;
 
@@ -18,7 +20,110 @@ class SkuProductsExport implements FromQuery, WithTitle, WithHeadings, WithMappi
 
     public function __construct(Request $request)
     {
-        $this->querySearch = $request->input('q');
+        $this->querySearch = $this->cleanString($request->input('q'));
+    }
+
+    private function cleanString($string)
+    {
+        if (empty($string)) return '';
+        
+        $string = (string) $string;
+        $cleaned = '';
+        $length = strlen($string);
+        
+        for ($i = 0; $i < $length; $i++) {
+            $ord = ord($string[$i]);
+            if ($ord >= 32 && $ord <= 126) {
+                $cleaned .= $string[$i];
+            }
+        }
+        return trim($cleaned);
+    }
+
+    public function sheets(): array
+    {
+        return [
+            new SkuDocumentSheet($this->querySearch), 
+            new SkuProductSheet($this->querySearch)   
+        ];
+    }
+}
+
+
+class SkuDocumentSheet implements FromQuery, WithTitle, WithHeadings, WithMapping
+{
+    protected $querySearch;
+
+    public function __construct($querySearch)
+    {
+        $this->querySearch = $querySearch;
+    }
+
+    public function query()
+    {
+        $query = SkuDocument::query();
+
+        if ($this->querySearch) {
+            $query->where(function ($subQuery) {
+                $subQuery->where('code_document', 'LIKE', '%' . $this->querySearch . '%')
+                    ->orWhere('base_document', 'LIKE', '%' . $this->querySearch . '%')
+                    ->orWhere('custom_barcode', 'LIKE', '%' . $this->querySearch . '%');
+            });
+        }
+
+        return $query->orderBy('id', 'desc');
+    }
+
+    public function headings(): array
+    {
+        return [
+            'Code Document',
+            'Base Document',
+            'Total Product',
+            'Date Document',
+            'Custom Barcode'
+        ];
+    }
+
+    private function cleanString($string)
+    {
+        if (empty($string)) return '';
+        $string = (string) $string;
+        $cleaned = '';
+        $length = strlen($string);
+        for ($i = 0; $i < $length; $i++) {
+            $ord = ord($string[$i]);
+            if ($ord >= 32 && $ord <= 126) {
+                $cleaned .= $string[$i];
+            }
+        }
+        return trim($cleaned);
+    }
+
+    public function map($row): array
+    {
+        return [
+            $this->cleanString($row->code_document),
+            $this->cleanString($row->base_document),
+            $this->cleanString($row->total_column_in_document),
+            $this->cleanString($row->date_document),
+            $this->cleanString($row->custom_barcode),
+        ];
+    }
+
+    public function title(): string
+    {
+        return 'SKU Documents';
+    }
+}
+
+class SkuProductSheet implements FromQuery, WithTitle, WithHeadings, WithMapping
+{
+    protected $querySearch;
+
+    public function __construct($querySearch)
+    {
+        $this->querySearch = $querySearch;
     }
 
     public function query()
@@ -44,22 +149,22 @@ class SkuProductsExport implements FromQuery, WithTitle, WithHeadings, WithMappi
             'Name Product',
             'Price Product',
             'Quantity',
-            'Created At',
-            'Updated At'
         ];
     }
 
     private function cleanString($string)
     {
-        if (is_null($string) || $string === '') {
-            return '';
-        }
-
+        if (empty($string)) return '';
         $string = (string) $string;
-        $string = htmlspecialchars_decode(htmlspecialchars($string, ENT_IGNORE | ENT_SUBSTITUTE, 'UTF-8'));
-        $string = preg_replace('/[\x00-\x09\x0B\x0C\x0E-\x1F\x7F]/', '', $string);
-
-        return trim($string);
+        $cleaned = '';
+        $length = strlen($string);
+        for ($i = 0; $i < $length; $i++) {
+            $ord = ord($string[$i]);
+            if ($ord >= 32 && $ord <= 126) {
+                $cleaned .= $string[$i];
+            }
+        }
+        return trim($cleaned);
     }
 
     public function map($row): array
@@ -70,8 +175,6 @@ class SkuProductsExport implements FromQuery, WithTitle, WithHeadings, WithMappi
             $this->cleanString($row->name_product),
             $this->cleanString($row->price_product),
             $this->cleanString($row->quantity_product),
-            $this->cleanString($row->created_at),
-            $this->cleanString($row->updated_at),
         ];
     }
 

@@ -2,15 +2,17 @@
 
 namespace App\Exports;
 
+use App\Models\BulkyDocument;
 use App\Models\BulkySale;
 use Illuminate\Support\Facades\DB;
 use Maatwebsite\Excel\Concerns\Exportable;
+use Maatwebsite\Excel\Concerns\WithMultipleSheets;
 use Maatwebsite\Excel\Concerns\FromQuery;
 use Maatwebsite\Excel\Concerns\WithTitle;
 use Maatwebsite\Excel\Concerns\WithHeadings;
 use Maatwebsite\Excel\Concerns\WithMapping;
 
-class BulkySalesExport implements FromQuery, WithTitle, WithHeadings, WithMapping
+class BulkySalesExport implements WithMultipleSheets
 {
     use Exportable;
 
@@ -21,6 +23,132 @@ class BulkySalesExport implements FromQuery, WithTitle, WithHeadings, WithMappin
     {
         $this->filterStatus = $filterStatus;
         $this->querySearch = $this->cleanString($querySearch);
+    }
+
+    private function cleanString($string)
+    {
+        if (empty($string)) {
+            return '';
+        }
+        $string = (string) $string;
+        $cleaned = '';
+        $length = strlen($string);
+        for ($i = 0; $i < $length; $i++) {
+            $ord = ord($string[$i]);
+            if ($ord >= 32 && $ord <= 126) {
+                $cleaned .= $string[$i];
+            }
+        }
+        return trim($cleaned);
+    }
+
+    public function sheets(): array
+    {
+        return [
+            new BulkyDocumentSheet($this->filterStatus, $this->querySearch), 
+            new BulkySaleSheet($this->filterStatus, $this->querySearch)      
+        ];
+    }
+}
+
+class BulkyDocumentSheet implements FromQuery, WithTitle, WithHeadings, WithMapping
+{
+    protected $filterStatus;
+    protected $querySearch;
+
+    public function __construct($filterStatus, $querySearch)
+    {
+        $this->filterStatus = $filterStatus;
+        $this->querySearch = $querySearch;
+    }
+
+    public function query()
+    {
+        $query = BulkyDocument::query();
+
+        if ($this->filterStatus === 'proses') {
+            $query->whereIn('is_sale', ['ready', 'not sale']);
+        } elseif ($this->filterStatus === 'sale') {
+            $query->where('is_sale', 'sale');
+        }
+
+        if ($this->querySearch) {
+            $query->where(function ($subQuery) {
+                $subQuery->where('name_document', 'LIKE', '%' . $this->querySearch . '%')
+                    ->orWhere('code_document_bulky', 'LIKE', '%' . $this->querySearch . '%')
+                    ->orWhere('name_user', 'LIKE', '%' . $this->querySearch . '%')
+                    ->orWhere('name_buyer', 'LIKE', '%' . $this->querySearch . '%')
+                    ->orWhere('category_bulky', 'LIKE', '%' . $this->querySearch . '%');
+            });
+        }
+
+        return $query->orderBy('created_at', 'desc');
+    }
+
+    public function headings(): array
+    {
+        return [
+            'Code Document Bulky',
+            'Document Name',
+            'Category',
+            'Type',
+            'Total Product',
+            'Total Old Price',
+            'Discount (%)',
+            'After Price',
+            'Status Bulky',
+            'Is Sale',
+            'Created At'
+        ];
+    }
+
+    private function cleanString($string)
+    {
+        if (empty($string)) return '';
+        $string = (string) $string;
+        $cleaned = '';
+        $length = strlen($string);
+        for ($i = 0; $i < $length; $i++) {
+            $ord = ord($string[$i]);
+            if ($ord >= 32 && $ord <= 126) {
+                $cleaned .= $string[$i];
+            }
+        }
+        return trim($cleaned);
+    }
+
+    public function map($row): array
+    {
+        return [
+            $this->cleanString($row->code_document_bulky),
+            $this->cleanString($row->name_document),
+            $this->cleanString($row->category_bulky),
+            $this->cleanString($row->type),
+            $this->cleanString($row->total_product_bulky),
+            $this->cleanString($row->total_old_price_bulky),
+            $this->cleanString($row->discount_bulky),
+            $this->cleanString($row->after_price_bulky),
+            $this->cleanString($row->status_bulky),
+            $this->cleanString($row->is_sale),
+            $this->cleanString($row->created_at),
+        ];
+    }
+
+    public function title(): string
+    {
+        return 'Bulky Documents';
+    }
+}
+
+class BulkySaleSheet implements FromQuery, WithTitle, WithHeadings, WithMapping
+{
+    protected $filterStatus;
+    protected $querySearch;
+
+    public function __construct($filterStatus, $querySearch)
+    {
+        $this->filterStatus = $filterStatus;
+        $this->querySearch = $querySearch;
     }
 
     public function query()
@@ -87,21 +215,16 @@ class BulkySalesExport implements FromQuery, WithTitle, WithHeadings, WithMappin
 
     private function cleanString($string)
     {
-        if (empty($string)) {
-            return '';
-        }
-
+        if (empty($string)) return '';
         $string = (string) $string;
         $cleaned = '';
         $length = strlen($string);
-
         for ($i = 0; $i < $length; $i++) {
             $ord = ord($string[$i]);
             if ($ord >= 32 && $ord <= 126) {
                 $cleaned .= $string[$i];
             }
         }
-
         return trim($cleaned);
     }
 
@@ -127,7 +250,6 @@ class BulkySalesExport implements FromQuery, WithTitle, WithHeadings, WithMappin
 
     public function title(): string
     {
-        $statusTitle = $this->filterStatus ? ucfirst($this->filterStatus) : 'All';
-        return 'Bulky Sales - ' . $statusTitle;
+        return 'Bulky Sales Product';
     }
 }
