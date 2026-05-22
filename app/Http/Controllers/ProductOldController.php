@@ -43,7 +43,7 @@ class ProductOldController extends Controller
             ->first();
 
         if (!$product) {
-            return new ResponseResource(false, "Produk tidak ditemukan, sudah dihapus, atau sedang diproses.", []);
+            return new ResponseResource(false, "Produk ini sudah selesai di scan", []);
         }
 
         $response = ['product' => $product];
