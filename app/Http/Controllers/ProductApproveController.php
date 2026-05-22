@@ -441,6 +441,7 @@ class ProductApproveController extends Controller
         $inputData['new_discount'] = 0;
         $inputData['user_id'] = $userId;
         $inputData['display_price'] = $inputData['new_price_product'];
+        $inputData['note'] = $inputData['deskripsi'] ?? null;
 
         if ($status !== 'lolos') {
             $inputData['new_category_product'] = null;
