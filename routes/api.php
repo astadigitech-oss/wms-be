@@ -27,6 +27,7 @@ use App\Http\Controllers\FilterBklController;
 use App\Http\Controllers\FilterProductInputController;
 use App\Http\Controllers\FilterQcdController;
 use App\Http\Controllers\FilterStagingController;
+use App\Http\Controllers\Fixing\FixingController;
 use App\Http\Controllers\FormatBarcodeController;
 use App\Http\Controllers\GenerateController;
 use App\Http\Controllers\LoyaltyRankController;
@@ -86,6 +87,13 @@ use Illuminate\Support\Facades\Route;
 |--------------------------------------------------------------------------
 | Patokan urutan role umum: Admin, Spv, Team leader, Admin Kasir, Crew, Reparasi
 */
+
+// ========================================================================================================
+// 0. Fixing Helper
+// ========================================================================================================
+Route::middleware(['auth:sanctum', 'check.role:Admin'])->group(function () {
+    Route::post('fixing/sync-actual-quality-to-note', [FixingController::class, 'syncNoteFromStaging']);
+});
 
 // ========================================================================================================
 // 1. AUTH & PUBLIC ROUTES

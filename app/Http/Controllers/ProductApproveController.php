@@ -89,6 +89,7 @@ class ProductApproveController extends Controller
             'condition' => 'required|in:lolos,damaged,abnormal,non',
             'new_category_product' => 'nullable|exists:categories,name_category',
             'new_tag_product' => 'nullable|exists:color_tags,name_color',
+            'deskripsi' => 'nullable|string',
 
         ], [
             'old_barcode_product.exists' => 'barcode tidak ada',
@@ -281,7 +282,8 @@ class ProductApproveController extends Controller
                         'old_barcode_product' => $inputData['old_barcode_product'],
                         'new_barcode_product' => $inputData['new_barcode_product'],
                         'old_price_product' => $inputData['old_price_product'],
-                        'type' => 'damaged'
+                        'type' => 'damaged',
+                        'note' => $inputData['note'] ?? null
                     ]);
                 }
                 // if($inputData['old_price_product'] < 100000){
@@ -308,7 +310,8 @@ class ProductApproveController extends Controller
                         'old_barcode_product' => $inputData['old_barcode_product'],
                         'new_barcode_product' => $inputData['new_barcode_product'],
                         'old_price_product' => $inputData['old_price_product'],
-                        'type' => 'abnormal'
+                        'type' => 'abnormal',
+                        'note' => $inputData['note'] ?? null
                     ]);
                 }
                 // // $riwayatCheck->total_data_abnormal += 1;
@@ -337,7 +340,8 @@ class ProductApproveController extends Controller
                         'old_barcode_product' => $inputData['old_barcode_product'],
                         'new_barcode_product' => $inputData['new_barcode_product'],
                         'old_price_product' => $inputData['old_price_product'],
-                        'type' => 'non'
+                        'type' => 'non',
+                        'note' => $inputData['note'] ?? null
                     ]);
                 }
             }
