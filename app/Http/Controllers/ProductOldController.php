@@ -30,14 +30,6 @@ class ProductOldController extends Controller
             return new ResponseResource(false, "Barcode tidak boleh kosong.", null);
         }
 
-        $isPending = \App\Models\ProductApprove::where('code_document', $codeDocument)
-            ->where('old_barcode_product', $oldBarcode)
-            ->exists();
-
-        if ($isPending) {
-            return new ResponseResource(false, "Produk ini sudah di-scan dan sedang menunggu approval Supervisor/Admin.", []);
-        }
-
         $isProcessed = \App\Models\New_product::where('code_document', $codeDocument)
             ->where('old_barcode_product', $oldBarcode)
             ->exists();
@@ -46,12 +38,12 @@ class ProductOldController extends Controller
             return new ResponseResource(false, "Produk ini sudah selesai diproses.", []);
         }
 
-        $product = Product_old::where('code_document', $codeDocument)
+        $product = \App\Models\Product_old::where('code_document', $codeDocument)
             ->where('old_barcode_product', $oldBarcode)
             ->first();
 
         if (!$product) {
-            return new ResponseResource(false, "Produk tidak ditemukan atau sudah dihapus atau sedang diproses.", []);
+            return new ResponseResource(false, "Produk tidak ditemukan, sudah dihapus, atau sedang diproses.", []);
         }
 
         $response = ['product' => $product];
