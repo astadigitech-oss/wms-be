@@ -836,6 +836,7 @@ class RiwayatCheckController extends Controller
             'After Diskon',
             'Price Percentage',
             'Keterangan',
+            'Detail',
             'Weight'
         ];
 
@@ -868,6 +869,7 @@ class RiwayatCheckController extends Controller
                 $item->new_price_product ?? 'null',
                 $pricePercentage,
                 'Abnormal',
+                $item->note ?? '',
                 $item->weight ?? 'null'
             ];
 
