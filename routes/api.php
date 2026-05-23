@@ -265,7 +265,7 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Kasir leader,Admin Kasi
 // ========================================================================================================
 
 // [READ ONLY - Termasuk Audit]
-Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Admin Kasir,Kasir leader,Audit'])->group(function () {
+Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Admin Kasir,Kasir leader,Audit,Captain'])->group(function () {
     Route::get('new_product/slow_moving', [NewProductController::class, 'slowMov']);
     Route::get('new_product/expired', [NewProductController::class, 'listProductExp']);
     Route::get('promo', [PromoController::class, 'index']);
@@ -299,7 +299,7 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Admin Kasir
 });
 
 // [WRITE / POST / ACTION - TANPA Audit]
-Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Admin Kasir,Reparasi'])->group(function () {
+Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Admin Kasir,Reparasi,Captain'])->group(function () {
     Route::post('qcd/filter_product/{id}/add', [FilterQcdController::class, 'store']);
     Route::delete('qcd/destroy/{id}', [FilterQcdController::class, 'destroy']);
     Route::post('bundle/qcd', [ProductQcdController::class, 'store']);
