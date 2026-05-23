@@ -3,7 +3,6 @@
 namespace App\Http\Controllers\Fixing;
 
 use App\Http\Controllers\Controller;
-use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
 class FixingController extends Controller
@@ -14,10 +13,21 @@ class FixingController extends Controller
 
             DB::update("
                 UPDATE product_defects pd
-                INNER JOIN new_products sp
+
+                LEFT JOIN new_products np
+                    ON pd.new_barcode_product = np.new_barcode_product
+
+                LEFT JOIN staging_products sp
                     ON pd.new_barcode_product = sp.new_barcode_product
-                SET pd.note = sp.actual_new_quality
-                WHERE sp.actual_new_quality IS NOT NULL
+
+                SET pd.note = COALESCE(
+                    np.actual_new_quality,
+                    sp.actual_new_quality
+                )
+
+                WHERE 
+                    np.actual_new_quality IS NOT NULL
+                    OR sp.actual_new_quality IS NOT NULL
             ");
 
             return response()->json([
