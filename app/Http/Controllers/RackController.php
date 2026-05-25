@@ -21,6 +21,8 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Maatwebsite\Excel\Facades\Excel;
+use App\Services\MovementService;
+use Illuminate\Support\Facades\Log;
 
 class RackController extends Controller
 {
@@ -948,6 +950,7 @@ class RackController extends Controller
 
         $validUserIds = User::pluck('id')->toArray();
         $defaultUserId = 14;
+        $movementRows = [];
 
         try {
             DB::beginTransaction();
@@ -990,6 +993,17 @@ class RackController extends Controller
                             'weight'                   => $stagingProduct->weight,
                         ];
                         $idsToDelete[] = $stagingProduct->id;
+                        $to = $stagingProduct->new_tag_product ? 'display_color' : 'display_reguler';
+                        $movementRows[] = [
+                            'product_id' => $stagingProduct->new_barcode_product,
+                            'is_sku'     => false,
+                            'type'       => 'Move',
+                            'type_out'   => null,
+                            'from'       => 'staging_reguler',
+                            'to'         => $to,
+                            'qty'        => $stagingProduct->new_quantity_product,
+                            'dateTime'   => $now,
+                        ];
                     }
 
                     if (!empty($dataToInsert)) {
@@ -1043,6 +1057,15 @@ class RackController extends Controller
             $this->recalculateRackTotals($displayRack);
 
             DB::commit();
+
+            // [Movement] staging_reguler → display_reguler / display_color (bulk)
+            try {
+                if (!empty($movementRows)) {
+                    MovementService::logBulk($movementRows);
+                }
+            } catch (\Exception $movEx) {
+                Log::error('[Movement] moveAllProductsInRackToDisplay log failed: ' . $movEx->getMessage());
+            }
 
             return new ResponseResource(true, "Produk dan Bundle berhasil dipindah ke " . $displayRack->name, null);
         } catch (\Exception $e) {

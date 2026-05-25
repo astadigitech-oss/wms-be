@@ -22,6 +22,7 @@ use GuzzleHttp\Psr7\Response;
 use App\Models\StagingProduct;
 use App\Services\LoyaltyService;
 use App\Services\LoyaltyService2;
+use App\Services\MovementService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Http;
@@ -526,6 +527,46 @@ class SaleDocumentController extends Controller
             logUserAction($request, $request->user(), "outbound/sale/kasir", "Menekan tombol sale", $saleDocument->code_document_sale);
 
             DB::commit();
+
+            // [Movement] display_reguler / display_color / staging_reguler → reguler_sales
+            try {
+                $newProductsForMovement = New_product::whereIn('new_barcode_product', $productBarcodes)
+                    ->where('new_status_product', 'sale')
+                    ->get(['new_barcode_product', 'new_category_product', 'new_tag_product', 'new_quantity_product']);
+
+                $stagingForMovement = StagingProduct::whereIn('new_barcode_product', $productBarcodes)
+                    ->where('new_status_product', 'sale')
+                    ->get(['new_barcode_product', 'new_quantity_product']);
+
+                $movementRows = [];
+                foreach ($newProductsForMovement as $p) {
+                    $from = $p->new_tag_product ? 'display_color' : 'display_reguler';
+                    $movementRows[] = [
+                        'product_id' => $p->new_barcode_product,
+                        'is_sku'     => false,
+                        'type'       => 'Out',
+                        'type_out'   => 'reguler_sales',
+                        'from'       => $from,
+                        'to'         => 'reguler_sales',
+                        'qty'        => $p->new_quantity_product,
+                    ];
+                }
+                foreach ($stagingForMovement as $p) {
+                    $movementRows[] = [
+                        'product_id' => $p->new_barcode_product,
+                        'is_sku'     => false,
+                        'type'       => 'Out',
+                        'type_out'   => 'reguler_sales',
+                        'from'       => 'staging_reguler',
+                        'to'         => 'reguler_sales',
+                        'qty'        => $p->new_quantity_product,
+                    ];
+                }
+                MovementService::logBulk($movementRows);
+            } catch (\Exception $e) {
+                Log::error('[Movement] saleFinish log failed: ' . $e->getMessage());
+            }
+
             $resource = new ResponseResource(true, "Data berhasil disimpan!", $saleDocument->load('sales', 'user', 'buyer:id,point_buyer'));
         } catch (\Exception $e) {
             DB::rollBack();

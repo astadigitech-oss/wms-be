@@ -6,7 +6,9 @@ use App\Models\Repair;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use App\Http\Resources\ResponseResource;
+use App\Services\MovementService;
 use App\Models\New_product;
+use Illuminate\Support\Facades\Log;
 use App\Models\Color_tag;
 use App\Models\Product_old;
 use App\Models\Notification;
@@ -121,6 +123,23 @@ class RepairController extends Controller
             $repair->delete();
 
             DB::commit();
+
+            // [Movement] repair → display_reguler / display_color
+            try {
+                $movementRows = $productBundles->map(fn($p) => [
+                    'product_id' => $p->new_barcode_product,
+                    'is_sku'     => false,
+                    'type'       => 'Move',
+                    'type_out'   => null,
+                    'from'       => 'repair',
+                    'to'         => $p->new_tag_product ? 'display_color' : 'display_reguler',
+                    'qty'        => $p->new_quantity_product,
+                ])->toArray();
+                MovementService::logBulk($movementRows);
+            } catch (\Exception $movEx) {
+                Log::error('[Movement] repair bulk back log failed: ' . $movEx->getMessage());
+            }
+
             return new ResponseResource(true, "Produk repair berhasil dihapus", null);
         } catch (\Exception $e) {
             DB::rollback();

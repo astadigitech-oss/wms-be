@@ -16,6 +16,7 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Maatwebsite\Excel\Facades\Excel;
+use App\Services\MovementService;
 
 class ScrapDocumentController extends Controller
 {
@@ -416,6 +417,12 @@ class ScrapDocumentController extends Controller
 
             if ($doc->total_product == 0) return new ResponseResource(false, "List kosong", null);
 
+            // Ambil data produk sebelum status diubah (untuk keperluan movement log)
+            $newProductsForMovement = $doc->newProducts()
+                ->get(['new_barcode_product', 'new_category_product', 'new_tag_product', 'new_quantity_product']);
+            $stagingProductsForMovement = $doc->stagingProducts()
+                ->get(['new_barcode_product', 'new_quantity_product']);
+            
             $doc->newProducts()->update(['new_status_product' => 'scrap_qcd']);
             $doc->stagingProducts()->update(['new_status_product' => 'scrap_qcd']);
             $doc->migrateBulkyProducts()->update(['new_status_product' => 'scrap_qcd']);
@@ -425,6 +432,38 @@ class ScrapDocumentController extends Controller
             ]);
 
             DB::commit();
+
+            // [Movement] display_reguler / display_color / staging_reguler → scrap_qcd
+            try {
+                $movementRows = [];
+                foreach ($newProductsForMovement as $p) {
+                    $from = $p->new_tag_product ? 'display_color' : 'display_reguler';
+                    $movementRows[] = [
+                        'product_id' => $p->new_barcode_product,
+                        'is_sku'     => false,
+                        'type'       => 'Out',
+                        'type_out'   => 'scrap',
+                        'from'       => $from,
+                        'to'         => 'scrap_qcd',
+                        'qty'        => $p->new_quantity_product,
+                    ];
+                }
+                foreach ($stagingProductsForMovement as $p) {
+                    $movementRows[] = [
+                        'product_id' => $p->new_barcode_product,
+                        'is_sku'     => false,
+                        'type'       => 'Out',
+                        'type_out'   => 'scrap',
+                        'from'       => 'staging_reguler',
+                        'to'         => 'scrap_qcd',
+                        'qty'        => $p->new_quantity_product,
+                    ];
+                }
+                MovementService::logBulk($movementRows);
+            } catch (\Exception $movEx) {
+                Log::error('[Movement] finishScrap log failed: ' . $movEx->getMessage());
+            }
+
             return new ResponseResource(true, "Scrap Selesai.", $doc);
         } catch (\Exception $e) {
             DB::rollBack();

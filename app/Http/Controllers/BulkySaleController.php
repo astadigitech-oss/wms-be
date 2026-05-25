@@ -17,6 +17,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Maatwebsite\Excel\Facades\Excel;
 use App\Http\Resources\ResponseResource;
+use App\Services\MovementService;
 use App\Models\Bkl;
 use App\Models\BklProduct;
 use App\Models\Sale;
@@ -210,6 +211,26 @@ class BulkySaleController extends Controller
                 $resource = new ResponseResource(true, "Data berhasil di simpan!", $bulkySale);
                 $lock->release();
                 DB::commit();
+
+                // [Movement] display_reguler / display_color / staging_reguler → cargo
+                if (in_array($type, ['new_product', 'staging_product'])) {
+                    $from = $type === 'staging_product'
+                        ? 'staging_reguler'
+                        : ($product['category'] ? 'display_reguler' : 'display_color');
+                    try {
+                        MovementService::log(
+                            productId: $request->input('barcode_product'),
+                            isSku: false,
+                            type: 'Out',
+                            typeOut: 'cargo',
+                            from: $from,
+                            to: 'cargo',
+                            qty: $model->new_quantity_product ?? null
+                        );
+                    } catch (\Exception $movEx) {
+                        Log::error('[Movement] cargo scan (store) log failed: ' . $movEx->getMessage());
+                    }
+                }
             } catch (\Exception $e) {
                 DB::rollBack();
                 $lock->release();
@@ -489,6 +510,27 @@ class BulkySaleController extends Controller
 
             DB::commit();
             $lock->release();
+
+            // [Movement] display_reguler / display_color / staging_reguler → cargo
+            if (in_array($foundType, ['new_product', 'staging_product'])) {
+                $from = $foundType === 'staging_product'
+                    ? 'staging_reguler'
+                    : ($product['tag'] ? 'display_color' : 'display_reguler');
+                try {
+                    MovementService::log(
+                        productId: $request->input('barcode_product'),
+                        isSku: false,
+                        type: 'Out',
+                        typeOut: 'cargo',
+                        from: $from,
+                        to: 'cargo',
+                        qty: $product['qty'] ?? null
+                    );
+                } catch (\Exception $movEx) {
+                    Log::error('[Movement] cargo scan (store2) log failed: ' . $movEx->getMessage());
+                }
+            }
+
             return (new ResponseResource(true, "Data berhasil di simpan!", $bulkySale))->response();
         } catch (\Exception $e) {
             DB::rollBack();

@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Exports\BundlingSkuExport;
 use App\Http\Resources\ResponseResource;
+use App\Services\MovementService;
 use App\Models\Category;
 use App\Models\Color_tag;
 use App\Models\HistoryBundling;
@@ -291,6 +292,36 @@ class SkuProductController extends Controller
 
             DB::commit();
 
+            // [Movement] staging_sku → staging_reguler / display_color
+            try {
+                $movementRows = [];
+                $moveTo = $request->bundle_type === 'regular' ? 'staging_reguler' : 'display_color';
+                $movementRows[] = [
+                    'product_id' => $product->barcode_product,
+                    'is_sku' => true,
+                    'type' => 'Bundler',
+                    'type_out' => null,
+                    'from' => 'staging_sku',
+                    'to' => $moveTo,
+                    'qty' => $totalQtyNeeded,
+                ];
+                foreach ($generatedProducts as $gen) {
+                    $genTo = $gen['tag'] ? 'display_color' : 'staging_reguler';
+                    $movementRows[] = [
+                        'product_id' => $gen['new_barcode_product'],
+                        'is_sku' => false,
+                        'type' => 'Bundled',
+                        'type_out' => null,
+                        'from' => 'staging_sku',
+                        'to' => $genTo,
+                        'qty' => 1,
+                    ];
+                }
+                MovementService::logBulk($movementRows);
+            } catch (\Exception $e) {
+                \Illuminate\Support\Facades\Log::error('[Movement] SKU storeBundle log failed: ' . $e->getMessage());
+            }
+
             return new ResponseResource(true, "Berhasil membuat $bundleQty bundle.", [
                 'total_item_used' => $totalQtyNeeded,
                 'destination' => $destination,
@@ -386,6 +417,21 @@ class SkuProductController extends Controller
             }
 
             DB::commit();
+
+            // [Movement] staging_sku → staging_reguler (damaged)
+            try {
+                MovementService::log(
+                    productId: $product->barcode_product,
+                    isSku: true,
+                    type: 'Move',
+                    typeOut: null,
+                    from: 'staging_sku',
+                    to: 'staging_reguler',
+                    qty: $qtyNeeded
+                );
+            } catch (\Exception $e) {
+                \Illuminate\Support\Facades\Log::error('[Movement] SKU storeDamaged log failed: ' . $e->getMessage());
+            }
 
             return new ResponseResource(true, "Berhasil memproses barang rusak ($qtyNeeded item)", [
                 'sisa_stok' => $qtyAfter
