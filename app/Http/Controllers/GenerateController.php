@@ -20,6 +20,8 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use App\Http\Resources\ResponseResource;
+use App\Models\CogsChannel;
+use App\Models\CogsReference;
 use Illuminate\Support\Facades\Validator;
 use PhpOffice\PhpSpreadsheet\Reader\Exception as ReaderException;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
@@ -51,7 +53,7 @@ class GenerateController extends Controller
 
             $code_document = $this->createDocumentEntry($fileName, count($header), $rowCount);
 
-            DB::commit(); // Commit the transaction
+            DB::commit();
 
             return new ResponseResource(true, "Berhasil mengimpor data", [
                 'code_document' => $code_document,
@@ -127,6 +129,25 @@ class GenerateController extends Controller
         });
     }
 
+    public function getChannels()
+    {
+        try {
+            $channels = CogsChannel::with('supplier:id,name')
+                ->get(['id', 'name', 'supplier_id'])
+                ->map(function ($channel) {
+                    return [
+                        'channel_id'    => $channel->id,
+                        'channel_name'  => $channel->name,
+                        'supplier_name' => $channel->supplier->name ?? null,
+                    ];
+                });
+
+            return new ResponseResource(true, "Berhasil mengambil data channel untuk dropdown", $channels);
+        } catch (\Exception $e) {
+            return response()->json(['error' => 'Gagal memuat data channel: ' . $e->getMessage()], 500);
+        }
+    }
+
     private function createDocumentEntry($fileName, $columnCount, $rowCount)
     {
         $latestDocument = Document::latest()->first();
@@ -136,28 +157,27 @@ class GenerateController extends Controller
         $year = date('Y');
         $code_document = $id_document . '/' . $month . '/' . $year;
 
-        Document::create([
+        return Document::create([
             'code_document' => $code_document,
             'base_document' => $fileName,
             'total_column_document' => $columnCount,
             'total_column_in_document' => $rowCount,
             'date_document' => Carbon::now('Asia/Jakarta')->toDateString(),
         ]);
-
-        return $code_document;
     }
 
     public function mapAndMergeHeaders(Request $request)
     {
         $userId = auth()->id();
-        set_time_limit(3600);  
+        set_time_limit(3600);
         ini_set('memory_limit', '2048M');
 
         DB::beginTransaction();
         try {
             $validator = Validator::make($request->all(), [
                 'headerMappings' => 'required|array',
-                'code_document' => 'required'
+                'code_document'  => 'required',
+                'channel_id'     => 'required|string|exists:cogs_channel,id' 
             ]);
 
             if ($validator->fails()) {
@@ -195,11 +215,11 @@ class GenerateController extends Controller
 
                 if ($nama && strlen($nama) > 2000) {
                     Log::error("Nama produk terlalu panjang, lebih dari 2000 karakter: " . substr($nama, 0, 50) . "...");
-            
+
                     // Potong nama menjadi maksimal 250 karakter
                     $nama = substr($nama, 0, 250);
                 }
-            
+
                 $harga = isset($mergedData['old_price_product'][$index]) && is_numeric($mergedData['old_price_product'][$index])
                     ? (float)$mergedData['old_price_product'][$index]
                     : 0.0;
@@ -234,6 +254,12 @@ class GenerateController extends Controller
             $totalPrice = $product->sum('old_price_product');
             $totalPrice = ceil($totalPrice);
             $document = Document::where('code_document', $request['code_document'])->first();
+
+            CogsReference::create([
+                'channel_id'  => $request['channel_id'],
+                'document_id' => $document->id,
+                'user_id'     => $userId,
+            ]);
 
             $riwayat_check = RiwayatCheck::create([
                 'user_id' => $userId,

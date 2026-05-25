@@ -170,6 +170,7 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Kasir leade
     Route::resource('user_scan_webs', UserScanWebController::class)->only(['index', 'show']);
     Route::get('user_scan_webs/{code_document}', [UserScanWebController::class, 'detail_user_scan'])->where('code_document', '.*');
     Route::get('total_scan_users', [UserScanWebController::class, 'total_user_scans']);
+    Route::get('cogs-channels', [GenerateController::class, 'getChannels']);
 });
 
 // [WRITE / POST / ACTION - TANPA Audit]
