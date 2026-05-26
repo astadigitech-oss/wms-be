@@ -29,7 +29,7 @@ class BagProductsController extends Controller
         $perPage  = $request->input('per_page', 10);
 
         $bags = BagProducts::select('id', 'barcode_bag', 'name_bag', 'total_product')->latest()->where('bulky_document_id', $docId)
-            ->where('user_id', $userId)->get();
+            ->where('user_id', $userId)->orderBy('created_at', 'desc')->get();
 
         if ($bagId) {
             $bagProduct = BagProducts::where('bulky_document_id', $docId)
