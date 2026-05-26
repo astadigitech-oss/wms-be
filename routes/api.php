@@ -35,9 +35,11 @@ use App\Http\Controllers\MigrateBulkyController;
 use App\Http\Controllers\MigrateBulkyProductController;
 use App\Http\Controllers\MigrateController;
 use App\Http\Controllers\MigrateDocumentController;
+use App\Http\Controllers\Outbound\CargoController;
 use App\Http\Controllers\NewProductController;
 use App\Http\Controllers\NonDocumentController;
 use App\Http\Controllers\NotificationController;
+use App\Http\Controllers\Outbound\BagController;
 use App\Http\Controllers\PaletBrandController;
 use App\Http\Controllers\PaletController;
 use App\Http\Controllers\PaletFilterController;
@@ -93,6 +95,12 @@ use Illuminate\Support\Facades\Route;
 // ========================================================================================================
 Route::middleware(['auth:sanctum', 'check.role:Admin'])->group(function () {
     Route::post('fixing/sync-actual-quality-to-note', [FixingController::class, 'syncNoteFromStaging']);
+    // Cargo
+    Route::post('cargo', [CargoController::class, 'buatCargo']);
+    Route::post('bag', [BagController::class, 'buatBag']);
+    Route::post('bag/add-product/{idBag}', [BagController::class, 'tambahProdukKeBag']);
+    Route::get('bag/{idBag}', [BagController::class, 'listProdukBag']);
+    Route::post('bag/remove-product/{idProduct}', [BagController::class, 'takeOutBarangbulky']);
 });
 
 // ========================================================================================================
