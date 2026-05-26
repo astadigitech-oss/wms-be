@@ -553,4 +553,130 @@ class CargoController extends Controller
             ))->response()->setStatusCode(500);
         }
     }
+
+    public function setVolumeDanBerat(Request $request, $id)
+    {
+        $validator = Validator::make($request->all(), [
+            'length' => 'required|numeric',
+            'width'  => 'required|numeric',
+            'height' => 'required|numeric',
+            'weight' => 'required|numeric',
+        ]);
+
+        if ($validator->fails()) {
+            return (new ResponseResource(
+                false,
+                "Input dimensi tidak valid!",
+                $validator->errors()
+            ))->response()->setStatusCode(422);
+        }
+
+        $doc = BulkyDocument::findOrFail($id);
+
+        // 1. hanya boleh kalau NOT SALE
+        if ($doc->is_sale !== BulkyDocument::SALE_NOT) {
+            return (new ResponseResource(
+                false,
+                "Dokumen sudah dalam status sale dan tidak bisa diubah",
+                null
+            ))->response()->setStatusCode(400);
+        }
+
+        DB::beginTransaction();
+        try {
+            $doc->update([
+                'length'           => $request->length,
+                'width'            => $request->width,
+                'height'           => $request->height,
+                'weight'           => $request->weight,
+                'fleet_estimation' => $request->fleet_estimation ?? null,
+            ]);
+
+            DB::commit();
+
+            return (new ResponseResource(
+                true,
+                "Berhasil diupdate",
+                [
+                    'id' => $doc->id,
+                    'length' => $doc->length,
+                    'width' => $doc->width,
+                    'height' => $doc->height,
+                    'weight' => $doc->weight,
+                    'fleet_estimation' => $doc->fleet_estimation,
+                    'status_bulky' => $doc->status_bulky,
+                ]
+            ))->response();
+        } catch (\Exception $e) {
+            DB::rollBack();
+
+            return (new ResponseResource(
+                false,
+                "Terjadi kesalahan sistem: " . $e->getMessage(),
+                null
+            ))->response()->setStatusCode(500);
+        }
+    }
+
+    public function toggleStatusBulky($idCargo)
+    {
+        $doc = BulkyDocument::findOrFail($idCargo);
+
+        // 1. Validasi is_sale  
+        if ($doc->is_sale !== BulkyDocument::SALE_NOT) {
+            return (new ResponseResource(
+                false,
+                "Status tidak bisa diubah karena sudah/sedang dalam proses sale",
+                null
+            ))->response()->setStatusCode(400);
+        }
+
+        DB::beginTransaction();
+        try {
+
+            // 2. Jika dari proses -> done, wajib semua field terisi
+            if ($doc->status_bulky === 'proses') {
+
+                if (
+                    is_null($doc->length) ||
+                    is_null($doc->width) ||
+                    is_null($doc->height) ||
+                    is_null($doc->weight)
+                ) {
+                    return (new ResponseResource(
+                        false,
+                        "Lengkapkan dimensi dan berat sebelum mengubah status ke done",
+                        null
+                    ))->response()->setStatusCode(422);
+                }
+
+                $doc->status_bulky = 'selesai';
+            }
+            // 3. jika done -> proses
+            else {
+                $doc->status_bulky = 'proses';
+            }
+
+            $doc->save();
+
+            DB::commit();
+
+            return (new ResponseResource(
+                true,
+                "Status berhasil diupdate",
+                [
+                    'id' => $doc->id,
+                    'status_bulky' => $doc->status_bulky
+                ]
+            ))->response();
+        } catch (\Exception $e) {
+            DB::rollBack();
+
+            return (new ResponseResource(
+                false,
+                "Terjadi kesalahan sistem: " . $e->getMessage(),
+                null
+            ))->response()->setStatusCode(500);
+        }
+    }
 }
