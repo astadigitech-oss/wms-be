@@ -238,33 +238,6 @@ class BulkySaleController extends Controller
         return $resource;
     }
 
-    /**
-     * Display the specified resource.
-     */
-    public function show(BulkySale $bulkySale)
-    {
-        //
-    }
-
-    /**
-     * Show the form for editing the specified resource.
-     */
-    public function edit(BulkySale $bulkySale)
-    {
-        //
-    }
-
-    /**
-     * Update the specified resource in storage.
-     */
-    public function update(Request $request, BulkySale $bulkySale)
-    {
-        //
-    }
-
-    /**
-     * Remove the specified resource from storage.
-     */
     public function store2(Request $request)
     {
         set_time_limit(600);
