@@ -4,13 +4,75 @@ namespace App\Http\Controllers\Outbound;
 
 use App\Http\Controllers\Controller;
 use App\Http\Resources\ResponseResource;
+use App\Models\BagProducts;
 use App\Models\BulkyDocument;
+use App\Models\BulkySale;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
 
 class CargoController extends Controller
 {
+    public function listBagCargo(Request $request, $idCargo)
+    {
+        try {
+
+            $q = $request->q;
+
+            /*
+    |--------------------------------------------------------------------------
+    | CHECK CARGO
+    |--------------------------------------------------------------------------
+    */
+            // dd($idCargo);
+            $bulkyDocument = BulkyDocument::where('id', $idCargo)
+                ->first();
+
+            if (!$bulkyDocument) {
+
+                return (new ResponseResource(
+                    false,
+                    "Cargo tidak ditemukan!",
+                    []
+                ))->response()->setStatusCode(404);
+            }
+
+            /*
+    |--------------------------------------------------------------------------
+    | GET BAGS
+    |--------------------------------------------------------------------------
+    */
+
+            $bags = BagProducts::where('bulky_document_id', $idCargo)
+                ->when($q, function ($query) use ($q) {
+
+                    $query->where(function ($subQuery) use ($q) {
+
+                        $subQuery->where('name_bag', 'like', '%' . $q . '%')
+                            ->orWhere('barcode_bag', 'like', '%' . $q . '%');
+                    });
+                })
+                ->latest()
+                ->paginate(10);
+
+            return (new ResponseResource(
+                true,
+                "Daftar bag dalam cargo",
+                $bags
+            ))->response();
+        } catch (\Exception $e) {
+
+            Log::error('LIST BAG CARGO ERROR: ' . $e->getMessage());
+
+            return (new ResponseResource(
+                false,
+                "Gagal mengambil data bag cargo!",
+                $e->getMessage()
+            ))->response()->setStatusCode(500);
+        }
+    }
+
     public function buatCargo(Request $request)
     {
         $user = auth()->user();
@@ -70,6 +132,7 @@ class CargoController extends Controller
             // Simpan cargo
             $cargo = new BulkyDocument();
             $cargo->user_id = $user->id;
+            $cargo->name_user = $user->name;
             $cargo->name_document = $finalName;
             $cargo->type = $request->type;
             $cargo->save();
@@ -100,6 +163,312 @@ class CargoController extends Controller
             );
 
             return $response->response()->setStatusCode(500);
+        }
+    }
+
+    public function tambahBag(Request $request, $idCargo)
+    {
+        DB::beginTransaction();
+
+        try {
+
+            /*
+        |--------------------------------------------------------------------------
+        | VALIDATOR
+        |--------------------------------------------------------------------------
+        */
+
+            $validator = Validator::make($request->all(), [
+                'barcode_bag' => 'required',
+            ]);
+
+            if ($validator->fails()) {
+
+                return (new ResponseResource(
+                    false,
+                    "Input tidak valid!",
+                    $validator->errors()
+                ))->response()->setStatusCode(422);
+            }
+
+            /*
+        |--------------------------------------------------------------------------
+        | CHECK BULKY DOCUMENT
+        |--------------------------------------------------------------------------
+        */
+
+            $bulkyDocument = BulkyDocument::where('id', $idCargo)
+                ->where('status_bulky', 'proses')
+                ->where('is_sale', 'not sale')
+                ->first();
+            // dd($bulkyDocument);
+
+            if (!$bulkyDocument) {
+
+                DB::rollBack();
+
+                return (new ResponseResource(
+                    false,
+                    "Cargo tidak valid atau sudah sale!",
+                    []
+                ))->response()->setStatusCode(422);
+            }
+
+            /*
+        |--------------------------------------------------------------------------
+        | CHECK BAG
+        |--------------------------------------------------------------------------
+        */
+
+            $bagProduct = BagProducts::where('barcode_bag', $request->barcode_bag)
+                ->first();
+            // dd($bagProduct);
+
+            if (!$bagProduct) {
+
+                DB::rollBack();
+
+                return (new ResponseResource(
+                    false,
+                    "Bag product tidak ditemukan!",
+                    []
+                ))->response()->setStatusCode(404);
+            }
+
+            /*
+        |--------------------------------------------------------------------------
+        | VALIDATION
+        |--------------------------------------------------------------------------
+        */
+
+            // bag sudah masuk cargo lain
+            if ($bagProduct->bulky_document_id) {
+
+                DB::rollBack();
+
+                return (new ResponseResource(
+                    false,
+                    "Bag sudah terhubung dengan cargo lain!",
+                    []
+                ))->response()->setStatusCode(422);
+            }
+
+            // bag kosong
+            if ($bagProduct->total_product <= 0) {
+
+                DB::rollBack();
+
+                return (new ResponseResource(
+                    false,
+                    "Bag kosong, tidak bisa discan!",
+                    []
+                ))->response()->setStatusCode(422);
+            }
+
+            // status bag harus process
+            if ($bagProduct->status !== 'process') {
+
+                DB::rollBack();
+
+                return (new ResponseResource(
+                    false,
+                    "Bag tidak dalam status process, tidak bisa discan!",
+                    []
+                ))->response()->setStatusCode(422);
+            }
+
+            /*
+        |--------------------------------------------------------------------------
+        | UPDATE BAG
+        |--------------------------------------------------------------------------
+        */
+
+            $bagProduct->update([
+                'bulky_document_id' => $bulkyDocument->id,
+                'status' => 'done',
+            ]);
+            // dd($bagProduct);
+
+            /*
+        |--------------------------------------------------------------------------
+        | RECALCULATE BULKY DOCUMENT
+        |--------------------------------------------------------------------------
+        */
+
+            $allBagIds = BagProducts::where('bulky_document_id', $bulkyDocument->id)
+                ->pluck('id');
+
+            $bulkySales = BulkySale::whereIn('bag_product_id', $allBagIds);
+
+            $bulkySales->update([
+                'bulky_document_id' => $bulkyDocument->id,
+            ]);
+            // dd($bulkySales);
+
+            $bulkyDocument->update([
+                'total_product_bulky' => $bulkySales->count(),
+                'total_old_price_bulky' => $bulkySales->sum('old_price_bulky_sale'),
+                'after_price_bulky' => $bulkySales->sum('after_price_bulky_sale'),
+            ]);
+
+            DB::commit();
+
+            return (new ResponseResource(
+                true,
+                "Bag berhasil dimasukkan ke cargo!",
+                [
+                    'cargo_id' => $bulkyDocument->id,
+                    'bag_product_id' => $bagProduct->id,
+                    'total_product_bulky' => $bulkyDocument->total_product_bulky,
+                    'total_old_price_bulky' => $bulkyDocument->total_old_price_bulky,
+                    'after_price_bulky' => $bulkyDocument->after_price_bulky,
+                ]
+            ))->response();
+        } catch (\Exception $e) {
+
+            DB::rollBack();
+
+            Log::error('TAMBAH BAG CARGO ERROR: ' . $e->getMessage());
+
+            return (new ResponseResource(
+                false,
+                "Gagal scan bag ke cargo!",
+                $e->getMessage()
+            ))->response()->setStatusCode(500);
+        }
+    }
+
+    public function takeoutBag(Request $request, $idCargo)
+    {
+        DB::beginTransaction();
+
+        try {
+
+            /*
+    |--------------------------------------------------------------------------
+    | VALIDATOR
+    |--------------------------------------------------------------------------
+    */
+
+            $validator = Validator::make($request->all(), [
+                'bag_product_id' => 'required|exists:bag_products,id',
+            ]);
+
+            if ($validator->fails()) {
+
+                return (new ResponseResource(
+                    false,
+                    "Input tidak valid!",
+                    $validator->errors()
+                ))->response()->setStatusCode(422);
+            }
+
+            /*
+    |--------------------------------------------------------------------------
+    | CHECK CARGO
+    |--------------------------------------------------------------------------
+    */
+
+            $bulkyDocument = BulkyDocument::where('id', $idCargo)
+                ->where('status_bulky', 'proses')
+                ->where('is_sale', 'not sale')
+                ->first();
+            // dd($bulkyDocument);
+            if (!$bulkyDocument) {
+
+                DB::rollBack();
+
+                return (new ResponseResource(
+                    false,
+                    "Cargo tidak ditemukan atau sudah selesai!",
+                    []
+                ))->response()->setStatusCode(404);
+            }
+
+            /*
+    |--------------------------------------------------------------------------
+    | CHECK BAG
+    |--------------------------------------------------------------------------
+    */
+
+            $bagProduct = BagProducts::where('id', $request->bag_product_id)
+                ->where('bulky_document_id', $bulkyDocument->id)
+                ->first();
+
+            if (!$bagProduct) {
+
+                DB::rollBack();
+
+                return (new ResponseResource(
+                    false,
+                    "Bag tidak ditemukan di cargo ini!",
+                    []
+                ))->response()->setStatusCode(404);
+            }
+
+            /*
+    |--------------------------------------------------------------------------
+    | UPDATE BAG
+    |--------------------------------------------------------------------------
+    */
+
+            $bagProduct->update([
+                'bulky_document_id' => null,
+                'status' => 'process',
+            ]);
+
+            /*
+    |--------------------------------------------------------------------------
+    | UPDATE BULKY SALES
+    |--------------------------------------------------------------------------
+    */
+
+            BulkySale::where('bag_product_id', $bagProduct->id)
+                ->update([
+                    'bulky_document_id' => null,
+                ]);
+
+            /*
+    |--------------------------------------------------------------------------
+    | RECALCULATE CARGO
+    |--------------------------------------------------------------------------
+    */
+
+            $allBagIds = BagProducts::where('bulky_document_id', $bulkyDocument->id)
+                ->pluck('id');
+
+            $bulkySales = BulkySale::whereIn('bag_product_id', $allBagIds);
+
+            $bulkyDocument->update([
+                'total_product_bulky' => $bulkySales->count(),
+                'total_old_price_bulky' => $bulkySales->sum('old_price_bulky_sale'),
+                'after_price_bulky' => $bulkySales->sum('after_price_bulky_sale'),
+            ]);
+
+            DB::commit();
+
+            return (new ResponseResource(
+                true,
+                "Bag berhasil dikeluarkan dari cargo!",
+                [
+                    'cargo_id' => $bulkyDocument->id,
+                    'bag_product_id' => $bagProduct->id,
+                    'total_product_bulky' => $bulkyDocument->fresh()->total_product_bulky,
+                    'total_old_price_bulky' => $bulkyDocument->fresh()->total_old_price_bulky,
+                    'after_price_bulky' => $bulkyDocument->fresh()->after_price_bulky,
+                ]
+            ))->response();
+        } catch (\Exception $e) {
+
+            DB::rollBack();
+
+            Log::error('TAKEOUT BAG CARGO ERROR: ' . $e->getMessage());
+
+            return (new ResponseResource(
+                false,
+                "Gagal mengeluarkan bag dari cargo!",
+                $e->getMessage()
+            ))->response()->setStatusCode(500);
         }
     }
 }
