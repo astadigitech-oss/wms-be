@@ -471,4 +471,86 @@ class CargoController extends Controller
             ))->response()->setStatusCode(500);
         }
     }
+
+    public function infoDetailCargo($idCargo)
+    {
+        try {
+
+            /*
+    |--------------------------------------------------------------------------
+    | CHECK CARGO
+    |--------------------------------------------------------------------------
+    */
+
+            $cargo = BulkyDocument::where('id', $idCargo)
+                ->first();
+
+            if (!$cargo) {
+
+                return (new ResponseResource(
+                    false,
+                    "Cargo tidak ditemukan!",
+                    []
+                ))->response()->setStatusCode(404);
+            }
+
+            /*
+    |--------------------------------------------------------------------------
+    | GET ALL BAG IDS
+    |--------------------------------------------------------------------------
+    */
+
+            $bagIds = BagProducts::where('bulky_document_id', $cargo->id)
+                ->pluck('id');
+
+            /*
+    |--------------------------------------------------------------------------
+    | AGGREGATE FROM DB
+    |--------------------------------------------------------------------------
+    */
+
+            $summary = BulkySale::whereIn('bag_product_id', $bagIds)
+                ->selectRaw('
+                COUNT(*) as total_product,
+                COALESCE(SUM(old_price_bulky_sale), 0) as total_old_price
+            ')
+                ->first();
+
+            $totalBag = $bagIds->count();
+
+            $data = [
+                'id' => $cargo->id,
+                'name_document' => $cargo->name_document,
+                'type' => $cargo->type,
+                'status_bulky' => $cargo->status_bulky,
+                'is_sale' => $cargo->is_sale,
+
+                // total bag
+                'total_bag' => $totalBag,
+
+                // total product dari bulky_sales
+                'total_product' => (int) $summary->total_product,
+
+                // total harga dari bulky_sales
+                'total_old_price' => (int) $summary->total_old_price,
+
+                'created_at' => $cargo->created_at,
+            ];
+
+            return (new ResponseResource(
+                true,
+                "Detail cargo",
+                $data
+            ))->response();
+        } catch (\Exception $e) {
+
+            Log::error('INFO DETAIL CARGO ERROR: ' . $e->getMessage());
+
+            return (new ResponseResource(
+                false,
+                "Gagal mengambil detail cargo!",
+                $e->getMessage()
+            ))->response()->setStatusCode(500);
+        }
+    }
 }
