@@ -97,6 +97,7 @@ Route::middleware(['auth:sanctum', 'check.role:Admin'])->group(function () {
     Route::post('fixing/sync-actual-quality-to-note', [FixingController::class, 'syncNoteFromStaging']);
     // Cargo
     Route::get('cargo/{idCargo}/bags', [CargoController::class, 'listBagCargo']);
+    Route::get('cargo/{idCargo}/info', [CargoController::class, 'infoDetailCargo']);
     Route::post('cargo', [CargoController::class, 'buatCargo']);
     Route::post('cargo/add-bag/{idCargo}', [CargoController::class, 'tambahBag']);
     Route::post('cargo/{idCargo}/takeout-bag/', [CargoController::class, 'takeoutBag']);
@@ -106,6 +107,7 @@ Route::middleware(['auth:sanctum', 'check.role:Admin'])->group(function () {
     Route::post('bag', [BagController::class, 'buatBag']);
     Route::post('bag/add-product/{idBag}', [BagController::class, 'tambahProdukKeBag']);
     Route::get('bag/{idBag}', [BagController::class, 'listProdukBag']);
+    Route::get('bag/{idBag}/info', [BagController::class, 'infoDetailBag']);
     Route::post('bag/remove-product/{idProduct}', [BagController::class, 'takeOutBarangbulky']);
 });
 

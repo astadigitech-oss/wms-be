@@ -305,7 +305,7 @@ class BagController extends Controller
 
                     return (new ResponseResource(
                         false,
-                        "Barang sudah terjual!",
+                        "Barcode sudah pernah diinputkan (Terjual)!",
                         []
                     ))->response()->setStatusCode(422);
                 }
@@ -613,6 +613,63 @@ class BagController extends Controller
             return (new ResponseResource(
                 false,
                 "Gagal mengambil daftar produk!",
+                $e->getMessage()
+            ))->response()->setStatusCode(500);
+        }
+    }
+
+    public function infoDetailBag($idBag)
+    {
+        try {
+
+            $bagProduct = BagProducts::where('id', $idBag)
+                ->first();
+
+            if (!$bagProduct) {
+
+                return (new ResponseResource(
+                    false,
+                    "Karung produk tidak ditemukan!",
+                    []
+                ))->response()->setStatusCode(404);
+            }
+
+            /*
+    |--------------------------------------------------------------------------
+    | AGGREGATE FROM DB
+    |--------------------------------------------------------------------------
+    */
+
+            $summary = BulkySale::where('bag_product_id', $bagProduct->id)
+                ->selectRaw('
+                COUNT(*) as total_product,
+                COALESCE(SUM(old_price_bulky_sale), 0) as total_old_price_bulky_sale
+            ')
+                ->first();
+
+            $data = [
+                'id' => $bagProduct->id,
+                'name_bag' => $bagProduct->name_bag,
+                'barcode_bag' => $bagProduct->barcode_bag,
+                'category_bag' => $bagProduct->category_bag,
+                'status' => $bagProduct->status,
+                'total_product' => (int) $summary->total_product,
+                'total_old_price_bulky_sale' => (int) $summary->total_old_price_bulky_sale,
+                'created_at' => $bagProduct->created_at,
+            ];
+
+            return (new ResponseResource(
+                true,
+                "Detail karung",
+                $data
+            ))->response();
+        } catch (\Exception $e) {
+
+            Log::error('INFO DETAIL BAG ERROR: ' . $e->getMessage());
+
+            return (new ResponseResource(
+                false,
+                "Gagal mengambil detail karung!",
                 $e->getMessage()
             ))->response()->setStatusCode(500);
         }
