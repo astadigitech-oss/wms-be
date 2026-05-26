@@ -101,6 +101,8 @@ Route::middleware(['auth:sanctum', 'check.role:Admin'])->group(function () {
     Route::post('cargo', [CargoController::class, 'buatCargo']);
     Route::post('cargo/add-bag/{idCargo}', [CargoController::class, 'tambahBag']);
     Route::post('cargo/{idCargo}/takeout-bag/', [CargoController::class, 'takeoutBag']);
+    Route::post('cargo/{idCargo}/set-volume-berat', [CargoController::class, 'setVolumeDanBerat']);
+    Route::post('cargo/{idCargo}/toggle-status-bulky', [CargoController::class, 'toggleStatusBulky']);
 
     // Bag
     Route::get('bag', [BagController::class, 'index']);
