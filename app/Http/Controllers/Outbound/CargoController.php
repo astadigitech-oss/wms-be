@@ -534,6 +534,12 @@ class CargoController extends Controller
                 // total harga dari bulky_sales
                 'total_old_price' => (int) $summary->total_old_price,
 
+                // volume
+                'length' => $cargo->length,
+                'width' => $cargo->width,
+                'height' => $cargo->height,
+                'weight' => $cargo->weight,
+
                 'created_at' => $cargo->created_at,
             ];
 
