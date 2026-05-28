@@ -107,6 +107,7 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv, Team leader'])->group(
     Route::get('bag', [BagController::class, 'index']);
     Route::get('bag/{idBag}', [BagController::class, 'listProdukBag']);
     Route::get('bag/{idBag}/info', [BagController::class, 'infoDetailBag']);
+    Route::post('bag/{idBag}/toggle-status', [BagController::class, 'toggleStatusBag']);
 });
 // ========================================================================================================
 // 0. Fixing Helper - Bag Cargo - Only TL & Crew

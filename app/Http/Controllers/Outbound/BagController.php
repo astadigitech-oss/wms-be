@@ -838,4 +838,119 @@ class BagController extends Controller
             ))->response()->setStatusCode(500);
         }
     }
+
+    public function toggleStatusBag($idBag)
+    {
+        DB::beginTransaction();
+
+        try {
+
+            $bag = BagProducts::find($idBag);
+            // dd($bag, $idBag);
+
+            if (!$bag) {
+
+                DB::rollBack();
+
+                return (new ResponseResource(
+                    false,
+                    "Bag tidak ditemukan!",
+                    null
+                ))->response()->setStatusCode(404);
+            }
+
+            /*
+        |--------------------------------------------------------------------------
+        | GET DOCUMENT
+        |--------------------------------------------------------------------------
+        */
+
+            $document = null;
+
+            if ($bag->bulky_document_id) {
+
+                $document = BulkyDocument::find($bag->bulky_document_id);
+            }
+
+            /*
+        |--------------------------------------------------------------------------
+        | TOGGLE STATUS
+        |--------------------------------------------------------------------------
+        */
+
+            if ($bag->status === 'process') {
+
+                // process -> done
+                $newStatus = 'done';
+            } else {
+
+                // done -> process
+
+                if (!$document) {
+
+                    DB::rollBack();
+
+                    return (new ResponseResource(
+                        false,
+                        "Dokumen bulky tidak ditemukan!",
+                        null
+                    ))->response()->setStatusCode(404);
+                }
+
+                if ($document->status_bulky !== 'proses') {
+
+                    DB::rollBack();
+
+                    return (new ResponseResource(
+                        false,
+                        "Dokumen bulky sudah selesai!",
+                        null
+                    ))->response()->setStatusCode(422);
+                }
+
+                if ($document->is_sale !== BulkyDocument::SALE_NOT) {
+
+                    DB::rollBack();
+
+                    return (new ResponseResource(
+                        false,
+                        "Dokumen bulky sudah sale!",
+                        null
+                    ))->response()->setStatusCode(422);
+                }
+
+                $newStatus = 'process';
+            }
+
+            /*
+        |--------------------------------------------------------------------------
+        | UPDATE
+        |--------------------------------------------------------------------------
+        */
+
+            $bag->update([
+                'status' => $newStatus
+            ]);
+
+            DB::commit();
+
+            return (new ResponseResource(
+                true,
+                "Status bag berhasil diubah",
+                [
+                    'id' => $bag->id,
+                    'status' => $bag->status_bag,
+                ]
+            ))->response();
+        } catch (\Exception $e) {
+
+            DB::rollBack();
+
+            return (new ResponseResource(
+                false,
+                "Terjadi kesalahan sistem",
+                $e->getMessage()
+            ))->response()->setStatusCode(500);
+        }
+    }
 }
