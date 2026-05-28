@@ -629,22 +629,23 @@ class CargoController extends Controller
     {
         $doc = BulkyDocument::with('bagProducts')->findOrFail($idCargo);
 
-        // 1. Validasi is_sale
-        if ($doc->is_sale !== BulkyDocument::SALE_NOT) {
+        // hanya yang sedang SALE yang tidak boleh
+        if ($doc->is_sale === BulkyDocument::SALE) {
             return (new ResponseResource(
                 false,
-                "Status tidak bisa diubah karena sudah/sedang dalam proses sale",
+                "Status tidak bisa diubah karena sudah dalam proses sale",
                 null
             ))->response()->setStatusCode(400);
         }
 
         DB::beginTransaction();
+
         try {
 
-            // 2. PROSES -> SELESAI
+            // PROSES -> SELESAI
             if ($doc->status_bulky === 'proses') {
 
-                // validasi hanya untuk cargo online
+                // validasi hanya cargo online
                 if (
                     $doc->type === BulkyDocument::TYPE_ONLINE &&
                     (
@@ -662,13 +663,18 @@ class CargoController extends Controller
                 }
 
                 $doc->status_bulky = 'selesai';
-                $doc->save();
 
-                // update semua bag_products jadi done
+                // update bag product
                 $doc->bagProducts()->update([
                     'status' => 'done'
                 ]);
             }
+            // SELESAI -> PROSES
+            else {
+                $doc->status_bulky = 'proses';
+            }
+
+            $doc->save();
 
             DB::commit();
 
@@ -681,6 +687,7 @@ class CargoController extends Controller
                 ]
             ))->response();
         } catch (\Exception $e) {
+
             DB::rollBack();
 
             return (new ResponseResource(
