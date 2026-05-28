@@ -596,6 +596,7 @@ class CargoController extends Controller
                 'height'           => $request->height,
                 'weight'           => $request->weight,
                 'fleet_estimation' => $request->fleet_estimation ?? null,
+                'is_sale' => BulkyDocument::SALE_READY,
             ]);
 
             DB::commit();
