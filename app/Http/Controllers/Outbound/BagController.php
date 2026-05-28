@@ -690,6 +690,17 @@ class BagController extends Controller
                 ))->response()->setStatusCode(404);
             }
 
+            if ($bagProduct->user_id !== auth()->id()) {
+
+                DB::rollBack();
+
+                return (new ResponseResource(
+                    false,
+                    "Anda tidak memiliki akses ke karung ini!",
+                    []
+                ))->response()->setStatusCode(403);
+            }
+
             /*
         |--------------------------------------------------------------------------
         | CHECK BULKY DOCUMENT
