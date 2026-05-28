@@ -644,11 +644,15 @@ class CargoController extends Controller
             // 2. PROSES -> SELESAI
             if ($doc->status_bulky === 'proses') {
 
+                // validasi hanya untuk cargo online
                 if (
-                    is_null($doc->length) ||
-                    is_null($doc->width) ||
-                    is_null($doc->height) ||
-                    is_null($doc->weight)
+                    $doc->type === BulkyDocument::TYPE_ONLINE &&
+                    (
+                        is_null($doc->length) ||
+                        is_null($doc->width) ||
+                        is_null($doc->height) ||
+                        is_null($doc->weight)
+                    )
                 ) {
                     return (new ResponseResource(
                         false,
@@ -660,15 +664,10 @@ class CargoController extends Controller
                 $doc->status_bulky = 'selesai';
                 $doc->save();
 
-                // 🔥 update semua bag_products jadi done
+                // update semua bag_products jadi done
                 $doc->bagProducts()->update([
                     'status' => 'done'
                 ]);
-            }
-            // 3. SELESAI -> PROSES
-            else {
-                $doc->status_bulky = 'proses';
-                $doc->save();
             }
 
             DB::commit();
