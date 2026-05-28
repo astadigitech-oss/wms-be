@@ -629,26 +629,31 @@ class CargoController extends Controller
     {
         $doc = BulkyDocument::with('bagProducts')->findOrFail($idCargo);
 
-        // 1. Validasi is_sale
-        if ($doc->is_sale !== BulkyDocument::SALE_NOT) {
+        // hanya yang sedang SALE yang tidak boleh
+        if ($doc->is_sale === BulkyDocument::SALE) {
             return (new ResponseResource(
                 false,
-                "Status tidak bisa diubah karena sudah/sedang dalam proses sale",
+                "Status tidak bisa diubah karena sudah dalam proses sale",
                 null
             ))->response()->setStatusCode(400);
         }
 
         DB::beginTransaction();
+
         try {
 
-            // 2. PROSES -> SELESAI
+            // PROSES -> SELESAI
             if ($doc->status_bulky === 'proses') {
 
+                // validasi hanya cargo online
                 if (
-                    is_null($doc->length) ||
-                    is_null($doc->width) ||
-                    is_null($doc->height) ||
-                    is_null($doc->weight)
+                    $doc->type === BulkyDocument::TYPE_ONLINE &&
+                    (
+                        is_null($doc->length) ||
+                        is_null($doc->width) ||
+                        is_null($doc->height) ||
+                        is_null($doc->weight)
+                    )
                 ) {
                     return (new ResponseResource(
                         false,
@@ -658,18 +663,18 @@ class CargoController extends Controller
                 }
 
                 $doc->status_bulky = 'selesai';
-                $doc->save();
 
-                // 🔥 update semua bag_products jadi done
+                // update bag product
                 $doc->bagProducts()->update([
                     'status' => 'done'
                 ]);
             }
-            // 3. SELESAI -> PROSES
+            // SELESAI -> PROSES
             else {
                 $doc->status_bulky = 'proses';
-                $doc->save();
             }
+
+            $doc->save();
 
             DB::commit();
 
@@ -682,6 +687,7 @@ class CargoController extends Controller
                 ]
             ))->response();
         } catch (\Exception $e) {
+
             DB::rollBack();
 
             return (new ResponseResource(
