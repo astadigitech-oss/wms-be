@@ -561,12 +561,9 @@ class BagController extends Controller
     {
         try {
 
-            $user = auth()->user();
-
             $q = $request->q;
 
             $bagProduct = BagProducts::where('id', $idBag)
-                ->where('user_id', $user->id)
                 ->first();
 
             if (!$bagProduct) {
