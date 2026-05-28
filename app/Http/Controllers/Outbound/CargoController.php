@@ -620,9 +620,9 @@ class CargoController extends Controller
 
     public function toggleStatusBulky($idCargo)
     {
-        $doc = BulkyDocument::findOrFail($idCargo);
+        $doc = BulkyDocument::with('bagProducts')->findOrFail($idCargo);
 
-        // 1. Validasi is_sale  
+        // 1. Validasi is_sale
         if ($doc->is_sale !== BulkyDocument::SALE_NOT) {
             return (new ResponseResource(
                 false,
@@ -634,7 +634,7 @@ class CargoController extends Controller
         DB::beginTransaction();
         try {
 
-            // 2. Jika dari proses -> done, wajib semua field terisi
+            // 2. PROSES -> SELESAI
             if ($doc->status_bulky === 'proses') {
 
                 if (
@@ -645,19 +645,24 @@ class CargoController extends Controller
                 ) {
                     return (new ResponseResource(
                         false,
-                        "Lengkapkan dimensi dan berat sebelum mengubah status ke done",
+                        "Lengkapi dimensi dan berat sebelum mengubah status ke selesai",
                         null
                     ))->response()->setStatusCode(422);
                 }
 
                 $doc->status_bulky = 'selesai';
+                $doc->save();
+
+                // 🔥 update semua bag_products jadi done
+                $doc->bagProducts()->update([
+                    'status' => 'done'
+                ]);
             }
-            // 3. jika done -> proses
+            // 3. SELESAI -> PROSES
             else {
                 $doc->status_bulky = 'proses';
+                $doc->save();
             }
-
-            $doc->save();
 
             DB::commit();
 

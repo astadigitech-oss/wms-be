@@ -91,9 +91,9 @@ use Illuminate\Support\Facades\Route;
 */
 
 // ========================================================================================================
-// 0. Fixing Helper
+// 0. Fixing Helper - Cargo - Only SPV
 // ========================================================================================================
-Route::middleware(['auth:sanctum', 'check.role:Admin'])->group(function () {
+Route::middleware(['auth:sanctum', 'check.role:Admin,Spv'])->group(function () {
     Route::post('fixing/sync-actual-quality-to-note', [FixingController::class, 'syncNoteFromStaging']);
     // Cargo
     Route::get('cargo/{idCargo}/bags', [CargoController::class, 'listBagCargo']);
@@ -103,8 +103,15 @@ Route::middleware(['auth:sanctum', 'check.role:Admin'])->group(function () {
     Route::post('cargo/{idCargo}/takeout-bag/', [CargoController::class, 'takeoutBag']);
     Route::post('cargo/{idCargo}/set-volume-berat', [CargoController::class, 'setVolumeDanBerat']);
     Route::post('cargo/{idCargo}/toggle-status-bulky', [CargoController::class, 'toggleStatusBulky']);
-
-    // Bag
+    // SPV Hanya bisa lihat
+    Route::get('bag', [BagController::class, 'index']);
+    Route::get('bag/{idBag}', [BagController::class, 'listProdukBag']);
+    Route::get('bag/{idBag}/info', [BagController::class, 'infoDetailBag']);
+});
+// ========================================================================================================
+// 0. Fixing Helper - Bag Cargo - Only TL & Crew
+// ========================================================================================================
+Route::middleware(['auth:sanctum', 'check.role:Admin, Captain,TeamLeader,Crew'])->group(function () {
     Route::get('bag', [BagController::class, 'index']);
     Route::post('bag', [BagController::class, 'buatBag']);
     Route::post('bag/add-product/{idBag}', [BagController::class, 'tambahProdukKeBag']);
@@ -112,6 +119,7 @@ Route::middleware(['auth:sanctum', 'check.role:Admin'])->group(function () {
     Route::get('bag/{idBag}/info', [BagController::class, 'infoDetailBag']);
     Route::post('bag/remove-product/{idProduct}', [BagController::class, 'takeOutBarangbulky']);
 });
+
 
 // ========================================================================================================
 // 1. AUTH & PUBLIC ROUTES
