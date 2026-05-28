@@ -93,7 +93,7 @@ use Illuminate\Support\Facades\Route;
 // ========================================================================================================
 // 0. Fixing Helper - Cargo - Only SPV
 // ========================================================================================================
-Route::middleware(['auth:sanctum', 'check.role:Admin,Spv'])->group(function () {
+Route::middleware(['auth:sanctum', 'check.role:Admin,Spv, Team leader'])->group(function () {
     Route::post('fixing/sync-actual-quality-to-note', [FixingController::class, 'syncNoteFromStaging']);
     // Cargo
     Route::get('cargo/{idCargo}/bags', [CargoController::class, 'listBagCargo']);
