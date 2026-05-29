@@ -30,6 +30,7 @@ use App\Http\Controllers\FilterStagingController;
 use App\Http\Controllers\Fixing\FixingController;
 use App\Http\Controllers\FormatBarcodeController;
 use App\Http\Controllers\GenerateController;
+use App\Http\Controllers\Inbound\BastApprovalController;
 use App\Http\Controllers\LoyaltyRankController;
 use App\Http\Controllers\MigrateBulkyController;
 use App\Http\Controllers\MigrateBulkyProductController;
@@ -121,6 +122,14 @@ Route::middleware(['auth:sanctum', 'check.role:Admin, Captain,TeamLeader,Crew'])
     Route::post('bag/remove-product/{idProduct}', [BagController::class, 'takeOutBarangbulky']);
 });
 
+// ========================================================================================================
+// 0. Fixing Helper - Edit Waktu Scan
+// ========================================================================================================
+Route::middleware(['auth:sanctum', 'check.role:Admin,Spv, Team leader, Crew, Captain'])->group(function () {
+    Route::post('edit-scan', [BastApprovalController::class, 'mintaApproveDataAsal']);
+    Route::get('scan-paused', [BastApprovalController::class, 'checkScanPaused']);
+    Route::get('scanner-bast', [BastApprovalController::class, 'scannerBaru']);
+});
 
 // ========================================================================================================
 // 1. AUTH & PUBLIC ROUTES
