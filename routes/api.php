@@ -31,6 +31,7 @@ use App\Http\Controllers\Fixing\FixingController;
 use App\Http\Controllers\FormatBarcodeController;
 use App\Http\Controllers\GenerateController;
 use App\Http\Controllers\Inbound\BastApprovalController;
+use App\Http\Controllers\Inbound\HalamanApprovalController;
 use App\Http\Controllers\LoyaltyRankController;
 use App\Http\Controllers\MigrateBulkyController;
 use App\Http\Controllers\MigrateBulkyProductController;
@@ -128,7 +129,16 @@ Route::middleware(['auth:sanctum', 'check.role:Admin, Captain,TeamLeader,Crew'])
 Route::middleware(['auth:sanctum', 'check.role:Admin,Spv, Team leader, Crew, Captain'])->group(function () {
     Route::post('edit-scan', [BastApprovalController::class, 'mintaApproveDataAsal']);
     Route::get('scan-paused', [BastApprovalController::class, 'checkScanPaused']);
-    Route::get('scanner-bast', [BastApprovalController::class, 'scannerBaru']);
+    Route::post('scanner-bast', [BastApprovalController::class, 'scannerBaru']);
+});
+
+// ========================================================================================================
+// 0. Fixing Helper - Approval BAST pake SPV aja
+// ========================================================================================================
+Route::middleware(['auth:sanctum', 'check.role:Admin,Spv'])->group(function () {
+    Route::get('approval-bast', [HalamanApprovalController::class, 'listApprovalBast']);
+    Route::post('approval-bast/{id}/approve', [HalamanApprovalController::class, 'approveBast']);
+    Route::post('approval-bast/{id}/reject', [HalamanApprovalController::class, 'rejectBast']);
 });
 
 // ========================================================================================================
