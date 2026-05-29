@@ -30,6 +30,8 @@ use App\Http\Controllers\FilterStagingController;
 use App\Http\Controllers\Fixing\FixingController;
 use App\Http\Controllers\FormatBarcodeController;
 use App\Http\Controllers\GenerateController;
+use App\Http\Controllers\Inbound\BastApprovalController;
+use App\Http\Controllers\Inbound\HalamanApprovalController;
 use App\Http\Controllers\LoyaltyRankController;
 use App\Http\Controllers\MigrateBulkyController;
 use App\Http\Controllers\MigrateBulkyProductController;
@@ -90,27 +92,87 @@ use Illuminate\Support\Facades\Route;
 | Patokan urutan role umum: Admin, Spv, Team leader, Admin Kasir, Crew, Reparasi
 */
 
-// ========================================================================================================
-// 0. Fixing Helper
-// ========================================================================================================
-Route::middleware(['auth:sanctum', 'check.role:Admin'])->group(function () {
-    Route::post('fixing/sync-actual-quality-to-note', [FixingController::class, 'syncNoteFromStaging']);
-    // Cargo
-    Route::get('cargo/{idCargo}/bags', [CargoController::class, 'listBagCargo']);
-    Route::get('cargo/{idCargo}/info', [CargoController::class, 'infoDetailCargo']);
-    Route::post('cargo', [CargoController::class, 'buatCargo']);
-    Route::post('cargo/add-bag/{idCargo}', [CargoController::class, 'tambahBag']);
-    Route::post('cargo/{idCargo}/takeout-bag/', [CargoController::class, 'takeoutBag']);
-    Route::post('cargo/{idCargo}/set-volume-berat', [CargoController::class, 'setVolumeDanBerat']);
-    Route::post('cargo/{idCargo}/toggle-status-bulky', [CargoController::class, 'toggleStatusBulky']);
+Route::middleware([
+    'auth:sanctum',
+    'check.role:Admin,Spv,Team leader,Captain,TeamLeader,Crew'
+])->group(function () {
 
-    // Bag
+    // =====================================================================
+    // FIXING
+    // =====================================================================
+    Route::post(
+        'fixing/sync-actual-quality-to-note',
+        [FixingController::class, 'syncNoteFromStaging']
+    );
+
+    // =====================================================================
+    // CARGO
+    // =====================================================================
+
+    // SPV / Admin / TL only
+    Route::middleware([
+        'check.role:Admin,Spv,Team leader,TeamLeader'
+    ])->group(function () {
+
+        Route::get('cargo/{idCargo}/bags', [CargoController::class, 'listBagCargo']);
+        Route::get('cargo/{idCargo}/info', [CargoController::class, 'infoDetailCargo']);
+
+        Route::post('cargo', [CargoController::class, 'buatCargo']);
+        Route::post('cargo/add-bag/{idCargo}', [CargoController::class, 'tambahBag']);
+        Route::post('cargo/{idCargo}/takeout-bag', [CargoController::class, 'takeoutBag']);
+        Route::post('cargo/{idCargo}/set-volume-berat', [CargoController::class, 'setVolumeDanBerat']);
+        Route::post('cargo/{idCargo}/toggle-status-bulky', [CargoController::class, 'toggleStatusBulky']);
+    });
+
+    // =====================================================================
+    // BAG - VIEW ACCESS
+    // =====================================================================
+
+    // Semua role bisa lihat
     Route::get('bag', [BagController::class, 'index']);
-    Route::post('bag', [BagController::class, 'buatBag']);
-    Route::post('bag/add-product/{idBag}', [BagController::class, 'tambahProdukKeBag']);
     Route::get('bag/{idBag}', [BagController::class, 'listProdukBag']);
     Route::get('bag/{idBag}/info', [BagController::class, 'infoDetailBag']);
-    Route::post('bag/remove-product/{idProduct}', [BagController::class, 'takeOutBarangbulky']);
+
+    // =====================================================================
+    // BAG - SPV / ADMIN / TL
+    // =====================================================================
+
+    Route::middleware([
+        'check.role:Admin,Spv,Team leader,TeamLeader'
+    ])->group(function () {
+
+        Route::post('bag/{idBag}/toggle-status', [BagController::class, 'toggleStatusBag']);
+    });
+
+    // =====================================================================
+    // BAG - CREW / CAPTAIN
+    // =====================================================================
+
+    Route::middleware([
+        'check.role:Admin,Captain,TeamLeader,Crew'
+    ])->group(function () {
+
+        Route::post('bag', [BagController::class, 'buatBag']);
+        Route::post('bag/add-product/{idBag}', [BagController::class, 'tambahProdukKeBag']);
+        Route::post('bag/remove-product/{idProduct}', [BagController::class, 'takeOutBarangbulky']);
+    });
+});
+// ========================================================================================================
+// 0. Fixing Helper - Edit Waktu Scan
+// ========================================================================================================
+Route::middleware(['auth:sanctum', 'check.role:Admin,Spv, Team leader, Crew, Captain'])->group(function () {
+    Route::post('edit-scan', [BastApprovalController::class, 'mintaApproveDataAsal']);
+    Route::get('scan-paused', [BastApprovalController::class, 'checkScanPaused']);
+    Route::post('scanner-bast', [BastApprovalController::class, 'scannerBaru']);
+});
+
+// ========================================================================================================
+// 0. Fixing Helper - Approval BAST pake SPV aja
+// ========================================================================================================
+Route::middleware(['auth:sanctum', 'check.role:Admin,Spv'])->group(function () {
+    Route::get('approval-bast', [HalamanApprovalController::class, 'listApprovalBast']);
+    Route::post('approval-bast/{id}/approve', [HalamanApprovalController::class, 'approveBast']);
+    Route::post('approval-bast/{id}/reject', [HalamanApprovalController::class, 'rejectBast']);
 });
 
 // ========================================================================================================

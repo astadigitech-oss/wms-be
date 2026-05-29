@@ -68,23 +68,35 @@ class User extends Authenticatable
         ]);
     }
 
-    public function scopeTotalScanToday(Builder $query){
+    public function scopeTotalScanToday(Builder $query)
+    {
         $today = Carbon::now('Asia/Jakarta')->toDateString(); // Mendapatkan tanggal hari ini dalam format YYYY-MM-DD
-    
+
         $query->addSelect([
             'total_scans_today' => UserScanWeb::selectRaw('SUM(total_scans)')
                 ->whereColumn('user_scan_webs.user_id', 'users.id')
                 ->whereDate('scan_date', $today) // Membatasi hanya untuk scan_date hari ini
         ]);
     }
-    
+
 
     public function getFormatBarcodeNameAttribute()
     {
         return $this->format_barcode?->format;
     }
 
-    public function bulkyDocuments(){
+    public function bulkyDocuments()
+    {
         return $this->hasMany(BulkyDocument::class, 'user_id');
+    }
+
+    public function editorScanPendings()
+    {
+        return $this->hasMany(ScanPending::class, 'editor_id');
+    }
+
+    public function approverScanPendings()
+    {
+        return $this->hasMany(ScanPending::class, 'approver_id');
     }
 }

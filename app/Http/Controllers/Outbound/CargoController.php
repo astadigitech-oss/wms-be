@@ -534,6 +534,12 @@ class CargoController extends Controller
                 // total harga dari bulky_sales
                 'total_old_price' => (int) $summary->total_old_price,
 
+                // volume
+                'length' => $cargo->length,
+                'width' => $cargo->width,
+                'height' => $cargo->height,
+                'weight' => $cargo->weight,
+
                 'created_at' => $cargo->created_at,
             ];
 
@@ -590,6 +596,7 @@ class CargoController extends Controller
                 'height'           => $request->height,
                 'weight'           => $request->weight,
                 'fleet_estimation' => $request->fleet_estimation ?? null,
+                'is_sale' => BulkyDocument::SALE_READY,
             ]);
 
             DB::commit();
@@ -620,39 +627,49 @@ class CargoController extends Controller
 
     public function toggleStatusBulky($idCargo)
     {
-        $doc = BulkyDocument::findOrFail($idCargo);
+        $doc = BulkyDocument::with('bagProducts')->findOrFail($idCargo);
 
-        // 1. Validasi is_sale  
-        if ($doc->is_sale !== BulkyDocument::SALE_NOT) {
+        // hanya yang sedang SALE yang tidak boleh
+        if ($doc->is_sale === BulkyDocument::SALE) {
             return (new ResponseResource(
                 false,
-                "Status tidak bisa diubah karena sudah/sedang dalam proses sale",
+                "Status tidak bisa diubah karena sudah dalam proses sale",
                 null
             ))->response()->setStatusCode(400);
         }
 
         DB::beginTransaction();
+
         try {
 
-            // 2. Jika dari proses -> done, wajib semua field terisi
+            // PROSES -> SELESAI
             if ($doc->status_bulky === 'proses') {
 
+                // validasi hanya cargo online
                 if (
-                    is_null($doc->length) ||
-                    is_null($doc->width) ||
-                    is_null($doc->height) ||
-                    is_null($doc->weight)
+                    $doc->type === BulkyDocument::TYPE_ONLINE &&
+                    (
+                        is_null($doc->length) ||
+                        is_null($doc->width) ||
+                        is_null($doc->height) ||
+                        is_null($doc->weight)
+                    )
                 ) {
                     return (new ResponseResource(
                         false,
-                        "Lengkapkan dimensi dan berat sebelum mengubah status ke done",
+                        "Lengkapi dimensi dan berat sebelum mengubah status ke selesai",
                         null
                     ))->response()->setStatusCode(422);
                 }
 
                 $doc->status_bulky = 'selesai';
+
+                // update bag product
+                $doc->bagProducts()->update([
+                    'status' => 'done'
+                ]);
             }
-            // 3. jika done -> proses
+            // SELESAI -> PROSES
             else {
                 $doc->status_bulky = 'proses';
             }
@@ -670,6 +687,7 @@ class CargoController extends Controller
                 ]
             ))->response();
         } catch (\Exception $e) {
+
             DB::rollBack();
 
             return (new ResponseResource(
