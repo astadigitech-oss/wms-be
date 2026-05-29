@@ -161,11 +161,11 @@ class BastApprovalController extends Controller
             ->where('status', 'approved')
             ->latest()
             ->first();
-        dd($approvedPending, $product->id);
+        // dd($approvedPending, $product->id);
 
         $product->edited_name_product =
             $approvedPending?->edited_name ?? $product->old_name_product;
-        dd($product->edited_name_product);
+        // dd($product->edited_name_product);
 
         $product->edited_quantity_product =
             $approvedPending?->edited_qty ?? $product->old_quantity_product;
