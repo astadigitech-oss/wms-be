@@ -26,30 +26,33 @@ class AdjustRepairController extends Controller
 
         try {
 
-            $product = null;
-
-            if ($source === 'staging') {
-                $product = StagingProduct::find($id);
-            } else {
-                $product = New_product::find($id);
-            }
+            // =========================
+            // 1. GET PRODUCT
+            // =========================
+            $product = $source === 'staging'
+                ? StagingProduct::find($id)
+                : New_product::find($id);
 
             if (!$product) {
                 DB::rollBack();
                 return new ResponseResource(false, "Produk tidak ditemukan di $source", null);
             }
 
+            // =========================
+            // 2. QUALITY
+            // =========================
             $quality = json_decode($product->new_quality, true);
 
             if (isset($quality['lolos'])) {
                 DB::rollBack();
-                return new ResponseResource(false, "Hanya produk yang damaged atau abnormal yang bisa di repair", null);
+                return new ResponseResource(false, "Produk sudah lolos, tidak bisa direpair", null);
             }
 
-            if (isset($quality['damaged'])) $quality['damaged'] = null;
-            if (isset($quality['abnormal'])) $quality['abnormal'] = null;
-            if (isset($quality['non'])) $quality['non'] = null;
+            unset($quality['damaged'], $quality['abnormal'], $quality['non']);
 
+            // =========================
+            // 3. VALIDATION RULES
+            // =========================
             if ($request->input('old_price_product') < 100000) {
                 $request->request->remove('new_tag_product');
             }
@@ -72,6 +75,9 @@ class AdjustRepairController extends Controller
                 return response()->json(['errors' => $validator->errors()], 422);
             }
 
+            // =========================
+            // 4. INPUT
+            // =========================
             $inputData = $request->only([
                 'old_barcode_product',
                 'new_barcode_product',
@@ -79,7 +85,6 @@ class AdjustRepairController extends Controller
                 'new_quantity_product',
                 'new_price_product',
                 'old_price_product',
-                'new_date_in_product',
                 'new_status_product',
                 'new_category_product',
                 'new_tag_product',
@@ -89,14 +94,18 @@ class AdjustRepairController extends Controller
 
             $inputData['new_date_in_product'] = Carbon::now('Asia/Jakarta')->toDateString();
 
-            // VALIDASI CATEGORY (>=100K)
-            if ($inputData['old_price_product'] >= 100000) {
+            $oldPrice = $inputData['old_price_product'];
+
+            // =========================
+            // 5. RULE >= 100K
+            // =========================
+            if ($oldPrice >= 100000) {
 
                 $inputData['new_tag_product'] = null;
 
                 if (empty($inputData['new_category_product'])) {
                     DB::rollBack();
-                    return (new ResponseResource(false, "Kategori produk wajib diisi untuk harga di atas 100k.", null))
+                    return (new ResponseResource(false, "Kategori wajib untuk harga ≥ 100k", null))
                         ->response()->setStatusCode(422);
                 }
 
@@ -104,26 +113,29 @@ class AdjustRepairController extends Controller
 
                 if (!$category) {
                     DB::rollBack();
-                    return (new ResponseResource(false, "Kategori tidak ditemukan.", null))
+                    return (new ResponseResource(false, "Kategori tidak ditemukan", null))
                         ->response()->setStatusCode(422);
                 }
 
                 if (!empty($category->discount_category)) {
 
-                    $discountAmount = ($category->discount_category / 100) * $inputData['old_price_product'];
-                    $calculatedPrice = round($inputData['old_price_product'] - $discountAmount);
+                    $discount = ($category->discount_category / 100) * $oldPrice;
+                    $final = round($oldPrice - $discount);
 
-                    if ($calculatedPrice != round($inputData['new_price_product'])) {
+                    if ($final != round($inputData['new_price_product'])) {
                         DB::rollBack();
-                        return (new ResponseResource(false, "Harga setelah diskon tidak sesuai.", null))
+                        return (new ResponseResource(false, "Harga setelah diskon tidak sesuai", null))
                             ->response()->setStatusCode(422);
                     }
                 }
             }
 
+            // =========================
+            // 6. FINALIZE QUALITY
+            // =========================
             $quality['lolos'] = 'lolos';
-
             $inputData['new_quality'] = json_encode($quality);
+
             $inputData['user_id'] = $user_id;
             $inputData['display_price'] = $inputData['new_price_product'];
             $inputData['is_extra'] = $request->boolean('is_extra');
@@ -133,18 +145,15 @@ class AdjustRepairController extends Controller
             $inputData['actual_old_price_product'] = $product->actual_old_price_product;
             $inputData['weight'] = $product->weight;
 
-            /**
-             * =========================================
-             * MAIN LOGIC
-             * =========================================
-             */
-
-            if ($inputData['old_price_product'] < 100000) {
+            // =========================
+            // 7. RULE < 100K (COLORTAG)
+            // =========================
+            if ($oldPrice < 100000) {
 
                 $inputData['new_category_product'] = null;
 
-                $colortag = Color_tag::where('min_price_color', '<=', $inputData['old_price_product'])
-                    ->where('max_price_color', '>=', $inputData['old_price_product'])
+                $colortag = Color_tag::where('min_price_color', '<=', $oldPrice)
+                    ->where('max_price_color', '>=', $oldPrice)
                     ->first();
 
                 if ($colortag) {
@@ -152,27 +161,30 @@ class AdjustRepairController extends Controller
                     $inputData['display_price'] = $colortag->fixed_price_color;
                     $inputData['new_tag_product'] = $colortag->name_color;
                 }
+            }
 
-                // ✅ FIX: UPSERT (NO DUPLICATE)
-                New_product::updateOrCreate(
-                    ['new_barcode_product' => $inputData['new_barcode_product']],
-                    $inputData
-                );
+            // =========================
+            // 8. FLOW LOGIC
+            // =========================
 
-                $product->delete();
+            if ($source === 'staging') {
+
+                if ($oldPrice < 100000) {
+
+                    New_product::create($inputData);
+                    $product->delete();
+                } else {
+
+                    $product->update($inputData);
+                }
             } else {
 
-                if ($source === 'staging') {
-                    $product->update($inputData);
-                } else {
-                    StagingProduct::create($inputData);
-                    $product->delete();
-                }
+                $product->update($inputData);
             }
 
             DB::commit();
 
-            return new ResponseResource(true, "Berhasil di repair", $inputData);
+            return new ResponseResource(true, "Berhasil repair", $inputData);
         } catch (\Exception $e) {
 
             DB::rollBack();
