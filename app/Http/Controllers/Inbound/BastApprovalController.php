@@ -492,6 +492,16 @@ class BastApprovalController extends Controller
         }
     }
 
+    private function prepareQualityData($status, $description)
+    {
+        return [
+            'lolos' => $status === 'lolos' ? 'lolos' : null,
+            'damaged' => $status === 'damaged' ? $description : null,
+            'abnormal' => $status === 'abnormal' ? $description : null,
+            'non' => $status === 'non' ? $description : null,
+        ];
+    }
+
     private function prepareInputData($request, $status, $qualityData, $userId)
     {
         $inputData = $request->only([
