@@ -61,6 +61,7 @@ use App\Http\Controllers\ProductSoController;
 use App\Http\Controllers\ProductStatusController;
 use App\Http\Controllers\PromoController;
 use App\Http\Controllers\RackController;
+use App\Http\Controllers\Repair\AdjustRepairController;
 use App\Http\Controllers\RepairController;
 use App\Http\Controllers\RepairFilterController;
 use App\Http\Controllers\RepairProductController;
@@ -174,6 +175,13 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv'])->group(function () {
     Route::get('approval-bast', [HalamanApprovalController::class, 'listApprovalBast']);
     Route::post('approval-bast/{id}/approve', [HalamanApprovalController::class, 'approveBast']);
     Route::post('approval-bast/{id}/reject', [HalamanApprovalController::class, 'rejectBast']);
+});
+
+// ========================================================================================================
+// 0. Fixing Helper - Adjust Repair (Update Produk Repair Langsung)
+// ========================================================================================================
+Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Admin Kasir,Reparasi,Captain'])->group(function () {
+    Route::put('repair/update/{id}', [AdjustRepairController::class, 'updateRepair']);
 });
 
 // ========================================================================================================
@@ -391,7 +399,7 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Admin Kasir
     Route::delete('repair-mv/filter_product/destroy/{id}', [RepairFilterController::class, 'destroy']);
     Route::post('repair-mv', [RepairProductController::class, 'store']);
     Route::delete('repair-mv/{repair}', [RepairController::class, 'destroy']);
-    Route::put('repair/update/{id}', [NewProductController::class, 'updateRepair']);
+    // Route::put('repair/update/{id}', [NewProductController::class, 'updateRepair']);
     Route::delete('repair-mv/destroy/{id}', [RepairProductController::class, 'destroy']);
     Route::put('product-repair/{repairProduct}', [RepairProductController::class, 'update']);
     Route::delete('product-repair/{repairProduct}', [RepairProductController::class, 'destroy']);
