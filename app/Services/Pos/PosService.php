@@ -25,6 +25,7 @@ class PosService
      */
     public function getToken()
     {
+
         return Cache::remember('pos_oauth_token', 3300, function () {
 
             $response = Http::post($this->baseUrl . '/api/oauth/token', [
