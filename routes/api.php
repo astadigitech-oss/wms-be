@@ -160,7 +160,7 @@ Route::middleware([
 // ========================================================================================================
 // 0. Fixing Helper - Edit Waktu Scan
 // ========================================================================================================
-Route::middleware(['auth:sanctum', 'check.role:Admin,Spv, Team leader, Crew, Captain'])->group(function () {
+Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Crew,Captain'])->group(function () {
     Route::post('edit-scan', [BastApprovalController::class, 'mintaApproveDataAsal']);
     Route::get('scan-paused', [BastApprovalController::class, 'checkScanPaused']);
     Route::post('scanner-bast', [BastApprovalController::class, 'scannerBaru']);
