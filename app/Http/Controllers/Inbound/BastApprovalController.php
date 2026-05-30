@@ -7,14 +7,19 @@ use App\Http\Resources\DuplicateRequestResource;
 use App\Http\Resources\ProductapproveResource;
 use App\Http\Resources\ResponseResource;
 use App\Jobs\ProductBatch;
+use App\Models\Category;
 use App\Models\Document;
 use App\Models\New_product;
+use App\Models\Notification;
+use App\Models\Product_old;
 use App\Models\ProductApprove;
 use App\Models\ProductDefect;
+use App\Models\ProductEditHistory;
 use App\Models\RiwayatCheck;
 use App\Models\ScanPending;
 use App\Models\StagingProduct;
 use App\Models\UserScanWeb;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -484,6 +489,233 @@ class BastApprovalController extends Controller
             return response()->json([
                 'error' => $e->getMessage()
             ], 500);
+        }
+    }
+
+    private function prepareInputData($request, $status, $qualityData, $userId)
+    {
+        $inputData = $request->only([
+            'code_document',
+            'old_barcode_product',
+            'new_barcode_product',
+            'new_name_product',
+            'new_quantity_product',
+            'new_price_product',
+            'old_price_product',
+            'new_status_product',
+            'new_category_product',
+            'new_tag_product',
+            'condition',
+            'deskripsi',
+            'type',
+            'user_id',
+            'discount_category',
+            'is_so'
+        ]);
+
+        if ($inputData['old_price_product'] < 100000) {
+            $inputData['new_barcode_product'] = $inputData['old_barcode_product'];
+        }
+        $category = Category::where('name_category', $inputData['new_category_product'])->first();
+        $inputData['discount_category'] = $category ? $category->discount_category : null;
+        $inputData['new_date_in_product'] = Carbon::now('Asia/Jakarta')->toDateString();
+        $inputData['new_quality'] = json_encode($qualityData);
+        $inputData['actual_new_quality'] = json_encode($qualityData);
+        $inputData['actual_old_price_product'] = $inputData['old_price_product'];
+        $inputData['type'] = 'type1';
+        $inputData['is_so'] = null;
+        // $inputData['is_so'] = "done";
+        // $inputData['user_so'] = $userId;
+
+        $inputData['new_discount'] = 0;
+        $inputData['user_id'] = $userId;
+        $inputData['display_price'] = $inputData['new_price_product'];
+        $inputData['note'] = $inputData['deskripsi'] ?? null;
+
+        if ($status !== 'lolos') {
+            $inputData['new_category_product'] = null;
+            $inputData['new_price_product'] = null;
+        }
+
+        if ($inputData['new_price_product'] == null) {
+            $inputData['display_price'] = 0;
+        }
+
+        return $inputData;
+    }
+
+    private function deleteOldProduct($code_document, $old_barcode_product)
+    {
+        $product = \App\Models\Product_old::where('code_document', $code_document)
+            ->where('old_barcode_product', $old_barcode_product)
+            ->first();
+
+        if ($product) {
+            return $product->delete();
+        }
+
+        return false;
+    }
+
+    private function updateDocumentStatus($codeDocument)
+    {
+        $document = Document::where('code_document', $codeDocument)->firstOrFail();
+        if ($document->status_document === 'pending') {
+            $document->update(['status_document' => 'in progress']);
+        }
+    }
+
+    public function addProductOld(Request $request)
+    {
+        $userId = auth()->id();
+        try {
+
+            DB::beginTransaction();
+            $status = $request->input('condition');
+            $description = $request->input('deskripsi', '');
+
+            $qualityData = $this->prepareQualityData($status, $description);
+
+            $inputData = $this->prepareInputData($request, $status, $qualityData, $userId);
+
+            $document = Document::where('code_document', $inputData['code_document'])->first();
+            $generate = null;
+
+            $maxRetry = 5;
+            for ($i = 0; $i < $maxRetry; $i++) {
+                if ($document->custom_barcode) {
+                    $generate = newBarcodeCustom($document->custom_barcode, $userId);
+                } else {
+                    $generate = generateNewBarcode($inputData['new_category_product']);
+                }
+
+                if (!ProductApprove::where('new_barcode_product', $generate)->exists()) {
+                    break;
+                }
+
+                if ($i === $maxRetry - 1) {
+                    throw new \Exception("Failed to generate unique barcode after multiple attempts.");
+                }
+            }
+
+            $inputData['new_barcode_product'] = $generate;
+
+            // Set display price
+            $inputData['display_price'] = $inputData['new_price_product'] ?? $inputData['old_price_product'];
+
+            $category = Category::where('name_category', $inputData['new_category_product'])->first();
+            $inputData['discount_category'] = $category ? $category->discount_category : null;
+
+
+            $user = auth()->user();
+            $isAdminOrSpv = false;
+            if ($user && $user->role) {
+                $isAdminOrSpv = in_array($user->role->role_name, ['Admin', 'Spv']);
+            }
+
+            $oldProduct = Product_old::where('old_barcode_product', $inputData['old_barcode_product'])->first();
+            $isDifferent = false;
+
+            if ($oldProduct) {
+                $nameChanged = trim($request->input('new_name_product')) !== trim($oldProduct->old_name_product);
+                $qtyChanged = (int)$request->input('new_quantity_product') !== (int)$oldProduct->old_quantity_product;
+                $isDifferent = ($nameChanged || $qtyChanged);
+            }
+
+            if ($isDifferent) {
+                $historyData = [
+                    'code_document' => $inputData['code_document'],
+                    'barcode_product' => $inputData['new_barcode_product'],
+                    'old_value' => $oldProduct ? [
+                        'barcode' => $oldProduct->old_barcode_product,
+                        'name_product' => $oldProduct->old_name_product,
+                        'qty' => $oldProduct->old_quantity_product,
+                        'old_price' => $oldProduct->old_price_product,
+                        'category' => $oldProduct->new_category_product ?? '-',
+                        'quality' => isset($oldProduct->new_quality) ? json_decode($oldProduct->new_quality, true) : null,
+                    ] : null,
+                    'new_value' => [
+                        'barcode' => $inputData['new_barcode_product'],
+                        'name_product' => $inputData['new_name_product'],
+                        'qty' => $inputData['new_quantity_product'],
+                        'old_price' => $inputData['old_price_product'],
+                        'new_price' => $inputData['new_price_product'],
+                        'category' => $inputData['new_category_product'] ?? '-',
+                        'quality' => is_string($inputData['new_quality']) ? json_decode($inputData['new_quality'], true) : $inputData['new_quality'],
+                    ],
+                    'request_user_id' => $userId,
+                ];
+
+                if ($isAdminOrSpv) {
+                    $historyData['notification_id'] = null;
+                    $historyData['status'] = 'approved';
+                    $historyData['approver_id'] = $userId;
+
+                    ProductEditHistory::create($historyData);
+                } else {
+                    $inputData['is_pending'] = true;
+                    $roleName = $user && $user->role ? $user->role->role_name : 'Crew';
+
+                    $notification = Notification::create([
+                        'notification_name' => 'Approval Perubahan Data: ' . $inputData['new_barcode_product'],
+                        'status' => 'pending_approval',
+                        'user_id' => $userId,
+                        'role' => $roleName,
+                    ]);
+
+                    $historyData['notification_id'] = $notification->id;
+                    $historyData['status'] = 'pending';
+
+                    ProductEditHistory::create($historyData);
+                }
+            }
+
+            $this->deleteOldProduct($inputData['code_document'], $inputData['old_barcode_product']);
+
+            $riwayatCheck = RiwayatCheck::where('code_document', $request->input('code_document'))->first();
+            $totalDataIn = 1 + $riwayatCheck->total_data_in;
+
+            if ($qualityData['lolos'] != null) {
+                $riwayatCheck->total_data_lolos += 1;
+            } else if ($qualityData['damaged'] != null) {
+                $riwayatCheck->total_data_damaged += 1;
+            } else if ($qualityData['abnormal'] != null) {
+                $riwayatCheck->total_data_abnormal += 1;
+            }
+
+            UserScanWeb::updateOrCreateDailyScan($userId, $document->id);
+
+
+            $totalDiscrepancy = Product_old::where('code_document', $request->input('code_document'))->pluck('code_document');
+
+            $riwayatCheck->update([
+                'total_data_in' => $totalDataIn,
+                'total_data_lolos' => $riwayatCheck->total_data_lolos,
+                'total_data_damaged' => $riwayatCheck->total_data_damaged,
+                'total_data_abnormal' => $riwayatCheck->total_data_abnormal,
+                'total_discrepancy' => count($totalDiscrepancy),
+                'status_approve' => 'pending',
+                // persentase
+                'percentage_total_data' => ($document->total_column_in_document / $document->total_column_in_document) * 100,
+                'percentage_in' => ($totalDataIn / $document->total_column_in_document) * 100,
+                'percentage_lolos' => ($riwayatCheck->total_data_lolos / $document->total_column_in_document) * 100,
+                'percentage_damaged' => ($riwayatCheck->total_data_damaged / $document->total_column_in_document) * 100,
+                'percentage_abnormal' => ($riwayatCheck->total_data_abnormal / $document->total_column_in_document) * 100,
+                'percentage_discrepancy' => (count($totalDiscrepancy) / $document->total_column_in_document) * 100,
+            ]);
+
+            $this->updateDocumentStatus($inputData['code_document']);
+
+            $newProduct = ProductApprove::create($inputData);
+
+            $newProduct->discount_category = $inputData['discount_category'] ?? null;
+
+            DB::commit();
+
+            return new ProductapproveResource(true, true, "New Produk Berhasil ditambah", $newProduct);
+        } catch (\Exception $e) {
+            DB::rollback();
+            return response()->json(['error' => $e->getMessage()], 500);
         }
     }
 }
