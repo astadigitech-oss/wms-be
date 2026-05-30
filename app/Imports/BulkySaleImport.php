@@ -10,6 +10,7 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use App\Services\MovementService;
 use Maatwebsite\Excel\Concerns\ToCollection;
 use Maatwebsite\Excel\Concerns\WithBatchInserts;
 use Maatwebsite\Excel\Concerns\WithChunkReading;
@@ -40,6 +41,7 @@ class BulkySaleImport implements ToCollection, WithHeadingRow, WithValidation, W
         try {
             $bulkySaleData = [];
             $barcodeToDelete = [];
+            $movementRows = [];
 
             foreach ($rows as $row) {
                 $barcode = $row['barcode'] ?? $row['barcode_product'];
@@ -96,10 +98,25 @@ class BulkySaleImport implements ToCollection, WithHeadingRow, WithValidation, W
                         'bundle_product' => $model->update(['product_status' => 'sale']),
                     };
 
+                    $movementFrom = match ($type) {
+                        'new_product' => $product['category'] ? 'display_reguler' : 'display_color',
+                        'staging_product' => 'staging_reguler',
+                        'bundle_product' => 'bundle',
+                    };
+
                     break;
                 }
 
                 if ($product) {
+                    $movementRows[] = [
+                        'product_id' => $product['barcode'],
+                        'is_sku' => false,
+                        'type' => 'Out',
+                        'type_out' => 'cargo',
+                        'from' => $movementFrom,
+                        'to' => 'cargo',
+                        'qty' => null,
+                    ];
                     $bulkySaleData[] = [
                         'bulky_document_id' => $this->bulkyDocumentId,
                         'barcode_bulky_sale' => $product['barcode'],
@@ -124,6 +141,12 @@ class BulkySaleImport implements ToCollection, WithHeadingRow, WithValidation, W
             }
 
             DB::commit();
+
+            try {
+                MovementService::logBulk($movementRows);
+            } catch (\Exception $e) {
+                Log::error('[Movement] BulkySaleImport log failed: ' . $e->getMessage());
+            }
         } catch (\Exception $e) {
             DB::rollBack();
             Log::error('Error importing bulky sale data: ' . $e->getMessage());

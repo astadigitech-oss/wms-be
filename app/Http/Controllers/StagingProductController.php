@@ -35,6 +35,7 @@ use App\Models\Rack;
 use App\Models\SummarySoCategory;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Validator;
+use App\Services\MovementService;
 
 class StagingProductController extends Controller
 {
@@ -704,6 +705,7 @@ class StagingProductController extends Controller
             $code_document = $this->generateUniqueDocumentCode();
 
             $duplicateBarcodes = collect();
+            $movementRows = [];
             // Process in chunks
             for ($i = 1; $i < count($ekspedisiData); $i += $chunkSize) {
                 $chunkData = array_slice($ekspedisiData, $i, $chunkSize);
@@ -759,6 +761,16 @@ class StagingProductController extends Controller
                             'updated_at' => Carbon::now('Asia/Jakarta')->toDateString(),
                         ]);
                         $count++;
+                        $movementRows[] = [
+                            'product_id' => $newProductDataToInsert['new_barcode_product'],
+                            'is_sku'     => false,
+                            'type'       => 'In',
+                            'type_out'   => null,
+                            'from'       => '-',
+                            'to'         => 'staging_reguler',
+                            'qty'        => $newProductDataToInsert['new_quantity_product'] ?? 1,
+                            'dateTime'   => now(),
+                        ];
                     }
                 }
 
@@ -832,6 +844,15 @@ class StagingProductController extends Controller
             ]);
 
             DB::commit();
+
+            // [Movement] pending → staging_reguler (bulk)
+            try {
+                if (!empty($movementRows)) {
+                    MovementService::logBulk($movementRows);
+                }
+            } catch (\Exception $movEx) {
+                Log::error('[Movement] excelOld log failed: ' . $movEx->getMessage());
+            }
 
             return new ResponseResource(true, "Data berhasil diproses dan disimpan", [
                 'code_document' => $code_document,

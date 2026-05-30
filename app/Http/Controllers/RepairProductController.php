@@ -12,6 +12,7 @@ use App\Models\RepairProduct;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use App\Http\Resources\ResponseResource;
+use App\Services\MovementService;
 use App\Models\New_product;
 use Illuminate\Support\Facades\Validator;
 
@@ -115,6 +116,23 @@ class RepairProductController extends Controller
             ]);
 
             DB::commit();
+            
+            // [Movement] display_reguler / display_color → repair
+            try {
+                $movementRows = $productFilters->map(fn($f) => [
+                    'product_id' => $f->new_barcode_product,
+                    'is_sku'     => false,
+                    'type'       => 'Move',
+                    'type_out'   => null,
+                    'from'       => $f->new_tag_product ? 'display_color' : 'display_reguler',
+                    'to'         => 'repair',
+                    'qty'        => $f->new_quantity_product,
+                ])->toArray();
+                MovementService::logBulk($movementRows);
+            } catch (\Exception $movEx) {
+                Log::error('[Movement] repair create (store) log failed: ' . $movEx->getMessage());
+            }
+            
             return new ResponseResource(true, "Repair berhasil dibuat dan dikalkulasi.", [
                 'repair_header' => $repair,
                 'total_items_moved' => $totalProducts
@@ -202,6 +220,23 @@ class RepairProductController extends Controller
             ]);
 
             DB::commit();
+
+            // [Movement] display_reguler / display_color → repair
+            try {
+                $movementRows = $productFilters->map(fn($f) => [
+                    'product_id' => $f->new_barcode_product,
+                    'is_sku'     => false,
+                    'type'       => 'Move',
+                    'type_out'   => null,
+                    'from'       => $f->new_tag_product ? 'display_color' : 'display_reguler',
+                    'to'         => 'repair',
+                    'qty'        => $f->new_quantity_product,
+                ])->toArray();
+                MovementService::logBulk($movementRows);
+            } catch (\Exception $movEx) {
+                Log::error('[Movement] repair create (store2) log failed: ' . $movEx->getMessage());
+            }
+
             return new ResponseResource(true, "Repair berhasil dibuat", [$repair, $notification]);
         } catch (\Exception $e) {
             DB::rollBack();
@@ -321,6 +356,22 @@ class RepairProductController extends Controller
 
             // Commit transaksi
             DB::commit();
+
+            // [Movement] repair → display_reguler / display_color
+            try {
+                $to = $repairProduct->new_tag_product ? 'display_color' : 'display_reguler';
+                MovementService::log(
+                    productId: $repairProduct->new_barcode_product,
+                    isSku: false,
+                    type: 'Move',
+                    typeOut: null,
+                    from: 'repair',
+                    to: $to,
+                    qty: $repairProduct->new_quantity_product
+                );
+            } catch (\Exception $movEx) {
+                Log::error('[Movement] repair back (destroy) log failed: ' . $movEx->getMessage());
+            }
 
             // Return respons berhasil
             return new ResponseResource(true, "Produk repair berhasil dihapus", $np);

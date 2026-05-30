@@ -20,12 +20,14 @@ use App\Models\StagingProduct;
 use App\Models\SummarySoColor;
 use App\Models\SummarySoCategory;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Redis;
 use App\Http\Resources\ResponseResource;
 use Illuminate\Support\Facades\Validator;
 use App\Http\Resources\ProductapproveResource;
 use App\Http\Resources\DuplicateRequestResource;
 use App\Models\ProductEditHistory;
+use App\Services\MovementService;
 
 class ProductApproveController extends Controller
 {
@@ -360,6 +362,24 @@ class ProductApproveController extends Controller
             }
             $this->deleteOldProduct($inputData['code_document'], $request->input('old_barcode_product'));
 
+            // [Movement] pending → staging_reguler / display_color
+            if ($qualityData['lolos'] !== null) {
+                $moveTo = $inputData['new_tag_product'] ? 'display_color' : 'staging_reguler';
+                try {
+                    MovementService::log(
+                        productId: $inputData['new_barcode_product'],
+                        isSku: false,
+                        type: 'In',
+                        typeOut: null,
+                        from: 'pending',
+                        to: $moveTo,
+                        qty: $inputData['new_quantity_product']
+                    );
+                } catch (\Exception $e) {
+                    Log::error('[Movement] QC scan log failed: ' . $e->getMessage());
+                }
+            }
+            
             UserScanWeb::updateOrCreateDailyScan($userId, $document->id);
 
 
@@ -583,6 +603,24 @@ class ProductApproveController extends Controller
 
             $this->deleteOldProduct($inputData['code_document'], $inputData['old_barcode_product']);
 
+            // [Movement] pending → staging_reguler / display_color
+            if ($qualityData['lolos'] !== null) {
+                $moveTo = $inputData['new_tag_product'] ? 'display_color' : 'staging_reguler';
+                try {
+                    MovementService::log(
+                        productId: $inputData['new_barcode_product'],
+                        isSku: false,
+                        type: 'In',
+                        typeOut: null,
+                        from: 'pending',
+                        to: $moveTo,
+                        qty: $inputData['new_quantity_product']
+                    );
+                } catch (\Exception $e) {
+                    Log::error('[Movement] QC scan (addProductOld) log failed: ' . $e->getMessage());
+                }
+            }
+            
             $riwayatCheck = RiwayatCheck::where('code_document', $request->input('code_document'))->first();
             $totalDataIn = 1 + $riwayatCheck->total_data_in;
 

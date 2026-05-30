@@ -45,6 +45,7 @@ use App\Models\Rack;
 use App\Models\SoColor;
 use App\Models\SummarySoColor;
 use Illuminate\Support\Facades\Auth;
+use App\Services\MovementService;
 use Illuminate\Support\Facades\File;
 
 class NewProductController extends Controller
@@ -2289,6 +2290,23 @@ class NewProductController extends Controller
             }
 
             DB::commit();
+            
+            // [Movement] pending → staging_reguler / display_color
+            try {
+                $to = $inputData['old_price_product'] < 100000 ? 'display_color' : 'staging_reguler';
+                MovementService::log(
+                    productId: $newProduct->new_barcode_product,
+                    isSku: false,
+                    type: 'In',
+                    typeOut: null,
+                    from: '-',
+                    to: $to,
+                    qty: $newProduct->new_quantity_product
+                );
+            } catch (\Exception $movEx) {
+                Log::error('[Movement] addProductByAdmin log failed: ' . $movEx->getMessage());
+            }
+            
             return new ResponseResource(true, $message, $newProduct);
         } catch (\Exception $e) {
             DB::rollback();

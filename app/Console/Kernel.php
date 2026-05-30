@@ -152,6 +152,25 @@ class Kernel extends ConsoleKernel
                     'timestamp' => now()->toDateTimeString(),
                 ]);
             });
+
+        $schedule->command('cron:newSnapshotDailySummary')
+            ->dailyAt('21:00')
+            ->onSuccess(function () {
+                Log::channel('cronjob')->info('Scheduled command executed successfully', [
+                    'command' => 'cron:newSnapshotDailySummary',
+                    'schedule' => 'daily at 21:00',
+                    'status' => 'success',
+                    'timestamp' => now()->toDateTimeString(),
+                ]);
+            })
+            ->onFailure(function () {
+                Log::channel('cronjob')->error('Scheduled command failed', [
+                    'command' => 'cron:newSnapshotDailySummary',
+                    'schedule' => 'daily at 21:00',
+                    'status' => 'failed',
+                    'timestamp' => now()->toDateTimeString(),
+                ]);
+            });
     }
 
 

@@ -17,6 +17,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\Rules\Exists;
 use App\Http\Resources\ResponseResource;
+use App\Services\MovementService;
 use App\Models\FormatBarcode;
 use App\Models\StagingProduct;
 use Illuminate\Support\Facades\Validator;
@@ -141,6 +142,23 @@ class ProductBundleController extends Controller
             logUserAction($request, $request->user(), "storage/moving_product/create_bundle", "Create bundle " . $bundle->name_bundle . "->" . $userId);
 
             DB::commit();
+            
+            // [Movement] display/staging → bundle (Bundler)
+            try {
+                $movementRows = $product_filters->map(fn($p) => [
+                    'product_id' => $p->new_barcode_product,
+                    'is_sku' => false,
+                    'type' => 'Bundler',
+                    'type_out' => null,
+                    'from' => $p->source === 'staging' ? 'staging_reguler' : ($p->new_tag_product ? 'display_color' : 'display_reguler'),
+                    'to' => 'bundle',
+                    'qty' => $p->new_quantity_product,
+                ])->toArray();
+                MovementService::logBulk($movementRows);
+            } catch (\Exception $e) {
+                Log::error('[Movement] ProductBundle store log failed: ' . $e->getMessage());
+            }
+            
             return new ResponseResource(true, "Bundle berhasil dibuat", $bundle);
         } catch (\Exception $e) {
             DB::rollback();
@@ -263,6 +281,23 @@ class ProductBundleController extends Controller
 
 
             DB::commit();
+
+            // [Movement] bundle → display/staging (Unbundler)
+            try {
+                $to = $source === 'staging' ? 'staging_reguler' : ($productBundle->new_tag_product ? 'display_color' : 'display_reguler');
+                MovementService::log(
+                    productId: $productBundle->new_barcode_product,
+                    isSku: false,
+                    type: 'Unbundler',
+                    typeOut: null,
+                    from: 'bundle',
+                    to: $to,
+                    qty: $productBundle->new_quantity_product ?? null
+                );
+            } catch (\Exception $e) {
+                Log::error('[Movement] ProductBundle destroy log failed: ' . $e->getMessage());
+            }
+
             return new ResponseResource(true, "Produk bundle berhasil dihapus", null);
         } catch (\Exception $e) {
             DB::rollback();
@@ -361,6 +396,23 @@ class ProductBundleController extends Controller
             $product->delete();
 
             DB::commit();
+
+            // [Movement] display/staging → bundle (Bundler)
+            try {
+                $from = $source === 'staging' ? 'staging_reguler' : ($product->new_tag_product ? 'display_color' : 'display_reguler');
+                MovementService::log(
+                    productId: $product->new_barcode_product,
+                    isSku: false,
+                    type: 'Bundler',
+                    typeOut: null,
+                    from: $from,
+                    to: 'bundle',
+                    qty: $product->new_quantity_product ?? null
+                );
+            } catch (\Exception $e) {
+                Log::error('[Movement] ProductBundle addProductBundle log failed: ' . $e->getMessage());
+            }
+
             return new ResponseResource(true, "Product bundle berhasil di tambahkan", $productBundle);
         } catch (\Exception $e) {
             DB::rollback();

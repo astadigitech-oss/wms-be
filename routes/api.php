@@ -34,6 +34,7 @@ use App\Http\Controllers\Inbound\BastApprovalController;
 use App\Http\Controllers\Inbound\HalamanApprovalController;
 use App\Http\Controllers\LoyaltyRankController;
 use App\Http\Controllers\MigrateBulkyController;
+use App\Http\Controllers\MovementProductController;
 use App\Http\Controllers\MigrateBulkyProductController;
 use App\Http\Controllers\MigrateController;
 use App\Http\Controllers\MigrateDocumentController;
@@ -812,6 +813,19 @@ Route::middleware('auth.multiple:Admin,Spv,Team leader,Crew,Developer')->group(f
 // ========================================================================================================
 // 10. FRONTEND REQUESTS & COMPLEX LOGIC
 // ========================================================================================================
+
+// ========================================================================================================
+// 10.1 MOVEMENT TRACKING & SALDO PER LOKASI
+// ========================================================================================================
+
+Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Admin Kasir,Crew,Reparasi,Kasir leader,Developer,Audit,Captain'])->group(function () {
+    Route::get('movement/saldo', [MovementProductController::class, 'saldo']);
+    Route::get('movement/staging/saldo', [MovementProductController::class, 'stagingSaldo']);
+    Route::get('movement/display/saldo', [MovementProductController::class, 'displaySaldo']);
+    Route::get('movement/display-color/saldo', [MovementProductController::class, 'displayColorSaldo']);
+    Route::get('movement/last-state', [MovementProductController::class, 'lastStateAll']);
+    Route::get('movement/{productId}/last-state', [MovementProductController::class, 'lastState']);
+});
 
 // [READ ONLY - Termasuk Audit]
 Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Admin Kasir,Crew,Reparasi,Kasir leader,Developer,Audit,Captain'])->group(function () {
