@@ -967,6 +967,10 @@ class BklController extends Controller
                     ->where('new_status_product', 'migrate')
                     ->whereNotNull('new_tag_product')
                     ->whereNull('new_category_product')
+                    ->where(function ($q) {
+                        $q->whereNull('new_category_product')
+                            ->orWhere('new_category_product', '');
+                    })
                     ->where(function ($query) {
                         $query->whereRaw("JSON_UNQUOTE(JSON_EXTRACT(new_quality, '$.lolos')) = 'lolos'")
                             ->orWhereRaw("JSON_UNQUOTE(JSON_EXTRACT(JSON_UNQUOTE(new_quality), '$.lolos')) = 'lolos'");
