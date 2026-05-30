@@ -204,19 +204,21 @@ class BastApprovalController extends Controller
     public function scannerSubmitBaru(Request $request)
     {
         $userId = auth()->id();
-
         $validator = Validator::make($request->all(), [
             'code_document' => 'required',
             'old_barcode_product' => 'required|exists:product_olds,old_barcode_product',
+            // 'new_barcode_product' => 'unique:new_products,new_barcode_product',
             'new_name_product' => 'required',
             'new_quantity_product' => 'required|integer',
             'new_price_product' => 'required|numeric',
             'old_price_product' => 'required|numeric',
+            // 'new_date_in_product' => 'required|date',
             'new_status_product' => 'required|in:display,expired,promo,bundle,palet,dump',
             'condition' => 'required|in:lolos,damaged,abnormal,non',
             'new_category_product' => 'nullable|exists:categories,name_category',
             'new_tag_product' => 'nullable|exists:color_tags,name_color',
             'deskripsi' => 'nullable|string',
+
         ], [
             'old_barcode_product.exists' => 'barcode tidak ada',
         ]);
@@ -226,18 +228,12 @@ class BastApprovalController extends Controller
         }
 
         $oldBarcode = $request->input('old_barcode_product');
-
         $ttlRedis = 5;
         $throttleTtl = 7;
-
         $redisKey = "barcode:$oldBarcode";
-
         $rateLimiter = app(\Illuminate\Cache\RateLimiter::class);
-
         $throttleKey = "throttle:$oldBarcode";
-
         if ($rateLimiter->tooManyAttempts($throttleKey, 1)) {
-
             return new DuplicateRequestResource(
                 false,
                 "throttle - barcode awal di scan lebih dari 1x dalam waktu $throttleTtl detik",
@@ -246,23 +242,21 @@ class BastApprovalController extends Controller
             );
         }
 
+        // Tambahkan hit untuk throttle
         $rateLimiter->hit($throttleKey, $throttleTtl);
-
+        // Lua Script untuk Atomic Lock
         $luaScript = '
-        if redis.call("exists", KEYS[1]) == 1 then
-            return 0
-        else
-            redis.call("setex", KEYS[1], ARGV[1], "processing")
-            return 1
-        end
-    ';
+            if redis.call("exists", KEYS[1]) == 1 then
+                return 0 -- Duplikasi
+            else
+                redis.call("setex", KEYS[1], ARGV[1], "processing")
+                return 1 -- Sukses
+            end
+        ';
 
         $redis = app('redis');
-
         $lockAcquired = $redis->eval($luaScript, 1, $redisKey, $ttlRedis);
-
         if ($lockAcquired == 0) {
-
             return new DuplicateRequestResource(
                 false,
                 "redis - barcode awal di scan lebih dari 1x dalam waktu $ttlRedis detik",
@@ -272,55 +266,29 @@ class BastApprovalController extends Controller
         }
 
         $status = $request->input('condition');
-
         $description = $request->input('deskripsi', '');
 
         $qualityData = $this->prepareQualityData($status, $description);
 
-        $inputData = $this->prepareInputData(
-            $request,
-            $status,
-            $qualityData,
-            $userId
-        );
+        $inputData = $this->prepareInputData($request, $status, $qualityData, $userId);
+
+        $oldBarcode = $request->input('old_barcode_product');
 
         DB::beginTransaction();
-
         try {
 
             if ($inputData['condition'] == 'lolos') {
-
-                if (
-                    $inputData['new_category_product'] == null &&
-                    $inputData['new_tag_product'] == null
-                ) {
-
-                    DB::rollBack();
-
-                    return (new ResponseResource(
-                        false,
-                        "ulangi scan lagi, ada kesalahan generate karna penggunaan tinggi",
-                        $inputData
-                    ))->response()->setStatusCode(429);
+                if ($inputData['new_category_product'] == null && $inputData['new_tag_product'] == null) {
+                    return (new ResponseResource(false, "ulangi scan lagi, ada kesalahan generate karna penggunaan tinggi", $inputData))->response()->setStatusCode(429);
                 }
             }
 
-            $document = Document::where(
-                'code_document',
-                $request->input('code_document')
-            )->first();
+            $document = Document::where('code_document', $request->input('code_document'))->first();
 
             if ($document->custom_barcode) {
-
-                $generate = newBarcodeCustom(
-                    $document->custom_barcode,
-                    $userId
-                );
+                $generate = newBarcodeCustom($document->custom_barcode, $userId);
             } else {
-
-                $generate = generateNewBarcode(
-                    $inputData['new_category_product']
-                );
+                $generate = generateNewBarcode($inputData['new_category_product']);
             }
 
             $inputData['new_barcode_product'] = $generate;
@@ -335,65 +303,109 @@ class BastApprovalController extends Controller
             $newBarcodeExists = false;
 
             foreach ($tables as $table) {
-
-                if (
-                    $table::where(
-                        'old_barcode_product',
-                        $oldBarcode
-                    )->exists()
-                ) {
-
+                if ($table::where('old_barcode_product', $oldBarcode)->exists()) {
                     $oldBarcodeExists = true;
                 }
-
-                if (
-                    $table::where(
-                        'new_barcode_product',
-                        $inputData['new_barcode_product']
-                    )->exists()
-                ) {
-
+                if ($table::where('new_barcode_product', $inputData['new_barcode_product'])->exists()) {
                     $newBarcodeExists = true;
                 }
             }
 
             if ($oldBarcodeExists) {
-
-                DB::rollBack();
-
-                return new ProductapproveResource(
-                    false,
-                    false,
-                    "The old barcode already exists",
-                    $inputData
-                );
+                return new ProductapproveResource(false, false, "The old barcode already exists", $inputData);
             }
 
             if ($newBarcodeExists) {
-
-                DB::rollBack();
-
-                return (new ResponseResource(
-                    false,
-                    "The new barcode already exists",
-                    $inputData
-                ))->response()->setStatusCode(429);
+                return (new ResponseResource(false, "The new barcode already exists", $inputData))->response()->setStatusCode(429);
             }
 
-            $riwayatCheck = RiwayatCheck::where(
-                'code_document',
-                $request->input('code_document')
-            )->first();
+            $user = auth()->user();
+            $isAdminOrSpv = false;
+            if ($user && $user->role) {
+                $isAdminOrSpv = in_array($user->role->role_name, ['Admin', 'Spv']);
+            }
+
+            $oldProduct = Product_old::where('old_barcode_product', $oldBarcode)->first();
+            $isDifferent = false;
+
+            if ($oldProduct) {
+                $nameChanged = trim($request->input('new_name_product')) !== trim($oldProduct->old_name_product);
+                $qtyChanged = (int)$request->input('new_quantity_product') !== (int)$oldProduct->old_quantity_product;
+                $isDifferent = ($nameChanged || $qtyChanged);
+            }
+
+            if ($isDifferent) {
+                $historyData = [
+                    'code_document' => $inputData['code_document'],
+                    'barcode_product' => $inputData['new_barcode_product'],
+                    'old_value' => $oldProduct ? [
+                        'barcode' => $oldProduct->old_barcode_product,
+                        'name_product' => $oldProduct->old_name_product,
+                        'qty' => $oldProduct->old_quantity_product,
+                        'old_price' => $oldProduct->old_price_product,
+                        'category' => $oldProduct->new_category_product ?? '-',
+                        'quality' => isset($oldProduct->new_quality) ? json_decode($oldProduct->new_quality, true) : null,
+                    ] : null,
+                    'new_value' => [
+                        'barcode' => $inputData['new_barcode_product'],
+                        'name_product' => $inputData['new_name_product'],
+                        'qty' => $inputData['new_quantity_product'],
+                        'old_price' => $inputData['old_price_product'],
+                        'new_price' => $inputData['new_price_product'],
+                        'category' => $inputData['new_category_product'] ?? '-',
+                        'quality' => is_string($inputData['new_quality']) ? json_decode($inputData['new_quality'], true) : $inputData['new_quality'],
+                    ],
+                    'request_user_id' => $userId,
+                ];
+
+                if ($isAdminOrSpv) {
+                    $historyData['notification_id'] = null;
+                    $historyData['status'] = 'approved';
+                    $historyData['approver_id'] = $userId;
+
+                    ProductEditHistory::create($historyData);
+                } else {
+                    // BYPASS LEGACY APPROVAL SYSTEM
+                    $inputData['is_pending'] = false;
+
+                    $roleName = $user && $user->role ? $user->role->role_name : 'Crew';
+
+                    $notification = Notification::create([
+                        'notification_name' => 'Approval Perubahan Data: ' . $inputData['new_barcode_product'],
+                        'status' => 'approved',
+                        'user_id' => $userId,
+                        'role' => $roleName,
+                    ]);
+
+                    $historyData['notification_id'] = $notification->id;
+                    $historyData['status'] = 'pending';
+
+                    ProductEditHistory::create($historyData);
+                }
+            }
+
+            $riwayatCheck = RiwayatCheck::where('code_document', $request->input('code_document'))->first();
+            // $totalDataIn = 1 + $riwayatCheck->total_data_in;
+            // $checkSoCategory = SummarySoCategory::where('type', 'process')->first();
+            // $checkSoColor = SummarySoColor::where('type', 'process')->first();
 
             if ($qualityData['lolos'] != null) {
-
                 $modelClass = ProductApprove::class;
+                // if($checkSoCategory && $inputData['new_category_product'] !== null){
+                //     $checkSoCategory->increment('product_staging');
+                // }
+                // if($checkSoColor && $inputData['new_tag_product'] !== null){
+                //     $soColor = SoColor::where('summary_so_color_id', $checkSoColor->id)
+                //         ->where('color', $inputData['new_tag_product'])
+                //         ->first();
+                //     if ($soColor) {
+                //         $soColor->increment('total_color');
+                //     }
+                // }
+                // $riwayatCheck->total_data_lolos += 1;
             } else if ($qualityData['damaged'] != null) {
-
                 $modelClass = New_product::class;
-
                 if ($riwayatCheck->status_file == 1) {
-
                     ProductDefect::create([
                         'riwayat_check_id' => $riwayatCheck->id,
                         'code_document' => $document->code_document,
@@ -404,12 +416,24 @@ class BastApprovalController extends Controller
                         'note' => $inputData['note'] ?? null
                     ]);
                 }
+                // if($inputData['old_price_product'] < 100000){
+                //     if($checkSoColor){
+                //         $soColor = SoColor::where('summary_so_color_id', $checkSoColor->id)
+                //             ->where('color', $inputData['new_tag_product'])
+                //             ->first();
+                //         if ($soColor) {
+                //             $soColor->increment('product_damaged');
+                //         }
+                //     }
+                // }else{
+                //     if($checkSoCategory){
+                //         $checkSoCategory->increment('product_damaged');
+                //     }
+                // }
+                // $riwayatCheck->total_data_damaged += 1;
             } else if ($qualityData['abnormal'] != null) {
-
                 $modelClass = New_product::class;
-
                 if ($riwayatCheck->status_file == 1) {
-
                     ProductDefect::create([
                         'riwayat_check_id' => $riwayatCheck->id,
                         'code_document' => $document->code_document,
@@ -420,15 +444,26 @@ class BastApprovalController extends Controller
                         'note' => $inputData['note'] ?? null
                     ]);
                 }
-            } else if (
-                isset($qualityData['non']) &&
-                $qualityData['non'] != null
-            ) {
+                // // $riwayatCheck->total_data_abnormal += 1;
+                // if($inputData['old_price_product'] < 100000){
+                //     if($checkSoColor){
+                //         $soColor = SoColor::where('summary_so_color_id', $checkSoColor->id)
+                //             ->where('color', $inputData['new_tag_product'])
+                //             ->first();
+                //         if ($soColor) {
+                //             $soColor->increment('product_abnormal');
+                //         }
+                //     }
+                // }else{
+                //     if($checkSoCategory){
+                //         $checkSoCategory->increment('product_abnormal');
+                //     }
+                // }
 
+            } else if (isset($qualityData['non']) && $qualityData['non'] != null) {
                 $modelClass = New_product::class;
 
                 if ($riwayatCheck->status_file == 1) {
-
                     ProductDefect::create([
                         'riwayat_check_id' => $riwayatCheck->id,
                         'code_document' => $document->code_document,
@@ -442,53 +477,49 @@ class BastApprovalController extends Controller
             }
 
             $redisKey = 'product_batch';
-
             $batchSize = 15;
 
             if (isset($modelClass)) {
-
-                Redis::rpush(
-                    $redisKey,
-                    json_encode($inputData)
-                );
+                Redis::rpush($redisKey, json_encode($inputData));
 
                 $listSize = Redis::llen($redisKey);
 
                 if ($listSize >= $batchSize) {
-
                     ProductBatch::dispatch($batchSize);
                 }
             }
+            $this->deleteOldProduct($inputData['code_document'], $request->input('old_barcode_product'));
 
-            $this->deleteOldProduct(
-                $inputData['code_document'],
-                $request->input('old_barcode_product')
-            );
+            UserScanWeb::updateOrCreateDailyScan($userId, $document->id);
 
-            UserScanWeb::updateOrCreateDailyScan(
-                $userId,
-                $document->id
-            );
 
-            $this->updateDocumentStatus(
-                $request->input('code_document')
-            );
+            // $totalDiscrepancy = Product_old::where('code_document', $request->input('code_document'))->pluck('code_document');
+
+            // $riwayatCheck->update([
+            //     'total_data_in' => $totalDataIn,
+            //     'total_data_lolos' => $riwayatCheck->total_data_lolos,
+            //     'total_data_damaged' => $riwayatCheck->total_data_damaged,
+            //     'total_data_abnormal' => $riwayatCheck->total_data_abnormal,
+            //     'total_discrepancy' => count($totalDiscrepancy),
+            //     'status_approve' => 'pending',
+            //     // persentase
+            //     'percentage_total_data' => ($document->total_column_in_document / $document->total_column_in_document) * 100,
+            //     'percentage_in' => ($totalDataIn / $document->total_column_in_document) * 100,
+            //     'percentage_lolos' => ($riwayatCheck->total_data_lolos / $document->total_column_in_document) * 100,
+            //     'percentage_damaged' => ($riwayatCheck->total_data_damaged / $document->total_column_in_document) * 100,
+            //     'percentage_abnormal' => ($riwayatCheck->total_data_abnormal / $document->total_column_in_document) * 100,
+            //     'percentage_discrepancy' => (count($totalDiscrepancy) / $document->total_column_in_document) * 100,
+            // ]);
+            //end data history
+
+            $this->updateDocumentStatus($request->input('code_document'));
 
             DB::commit();
 
-            return new ProductapproveResource(
-                true,
-                true,
-                "New Produk Berhasil ditambah",
-                $inputData
-            );
+            return new ProductapproveResource(true, true, "New Produk Berhasil ditambah", $inputData);
         } catch (\Exception $e) {
-
-            DB::rollBack();
-
-            return response()->json([
-                'error' => $e->getMessage()
-            ], 500);
+            DB::rollback();
+            return response()->json(['error' => $e->getMessage()], 500);
         }
     }
 
@@ -657,24 +688,22 @@ class BastApprovalController extends Controller
                 ];
 
                 if ($isAdminOrSpv) {
-                    $historyData['notification_id'] = null;
-                    $historyData['status'] = 'approved';
-                    $historyData['approver_id'] = $userId;
-
                     ProductEditHistory::create($historyData);
                 } else {
-                    $inputData['is_pending'] = true;
+                    // legacy bypass
+                    $inputData['is_pending'] = false;
+
                     $roleName = $user && $user->role ? $user->role->role_name : 'Crew';
 
                     $notification = Notification::create([
                         'notification_name' => 'Approval Perubahan Data: ' . $inputData['new_barcode_product'],
-                        'status' => 'pending_approval',
+                        'status' => 'approved',
                         'user_id' => $userId,
                         'role' => $roleName,
                     ]);
 
                     $historyData['notification_id'] = $notification->id;
-                    $historyData['status'] = 'pending';
+                    $historyData['status'] = 'approved';
 
                     ProductEditHistory::create($historyData);
                 }
