@@ -324,7 +324,6 @@ class MigrateDocumentController extends Controller
         $user = auth()->user();
         $userId = $user->id;
 
-        // 1. EAGER LOADING
         $migrateDocuments = MigrateDocument::with('migrates')
             ->where('user_id', $userId)
             ->where('status_document_migrate', 'proses')
@@ -432,50 +431,52 @@ class MigrateDocumentController extends Controller
                 \App\Models\ColorRack::whereIn('id', array_unique($rackIdsToUpdate))->update(['status' => 'migrate']);
             }
 
+            $posService = new PosService();
+            $successCount = 0;
+            $processedDocuments = [];
+
+            foreach ($apiPayloads as $payload) {
+                $doc = $payload['document'];
+                $products = $payload['products'];
+
+                if ($products->isEmpty()) {
+                    $successCount++;
+                    $processedDocuments[] = $doc;
+                    continue;
+                }
+
+                try {
+                    $posService->sendBatchProducts(
+                        $doc->code_document_migrate,
+                        $payload['token'],
+                        array_values($products->toArray())
+                    );
+
+                    $successCount++;
+                    $processedDocuments[] = $doc;
+
+                    $pesanLog = "Berhasil mengirim {$products->count()} Item sekaligus ke POS untuk Dokumen {$doc->code_document_migrate}.";
+                    Log::info($pesanLog);
+                    logUserAction($request, $user, 'Migrate Document Finish', $pesanLog);
+                } catch (\Exception $e) {
+                    throw new \Exception("POS API Error pada dokumen {$doc->code_document_migrate}: " . $e->getMessage());
+                }
+            }
+
             DB::commit();
+
+            $pesanSummary = "Berhasil memproses {$successCount} dari " . count($apiPayloads) . " dokumen migrasi.";
+            logUserAction($request, $user, 'Migrate Document Summary', $pesanSummary);
+
+            return new ResponseResource(true, $pesanSummary, $processedDocuments);
         } catch (\Exception $e) {
             DB::rollBack();
-            Log::error("Migrate Prepare Error: " . $e->getMessage());
-            return (new ResponseResource(false, 'Gagal menyiapkan data migrasi: ' . $e->getMessage(), []))
+
+            Log::error("Migrate Gagal Diselesaikan: " . $e->getMessage());
+
+            return (new ResponseResource(false, 'Gagal menyelesaikan migrasi: ' . $e->getMessage(), []))
                 ->response()->setStatusCode(500);
         }
-
-        $posService = new PosService();
-        $successCount = 0;
-        $processedDocuments = [];
-
-        foreach ($apiPayloads as $payload) {
-            $doc = $payload['document'];
-            $products = $payload['products'];
-
-            if ($products->isEmpty()) {
-                $successCount++;
-                $processedDocuments[] = $doc;
-                continue;
-            }
-
-            try {
-                $posService->sendBatchProducts(
-                    $doc->code_document_migrate,
-                    $payload['token'],
-                    array_values($products->toArray())
-                );
-
-                $successCount++;
-                $processedDocuments[] = $doc;
-
-                $pesanLog = "Berhasil mengirim {$products->count()} Item sekaligus ke POS untuk Dokumen {$doc->code_document_migrate}.";
-                Log::info($pesanLog);
-                logUserAction($request, $user, 'Migrate Document Finish', $pesanLog);
-            } catch (\Exception $e) {
-                Log::error("POS API Error untuk Dokumen {$doc->code_document_migrate}: " . $e->getMessage());
-            }
-        }
-
-        $pesanSummary = "Berhasil memproses {$successCount} dari " . count($apiPayloads) . " dokumen migrasi.";
-        logUserAction($request, $user, 'Migrate Document Summary', $pesanSummary);
-
-        return new ResponseResource(true, $pesanSummary, $processedDocuments);
     }
 
     public function exportMigrateDetail($id)

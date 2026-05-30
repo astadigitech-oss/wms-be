@@ -27,17 +27,22 @@ use App\Http\Controllers\FilterBklController;
 use App\Http\Controllers\FilterProductInputController;
 use App\Http\Controllers\FilterQcdController;
 use App\Http\Controllers\FilterStagingController;
+use App\Http\Controllers\Fixing\FixingController;
 use App\Http\Controllers\FormatBarcodeController;
 use App\Http\Controllers\GenerateController;
+use App\Http\Controllers\Inbound\BastApprovalController;
+use App\Http\Controllers\Inbound\HalamanApprovalController;
 use App\Http\Controllers\LoyaltyRankController;
 use App\Http\Controllers\MigrateBulkyController;
 use App\Http\Controllers\MovementProductController;
 use App\Http\Controllers\MigrateBulkyProductController;
 use App\Http\Controllers\MigrateController;
 use App\Http\Controllers\MigrateDocumentController;
+use App\Http\Controllers\Outbound\CargoController;
 use App\Http\Controllers\NewProductController;
 use App\Http\Controllers\NonDocumentController;
 use App\Http\Controllers\NotificationController;
+use App\Http\Controllers\Outbound\BagController;
 use App\Http\Controllers\PaletBrandController;
 use App\Http\Controllers\PaletController;
 use App\Http\Controllers\PaletFilterController;
@@ -57,6 +62,7 @@ use App\Http\Controllers\ProductSoController;
 use App\Http\Controllers\ProductStatusController;
 use App\Http\Controllers\PromoController;
 use App\Http\Controllers\RackController;
+use App\Http\Controllers\Repair\AdjustRepairController;
 use App\Http\Controllers\RepairController;
 use App\Http\Controllers\RepairFilterController;
 use App\Http\Controllers\RepairProductController;
@@ -87,6 +93,97 @@ use Illuminate\Support\Facades\Route;
 |--------------------------------------------------------------------------
 | Patokan urutan role umum: Admin, Spv, Team leader, Admin Kasir, Crew, Reparasi
 */
+
+Route::middleware([
+    'auth:sanctum',
+    'check.role:Admin,Spv,Team leader,Captain,TeamLeader,Crew'
+])->group(function () {
+
+    // =====================================================================
+    // FIXING
+    // =====================================================================
+    Route::post(
+        'fixing/sync-actual-quality-to-note',
+        [FixingController::class, 'syncNoteFromStaging']
+    );
+
+    // =====================================================================
+    // CARGO
+    // =====================================================================
+
+    // SPV / Admin / TL only
+    Route::middleware([
+        'check.role:Admin,Spv,Team leader,TeamLeader'
+    ])->group(function () {
+
+        Route::get('cargo/{idCargo}/bags', [CargoController::class, 'listBagCargo']);
+        Route::get('cargo/{idCargo}/info', [CargoController::class, 'infoDetailCargo']);
+
+        Route::post('cargo', [CargoController::class, 'buatCargo']);
+        Route::post('cargo/add-bag/{idCargo}', [CargoController::class, 'tambahBag']);
+        Route::post('cargo/{idCargo}/takeout-bag', [CargoController::class, 'takeoutBag']);
+        Route::post('cargo/{idCargo}/set-volume-berat', [CargoController::class, 'setVolumeDanBerat']);
+        Route::post('cargo/{idCargo}/toggle-status-bulky', [CargoController::class, 'toggleStatusBulky']);
+    });
+
+    // =====================================================================
+    // BAG - VIEW ACCESS
+    // =====================================================================
+
+    // Semua role bisa lihat
+    Route::get('bag', [BagController::class, 'index']);
+    Route::get('bag/{idBag}', [BagController::class, 'listProdukBag']);
+    Route::get('bag/{idBag}/info', [BagController::class, 'infoDetailBag']);
+
+    // =====================================================================
+    // BAG - SPV / ADMIN / TL
+    // =====================================================================
+
+    Route::middleware([
+        'check.role:Admin,Spv,Team leader,TeamLeader'
+    ])->group(function () {
+
+        Route::post('bag/{idBag}/toggle-status', [BagController::class, 'toggleStatusBag']);
+    });
+
+    // =====================================================================
+    // BAG - CREW / CAPTAIN
+    // =====================================================================
+
+    Route::middleware([
+        'check.role:Admin,Captain,TeamLeader,Crew'
+    ])->group(function () {
+
+        Route::post('bag', [BagController::class, 'buatBag']);
+        Route::post('bag/add-product/{idBag}', [BagController::class, 'tambahProdukKeBag']);
+        Route::post('bag/remove-product/{idProduct}', [BagController::class, 'takeOutBarangbulky']);
+    });
+});
+// ========================================================================================================
+// 0. Fixing Helper - Edit Waktu Scan
+// ========================================================================================================
+Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Crew,Captain'])->group(function () {
+    Route::post('edit-scan', [BastApprovalController::class, 'mintaApproveDataAsal']);
+    Route::get('scan-paused', [BastApprovalController::class, 'checkScanPaused']);
+    Route::post('scanner-bast', [BastApprovalController::class, 'scannerBaru']);
+    Route::post('product-approves', [BastApprovalController::class, 'scannerSubmitBaru']);
+});
+
+// ========================================================================================================
+// 0. Fixing Helper - Approval BAST pake SPV aja
+// ========================================================================================================
+Route::middleware(['auth:sanctum', 'check.role:Admin,Spv'])->group(function () {
+    Route::get('approval-bast', [HalamanApprovalController::class, 'listApprovalBast']);
+    Route::post('approval-bast/{id}/approve', [HalamanApprovalController::class, 'approveBast']);
+    Route::post('approval-bast/{id}/reject', [HalamanApprovalController::class, 'rejectBast']);
+});
+
+// ========================================================================================================
+// 0. Fixing Helper - Adjust Repair (Update Produk Repair Langsung)
+// ========================================================================================================
+Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Admin Kasir,Reparasi,Captain'])->group(function () {
+    Route::put('repair/update/{id}', [AdjustRepairController::class, 'updateRepair']);
+});
 
 // ========================================================================================================
 // 1. AUTH & PUBLIC ROUTES
@@ -163,6 +260,7 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Kasir leade
     Route::resource('user_scan_webs', UserScanWebController::class)->only(['index', 'show']);
     Route::get('user_scan_webs/{code_document}', [UserScanWebController::class, 'detail_user_scan'])->where('code_document', '.*');
     Route::get('total_scan_users', [UserScanWebController::class, 'total_user_scans']);
+    Route::get('cogs-channels', [GenerateController::class, 'getChannels']);
 });
 
 // [WRITE / POST / ACTION - TANPA Audit]
@@ -193,7 +291,7 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Crew,Audit,
 
 // [WRITE / POST / ACTION - TANPA Audit]
 Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Crew,Captain'])->group(function () {
-    Route::post('product-approves', [ProductApproveController::class, 'store']);
+    // Route::post('product-approves', [ProductApproveController::class, 'store']);
     Route::post('addProductOld', [ProductApproveController::class, 'addProductOld']);
     Route::resource('/documents', DocumentController::class)->except(['index', 'show', 'destroy']);
     Route::post('historys', [RiwayatCheckController::class, 'store']);
@@ -258,7 +356,7 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Kasir leader,Admin Kasi
 // ========================================================================================================
 
 // [READ ONLY - Termasuk Audit]
-Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Admin Kasir,Kasir leader,Audit'])->group(function () {
+Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Admin Kasir,Kasir leader,Audit,Captain'])->group(function () {
     Route::get('new_product/slow_moving', [NewProductController::class, 'slowMov']);
     Route::get('new_product/expired', [NewProductController::class, 'listProductExp']);
     Route::get('promo', [PromoController::class, 'index']);
@@ -292,7 +390,7 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Admin Kasir
 });
 
 // [WRITE / POST / ACTION - TANPA Audit]
-Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Admin Kasir,Reparasi'])->group(function () {
+Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Admin Kasir,Reparasi,Captain'])->group(function () {
     Route::post('qcd/filter_product/{id}/add', [FilterQcdController::class, 'store']);
     Route::delete('qcd/destroy/{id}', [FilterQcdController::class, 'destroy']);
     Route::post('bundle/qcd', [ProductQcdController::class, 'store']);
@@ -303,7 +401,7 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Admin Kasir
     Route::delete('repair-mv/filter_product/destroy/{id}', [RepairFilterController::class, 'destroy']);
     Route::post('repair-mv', [RepairProductController::class, 'store']);
     Route::delete('repair-mv/{repair}', [RepairController::class, 'destroy']);
-    Route::put('repair/update/{id}', [NewProductController::class, 'updateRepair']);
+    // Route::put('repair/update/{id}', [NewProductController::class, 'updateRepair']);
     Route::delete('repair-mv/destroy/{id}', [RepairProductController::class, 'destroy']);
     Route::put('product-repair/{repairProduct}', [RepairProductController::class, 'update']);
     Route::delete('product-repair/{repairProduct}', [RepairProductController::class, 'destroy']);
@@ -743,6 +841,7 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Admin Kasir
     Route::get('sale-products', [SaleController::class, 'products']);
     Route::get('bulky-products-cargo', [BulkySaleController::class, 'productsCargo']);
     Route::get('list-color-cargo', [BagProductsController::class, 'getColorCargo']);
+    Route::get('export-cargo-products', [BulkySaleController::class, 'exportCargoProducts']);
     Route::get('buyers', [BuyerController::class, 'index']);
     Route::get('bulky-filter-approve/{user_id}', [PaletController::class, 'bulkyFilterApprove']);
     Route::get('bulky-filter-palet', [PaletController::class, 'listFilterToBulky']);
@@ -823,6 +922,7 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Admin Kasir
     Route::get('sku-products/history-bundling', [SkuProductController::class, 'getHistoryBundling']);
     Route::get('sku-product-old/{id}/export', [SkuProductOldController::class, 'export']);
     Route::get('sku-product/export-bundling', [SkuProductController::class, 'exportBundlingSku']);
+    Route::get('sku-product/export', [SkuProductController::class, 'exportSkuProducts']);
     Route::get('exportBundles', [BundleController::class, 'exportBundles']);
     Route::resource('sku-products', SkuProductController::class)->only(['index', 'show']);
     Route::resource('sku-product-old', SkuProductOldController::class)->only(['index', 'show']);

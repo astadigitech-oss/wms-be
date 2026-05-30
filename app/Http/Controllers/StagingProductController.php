@@ -45,73 +45,92 @@ class StagingProductController extends Controller
     public function index(Request $request)
     {
         $searchQuery = $request->input('q');
+        $rackStatus = $request->input('rack_status');
         // $page = $request->input('page', 1);
+
         try {
-            // Buat query dasar untuk StagingProduct
             $newProductsQuery = StagingProduct::query()
+                ->leftJoin('racks', 'staging_products.rack_id', '=', 'racks.id')
                 ->select(
-                    'id',
-                    'new_barcode_product',
-                    'new_name_product',
-                    'new_category_product',
-                    'new_price_product',
-                    'new_status_product',
-                    'display_price',
-                    'new_date_in_product',
-                    'stage',
-                    'is_so',
-                    DB::raw("'staging' as source")
+                    'staging_products.id',
+                    'staging_products.new_barcode_product',
+                    'staging_products.new_name_product',
+                    'staging_products.new_category_product',
+                    'staging_products.new_price_product',
+                    'staging_products.new_status_product',
+                    'staging_products.display_price',
+                    'staging_products.new_date_in_product',
+                    'staging_products.stage',
+                    'staging_products.is_so',
+                    DB::raw("'staging' as source"),
+                    'racks.barcode',
+                    'racks.name'
                 )
-                ->whereNotIn('new_status_product', ['dump', 'sale', 'migrate', 'repair', 'scrap_qcd'])
+                ->whereNotIn('staging_products.new_status_product', ['dump', 'sale', 'migrate', 'repair', 'scrap_qcd'])
                 ->where(function ($query) {
-                    $query->whereRaw("JSON_UNQUOTE(JSON_EXTRACT(new_quality, '$.lolos')) = 'lolos'")
-                        ->orWhereRaw("JSON_UNQUOTE(JSON_EXTRACT(JSON_UNQUOTE(new_quality), '$.lolos')) = 'lolos'");
+                    $query->whereRaw("JSON_UNQUOTE(JSON_EXTRACT(staging_products.new_quality, '$.lolos')) = 'lolos'")
+                        ->orWhereRaw("JSON_UNQUOTE(JSON_EXTRACT(JSON_UNQUOTE(staging_products.new_quality), '$.lolos')) = 'lolos'");
                 })
-                ->whereNull('new_tag_product')
-                ->whereNull('stage')
-                ->where('is_pending', false)
-                ->whereNotNull('new_category_product') //  diperbarui dari lokal
-                ->whereNot('new_category_product', '') // diperbarui dari lokal
-                ->latest();
+                ->whereNull('staging_products.new_tag_product')
+                ->whereNull('staging_products.stage')
+                ->where('staging_products.is_pending', false)
+                ->whereNotNull('staging_products.new_category_product')
+                ->whereNot('staging_products.new_category_product', '')
+                ->orderBy('staging_products.created_at', 'desc');
 
             $bundleQuery = Bundle::query()
+                ->leftJoin('racks', 'bundles.rack_id', '=', 'racks.id')
                 ->select(
-                    'id',
-                    'barcode_bundle as new_barcode_product',
-                    'name_bundle as new_name_product',
-                    'category as new_category_product',
-                    'total_price_custom_bundle as new_price_product',
-                    DB::raw("CASE WHEN product_status = 'not sale' THEN 'display' ELSE product_status END as new_status_product"),
-                    'total_price_custom_bundle as display_price',
-                    'created_at as new_date_in_product',
+                    'bundles.id',
+                    'bundles.barcode_bundle as new_barcode_product',
+                    'bundles.name_bundle as new_name_product',
+                    'bundles.category as new_category_product',
+                    'bundles.total_price_custom_bundle as new_price_product',
+                    DB::raw("CASE WHEN bundles.product_status = 'not sale' THEN 'display' ELSE bundles.product_status END as new_status_product"),
+                    'bundles.total_price_custom_bundle as display_price',
+                    'bundles.created_at as new_date_in_product',
                     DB::raw("NULL as stage"),
-                    'is_so',
-                    DB::raw("'bundle' as source")
+                    'bundles.is_so',
+                    DB::raw("'bundle' as source"),
+                    'racks.barcode',
+                    'racks.name'
                 )
-                ->whereNotNull('category')
-                ->where('source', 'staging')
-                ->where('name_color',  NULL)
-                ->where('product_status', 'not sale')
+                ->whereNotNull('bundles.category')
+                ->where('bundles.source', 'staging')
+                ->where('bundles.name_color', NULL)
+                ->where('bundles.product_status', 'not sale')
                 ->where(function ($type) {
-                    $type->whereNull('type')
-                        ->orWhere('type', 'type1')
-                        ->orWhere('type', 'type2');
+                    $type->whereNull('bundles.type')
+                        ->orWhere('bundles.type', 'type1')
+                        ->orWhere('bundles.type', 'type2');
                 });
 
             if ($searchQuery) {
                 $newProductsQuery->where(function ($queryBuilder) use ($searchQuery) {
-                    $queryBuilder->where('old_barcode_product', 'LIKE', '%' . $searchQuery . '%')
-                        ->orWhere('new_barcode_product', 'LIKE', '%' . $searchQuery . '%')
-                        ->orWhere('new_category_product', 'LIKE', '%' . $searchQuery . '%')
-                        ->orWhere('new_name_product', 'LIKE', '%' . $searchQuery . '%');
+                    $queryBuilder->where('staging_products.old_barcode_product', 'LIKE', '%' . $searchQuery . '%')
+                        ->orWhere('staging_products.new_barcode_product', 'LIKE', '%' . $searchQuery . '%')
+                        ->orWhere('staging_products.new_category_product', 'LIKE', '%' . $searchQuery . '%')
+                        ->orWhere('staging_products.new_name_product', 'LIKE', '%' . $searchQuery . '%')
+                        ->orWhere('racks.barcode', 'LIKE', '%' . $searchQuery . '%')
+                        ->orWhere('racks.name', 'LIKE', '%' . $searchQuery . '%');
                 });
 
                 $bundleQuery->where(function ($queryBuilder) use ($searchQuery) {
-                    $queryBuilder->where('barcode_bundle', 'LIKE', '%' . $searchQuery . '%')
-                        ->orWhere('name_bundle', 'LIKE', '%' . $searchQuery . '%')
-                        ->orWhere('category', 'LIKE', '%' . $searchQuery . '%')
-                        ->orWhere('product_status', 'LIKE', '%' . $searchQuery . '%');
+                    $queryBuilder->where('bundles.barcode_bundle', 'LIKE', '%' . $searchQuery . '%')
+                        ->orWhere('bundles.name_bundle', 'LIKE', '%' . $searchQuery . '%')
+                        ->orWhere('bundles.category', 'LIKE', '%' . $searchQuery . '%')
+                        ->orWhere('bundles.product_status', 'LIKE', '%' . $searchQuery . '%')
+                        ->orWhere('racks.barcode', 'LIKE', '%' . $searchQuery . '%')
+                        ->orWhere('racks.name', 'LIKE', '%' . $searchQuery . '%');
                 });
+            }
+
+            if ($rackStatus === 'null') {
+                $newProductsQuery->whereNull('racks.barcode');
+                $bundleQuery->whereNull('racks.barcode');
+            } elseif ($rackStatus === 'not_null') {
+                $newProductsQuery->whereNotNull('racks.barcode');
+                $bundleQuery->whereNotNull('racks.barcode');
             }
 
             $unionQuery = $newProductsQuery->unionAll($bundleQuery);

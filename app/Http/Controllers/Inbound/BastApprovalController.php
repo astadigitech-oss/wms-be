@@ -1,81 +1,207 @@
 <?php
 
-namespace App\Http\Controllers;
+namespace App\Http\Controllers\Inbound;
 
-use Carbon\Carbon;
-use App\Models\User;
-use App\Models\SoColor;
+use App\Http\Controllers\Controller;
+use App\Http\Resources\DuplicateRequestResource;
+use App\Http\Resources\ProductapproveResource;
+use App\Http\Resources\ResponseResource;
+use App\Jobs\ProductBatch;
 use App\Models\Category;
 use App\Models\Document;
-use App\Jobs\ProductBatch;
 use App\Models\New_product;
-use App\Models\Product_old;
-use App\Models\UserScanWeb;
 use App\Models\Notification;
-use App\Models\RiwayatCheck;
-use Illuminate\Http\Request;
-use App\Models\ProductDefect;
+use App\Models\Product_old;
 use App\Models\ProductApprove;
+use App\Models\ProductDefect;
+use App\Models\ProductEditHistory;
+use App\Models\RiwayatCheck;
+use App\Models\ScanPending;
 use App\Models\StagingProduct;
-use App\Models\SummarySoColor;
-use App\Models\SummarySoCategory;
+use App\Models\UserScanWeb;
+use Carbon\Carbon;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Redis;
-use App\Http\Resources\ResponseResource;
 use Illuminate\Support\Facades\Validator;
-use App\Http\Resources\ProductapproveResource;
-use App\Http\Resources\DuplicateRequestResource;
-use App\Models\ProductEditHistory;
-use App\Services\MovementService;
+use Throwable;
 
-class ProductApproveController extends Controller
+class BastApprovalController extends Controller
 {
-    // Array bulan dalam bahasa Indonesia
-
-    /**
-     * Display a listing of the resource.
-     */
-    public function index(Request $request)
+    public function mintaApproveDataAsal(Request $request)
     {
-        $query = $request->input('q');
-        $newProducts = ProductApprove::latest()->where(function ($queryBuilder) use ($query) {
-            $queryBuilder->where('old_barcode_product', 'LIKE', '%' . $query . '%')
-                ->orWhere('new_barcode_product', 'LIKE', '%' . $query . '%')
-                ->orWhere('new_tag_product', 'LIKE', '%' . $query . '%')
-                ->orWhere('new_category_product', 'LIKE', '%' . $query . '%')
-                ->orWhere('new_name_product', 'LIKE', '%' . $query . '%');
-        })->whereNotIn('new_status_product', ['dump', 'expired', 'sale', 'migrate', 'repair'])->paginate(100);
+        $validator = Validator::make(
+            $request->all(),
+            [
+                'id_asal'     => 'required|exists:product_olds,id',
+                'edited_name' => 'nullable|string',
+                'edited_qty'  => 'nullable|integer',
+            ]
+        );
 
-        return new ResponseResource(true, "list new product", $newProducts);
-    }
-
-    public function byDocument(Request $request)
-    {
-        $query = $request->input('code_document');
-
-        $newProducts = ProductApprove::where('code_document', $query)->paginate(100);
-
-        if ($newProducts->isEmpty()) {
-            return new ResponseResource(false, "No data found", null);
+        if ($validator->fails()) {
+            return (new ResponseResource(
+                false,
+                'Validation error',
+                $validator->errors()
+            ))->response()->setStatusCode(422);
         }
 
-        return new ResponseResource(true, "List new products", $newProducts);
+        DB::beginTransaction();
+
+        try {
+            $user = auth()->user();
+
+            $data = ScanPending::where('source_model', 'Product_old')
+                ->where('source_id', $request->id_asal)
+                ->where('status', 'pending')
+                ->first();
+
+            if ($data) {
+                return (new ResponseResource(
+                    false,
+                    'Request approve untuk data ini sudah dibuat',
+                    null
+                ))->response()->setStatusCode(422);
+            }
+
+            $scanPending = ScanPending::create([
+                'source_model' => 'Product_old',
+                'source_id'    => $request->id_asal,
+                'edited_name'  => $request->edited_name,
+                'edited_qty'   => $request->edited_qty,
+                'editor_id'    => $user->id,
+            ]);
+
+            DB::commit();
+
+            return (new ResponseResource(
+                true,
+                'Request approve berhasil dibuat',
+                $scanPending
+            ))->response()->setStatusCode(200);
+        } catch (Throwable $e) {
+
+            DB::rollBack();
+
+            Log::error('Gagal membuat approval data asal', [
+                'error' => $e->getMessage(),
+                'line'  => $e->getLine(),
+                'file'  => $e->getFile(),
+            ]);
+
+            return (new ResponseResource(
+                false,
+                'Terjadi kesalahan pada server',
+                null
+            ))->response()->setStatusCode(500);
+        }
     }
 
-    /**
-     * Show the form for creating a new resource.
-     */
-    public function create()
+    public function checkScanPaused()
     {
-        //
+        try {
+
+            $user = auth()->user();
+
+            $hasPendingApproval = \App\Models\ScanPending::where('editor_id', $user->id)
+                ->where('status', 'pending')
+                ->exists();
+
+            $idSourceProducts = \App\Models\ScanPending::where('editor_id', $user->id)
+                ->where('status', 'pending')
+                ->where('source_model', 'Product_old')
+                ->pluck('source_id')
+                ->toArray();
+
+            $barcodeOldProducts = \App\Models\Product_old::whereIn('id', $idSourceProducts)->first();
+            // dd($barcodeOldProducts->old_barcode_product);
+
+            return (new ResponseResource(
+                true,
+                'Success',
+                [
+                    'barcode_old_product' => $barcodeOldProducts?->old_barcode_product,
+                    'scan_paused' => $hasPendingApproval
+                ]
+            ))->response()->setStatusCode(200);
+        } catch (\Throwable $e) {
+
+            Log::error('Gagal check scan paused', [
+                'error' => $e->getMessage(),
+                'line'  => $e->getLine(),
+                'file'  => $e->getFile(),
+            ]);
+            // dd($e->getMessage());
+
+            return (new ResponseResource(
+                false,
+                'Terjadi kesalahan pada server',
+                null
+            ))->response()->setStatusCode(500);
+        }
     }
 
-    /**
-     * Store a newly created resource in storage.
-     */
+    public function scannerBaru(Request $request)
+    {
+        $codeDocument = $request->input('code_document');
+        $oldBarcode = $request->input('old_barcode_product');
 
-    public function store(Request $request)
+        if (!$codeDocument) {
+            return new ResponseResource(false, "Code document tidak boleh kosong.", null);
+        }
+
+        if (!$oldBarcode) {
+            return new ResponseResource(false, "Barcode tidak boleh kosong.", null);
+        }
+
+        $isProcessed = \App\Models\New_product::where('code_document', $codeDocument)
+            ->where('old_barcode_product', $oldBarcode)
+            ->exists();
+
+        if ($isProcessed) {
+            return new ResponseResource(false, "Produk ini sudah selesai diproses.", []);
+        }
+
+        $product = \App\Models\Product_old::where('code_document', $codeDocument)
+            ->where('old_barcode_product', $oldBarcode)
+            ->first();
+
+        if (!$product) {
+            return new ResponseResource(false, "Produk ini sudah selesai di scan", []);
+        }
+
+        $approvedPending = \App\Models\ScanPending::where('source_model', 'Product_old')
+            ->where('source_id', $product->id)
+            ->where('status', 'approved')
+            ->latest()
+            ->first();
+        // dd($approvedPending, $product->id);
+
+        $product->edited_name_product =
+            $approvedPending?->edited_name ?? $product->old_name_product;
+        // dd($product->edited_name_product);
+
+        $product->edited_quantity_product =
+            $approvedPending?->edited_qty ?? $product->old_quantity_product;
+
+        $product->approval_status = $approvedPending?->status;
+
+        $response = [
+            'product' => $product
+        ];
+
+        if ($product->old_price_product <= 99999) {
+            $response['color_tags'] = \App\Models\Color_tag::where('min_price_color', '<=', $product->old_price_product)
+                ->where('max_price_color', '>=', $product->old_price_product)
+                ->get();
+        }
+
+        return new ResponseResource(true, "Produk ditemukan.", $response);
+    }
+
+    public function scannerSubmitBaru(Request $request)
     {
         $userId = auth()->id();
         $validator = Validator::make($request->all(), [
@@ -239,12 +365,14 @@ class ProductApproveController extends Controller
 
                     ProductEditHistory::create($historyData);
                 } else {
-                    $inputData['is_pending'] = true;
+                    // BYPASS LEGACY APPROVAL SYSTEM
+                    $inputData['is_pending'] = false;
+
                     $roleName = $user && $user->role ? $user->role->role_name : 'Crew';
 
                     $notification = Notification::create([
                         'notification_name' => 'Approval Perubahan Data: ' . $inputData['new_barcode_product'],
-                        'status' => 'pending_approval',
+                        'status' => 'approved',
                         'user_id' => $userId,
                         'role' => $roleName,
                     ]);
@@ -362,24 +490,6 @@ class ProductApproveController extends Controller
             }
             $this->deleteOldProduct($inputData['code_document'], $request->input('old_barcode_product'));
 
-            // [Movement] pending → staging_reguler / display_color
-            if ($qualityData['lolos'] !== null) {
-                $moveTo = $inputData['new_tag_product'] ? 'display_color' : 'staging_reguler';
-                try {
-                    MovementService::log(
-                        productId: $inputData['new_barcode_product'],
-                        isSku: false,
-                        type: 'In',
-                        typeOut: null,
-                        from: 'pending',
-                        to: $moveTo,
-                        qty: $inputData['new_quantity_product']
-                    );
-                } catch (\Exception $e) {
-                    Log::error('[Movement] QC scan log failed: ' . $e->getMessage());
-                }
-            }
-            
             UserScanWeb::updateOrCreateDailyScan($userId, $document->id);
 
 
@@ -578,24 +688,22 @@ class ProductApproveController extends Controller
                 ];
 
                 if ($isAdminOrSpv) {
-                    $historyData['notification_id'] = null;
-                    $historyData['status'] = 'approved';
-                    $historyData['approver_id'] = $userId;
-
                     ProductEditHistory::create($historyData);
                 } else {
-                    $inputData['is_pending'] = true;
+                    // legacy bypass
+                    $inputData['is_pending'] = false;
+
                     $roleName = $user && $user->role ? $user->role->role_name : 'Crew';
 
                     $notification = Notification::create([
                         'notification_name' => 'Approval Perubahan Data: ' . $inputData['new_barcode_product'],
-                        'status' => 'pending_approval',
+                        'status' => 'approved',
                         'user_id' => $userId,
                         'role' => $roleName,
                     ]);
 
                     $historyData['notification_id'] = $notification->id;
-                    $historyData['status'] = 'pending';
+                    $historyData['status'] = 'approved';
 
                     ProductEditHistory::create($historyData);
                 }
@@ -603,24 +711,6 @@ class ProductApproveController extends Controller
 
             $this->deleteOldProduct($inputData['code_document'], $inputData['old_barcode_product']);
 
-            // [Movement] pending → staging_reguler / display_color
-            if ($qualityData['lolos'] !== null) {
-                $moveTo = $inputData['new_tag_product'] ? 'display_color' : 'staging_reguler';
-                try {
-                    MovementService::log(
-                        productId: $inputData['new_barcode_product'],
-                        isSku: false,
-                        type: 'In',
-                        typeOut: null,
-                        from: 'pending',
-                        to: $moveTo,
-                        qty: $inputData['new_quantity_product']
-                    );
-                } catch (\Exception $e) {
-                    Log::error('[Movement] QC scan (addProductOld) log failed: ' . $e->getMessage());
-                }
-            }
-            
             $riwayatCheck = RiwayatCheck::where('code_document', $request->input('code_document'))->first();
             $totalDataIn = 1 + $riwayatCheck->total_data_in;
 
@@ -665,479 +755,6 @@ class ProductApproveController extends Controller
         } catch (\Exception $e) {
             DB::rollback();
             return response()->json(['error' => $e->getMessage()], 500);
-        }
-    }
-
-    /**
-     * Display the specified resource.
-     */
-    public function show(ProductApprove $productApprove)
-    {
-        $category = Category::where('name_category', $productApprove['new_category_product'])->first();
-        $productApprove['discount_category'] = $category ? $category->discount_category : null;
-        return new ResponseResource(true, "data new product", $productApprove);
-    }
-
-    /**
-     * Show the form for editing the specified resource.
-     */
-    public function edit(ProductApprove $productApprove)
-    {
-        //
-    }
-
-    /**
-     * Update the specified resource in storage.
-     */
-    public function update(Request $request, ProductApprove $productApprove)
-    {
-        $validator = Validator::make($request->all(), [
-            'code_document' => 'required',
-            'old_barcode_product' => 'required',
-            'new_barcode_product' => 'required',
-            'new_name_product' => 'required',
-            'new_quantity_product' => 'required|integer',
-            'new_price_product' => 'required|numeric',
-            'old_price_product' => 'required|numeric',
-            'new_status_product' => 'required|in:display,expired,promo,bundle,palet,dump,sale,migrate',
-            'condition' => 'required|in:lolos,damaged,abnormal,non',
-            'new_category_product' => 'nullable',
-            'new_tag_product' => 'nullable|exists:color_tags,name_color',
-            'new_discount',
-            'display_price',
-        ]);
-
-        if ($validator->fails()) {
-            return response()->json(['errors' => $validator->errors()], 422);
-        }
-
-        $status = $request->input('condition');
-        $description = $request->input('deskripsi', '');
-
-        $qualityData = [
-            'lolos' => $status === 'lolos' ? 'lolos' : null,
-            'damaged' => $status === 'damaged' ? $description : null,
-            'abnormal' => $status === 'abnormal' ? $description : null,
-            'non' => $status === 'non' ? $description : null,
-        ];
-
-        $inputData = $request->only([
-            'code_document',
-            'old_barcode_product',
-            'new_barcode_product',
-            'new_name_product',
-            'new_quantity_product',
-            'new_price_product',
-            'old_price_product',
-            'new_date_in_product',
-            'new_status_product',
-            'new_category_product',
-            'new_tag_product',
-            'new_discount',
-            'display_price',
-        ]);
-
-        $indonesiaTime = Carbon::now('Asia/Jakarta');
-        $inputData['new_date_in_product'] = $indonesiaTime->toDateString();
-
-        if ($status !== 'lolos') {
-            // Set nilai-nilai default jika status bukan 'lolos'
-            $inputData['new_price_product'] = null;
-            $inputData['new_category_product'] = null;
-        }
-
-        $inputData['new_quality'] = json_encode($qualityData);
-
-        $productApprove->update($inputData);
-
-        return new ResponseResource(true, "New Produk Berhasil di Update", $productApprove);
-    }
-
-    /**
-     * Remove the specified resource from storage.
-     */
-    public function destroy(ProductApprove $productApprove)
-    {
-        // Salin data dari ProductApprove ke New_product
-        $newProduct = new Product_old([
-            'code_document' => $productApprove->code_document,
-            'old_barcode_product' => $productApprove->old_barcode_product,
-            'old_name_product' => $productApprove->new_name_product,
-            'old_quantity_product' => $productApprove->new_quantity_product,
-            'old_price_product' => $productApprove->old_price_product,
-
-            // Tambahkan kolom lainnya sesuai kebutuhan
-        ]);
-
-        $newProduct->save(); // Simpan data baru ke New_product
-
-        // Hapus data dari ProductApprove setelah data baru tersimpan
-        $productApprove->delete();
-
-        return new ResponseResource(true, "Data berhasil dihapus dan di kembalikan ke list product scan", $newProduct);
-    }
-
-    public function deleteAll()
-    {
-        try {
-            // ListProductBP::query()->delete();
-            ProductApprove::query()->delete();
-            return new ResponseResource(true, "data berhasil dihapus", null);
-        } catch (\Exception $e) {
-            return response()->json(["error" => $e], 402);
-        }
-    }
-
-    public function getTagColor(Request $request)
-    {
-        $query = $request->input('q');
-        try {
-            $productByTagColor = ProductApprove::latest()
-                ->whereNotNull('new_tag_product')
-                ->when($query, function ($queryBuilder) use ($query) {
-                    $queryBuilder->where('new_tag_product', 'LIKE', '%' . $query . '%')
-                        ->orWhere('new_barcode_product', 'LIKE', '%' . $query . '%')
-                        ->orWhere('old_barcode_product', 'LIKE', '%' . $query . '%')
-                        ->orWhere('new_category_product', 'LIKE', '%' . $query . '%')
-                        ->orWhere('new_tag_product', 'LIKE', '%' . $query . '%')
-                        ->orWhere('new_name_product', 'LIKE', '%' . $query . '%');
-                })
-                ->paginate(50);
-        } catch (\Exception $e) {
-            return (new ResponseResource(false, "data tidak ada", $e->getMessage()))->response()->setStatusCode(500);
-        }
-
-        return new ResponseResource(true, "list product by tag color", $productByTagColor);
-    }
-
-    public function getByCategory(Request $request)
-    {
-        $query = $request->input('q');
-        try {
-            $productByTagColor = ProductApprove::latest()
-                ->whereNotNull('new_category_product')
-                ->when($query, function ($queryBuilder) use ($query) {
-                    $queryBuilder->where('new_category_product', 'LIKE', '%' . $query . '%')
-                        ->orWhere('new_barcode_product', 'LIKE', '%' . $query . '%')
-                        ->orWhere('old_barcode_product', 'LIKE', '%' . $query . '%')
-                        ->orWhere('new_category_product', 'LIKE', '%' . $query . '%')
-                        ->orWhere('new_name_product', 'LIKE', '%' . $query . '%');
-                })
-                ->paginate(50);
-        } catch (\Exception $e) {
-            return (new ResponseResource(false, "data tidak ada", $e->getMessage()))->response()->setStatusCode(500);
-        }
-
-        return new ResponseResource(true, "list product by tag color", $productByTagColor);
-    }
-
-    public function searchByDocument(Request $request)
-    {
-        $code_documents = ProductApprove::where('code_document', $request->input('search'))->paginate(50);
-
-        if ($code_documents->isNotEmpty()) {
-            return new ResponseResource(true, "list product_old", $code_documents);
-        } else {
-            return new ResponseResource(false, "code document tidak ada", null);
-        }
-    }
-
-    public function documentsApprove(Request $request)
-    {
-        $query = $request->input('q');
-
-        $notifQuery = Notification::with('riwayat_check')->latest();
-
-        if (!empty($query)) {
-            $notifQuery->whereHas('riwayat_check', function ($q) use ($query) {
-                $q->where('status_approve', $query);
-            });
-        } else {
-            $notifQuery->whereHas('riwayat_check', function ($q) {
-                $q->where('status_approve', 'pending')->orWhere('status_approve', 'done');
-            });
-        }
-
-        $documents = $notifQuery->paginate(20);
-
-        return new ResponseResource(true, "Document Approves", $documents);
-    }
-
-    public function productsApproveByDoc(Request $request, $code_document)
-    {
-        $query = $request->input('q');
-        $user = User::with('role')->find(auth()->id());
-
-        if ($user) {
-            // Memulai query builder untuk ProductApprove
-            $productsQuery = ProductApprove::where('code_document', $code_document);
-
-            // Menambahkan kondisi pencarian jika ada query
-            $productsQuery->when($query, function ($queryBuilder) use ($query) {
-                $queryBuilder->where(function ($subQuery) use ($query) {
-                    $subQuery->whereNotNull('new_category_product')
-                        ->where('new_category_product', 'LIKE', '%' . $query . '%')
-                        ->orWhere('new_barcode_product', 'LIKE', '%' . $query . '%')
-                        ->orWhere('old_barcode_product', 'LIKE', '%' . $query . '%')
-                        ->orWhere('new_name_product', 'LIKE', '%' . $query . '%')
-                        ->orWhere('new_status_product', 'LIKE', '%' . $query . '%');
-                });
-            });
-
-            $products = $productsQuery->paginate(50);
-
-            return new ResponseResource(true, 'products', $products);
-        } else {
-            return (new ResponseResource(false, "User tidak dikenali", null))->response()->setStatusCode(404);
-        }
-    }
-
-    public function delete_all_by_codeDocument(Request $request)
-    {
-        $code_document = $request->input('code_document');
-        DB::beginTransaction();
-
-        try {
-            $products = ProductApprove::where('code_document', $code_document)->get();
-
-            foreach ($products as $product) {
-                $newProduct = new Product_old([
-                    'code_document' => $product->code_document,
-                    'old_barcode_product' => $product->old_barcode_product,
-                    'old_name_product' => $product->new_name_product,
-                    'old_quantity_product' => $product->new_quantity_product,
-                    'old_price_product' => $product->old_price_product,
-                ]);
-                $newProduct->save();
-            }
-
-            ProductApprove::where('code_document', $code_document)->delete();
-
-            $document = Document::where('code_document', $code_document)->first();
-            $document->update(['status_document' => 'pending']);
-
-            DB::commit();
-            return new ResponseResource(true, "berhasil dihapus", $products);
-        } catch (\Exception $e) {
-            DB::rollBack();
-            return new ResponseResource(false, "transaksi salah: ", $e->getMessage());
-        }
-    }
-    // public function processRemainingBatch()
-    // {
-    //     $batchSize = 5;
-    //     $redisKey = 'product_batch';
-
-    //     $currentBatchCount = Redis::llen($redisKey);
-
-    //     if ($currentBatchCount > 0 && $currentBatchCount < $batchSize) {
-    //         \Log::info("Processing remaining batch data with size: $currentBatchCount");
-
-    //         ProcessProductData::dispatch($currentBatchCount, \App\Models\ProductApprove::class);
-    //     }
-    // }
-
-    public function  additionalProductSo(Request $request)
-    {
-        $userId = auth()->id();
-        $validator = Validator::make($request->all(), [
-            // 'new_barcode_product' => 'required|unique:new_products,new_barcode_product',
-            'new_name_product' => 'required',
-            'new_quantity_product' => 'required|integer',
-            'new_price_product' => 'required|numeric',
-            'new_status_product' => 'nullable|in:display,expired,promo,bundle,palet,dump',
-            'condition' => 'nullable|in:lolos,damaged,abnormal,non',
-            'new_category_product' => 'nullable|exists:categories,name_category',
-            'new_tag_product' => 'nullable|exists:color_tags,name_color'
-        ],  [
-            'new_barcode_product.unique' => 'barcode sudah ada'
-        ]);
-
-        // $validator->sometimes('new_category_product', 'required', function ($input) {
-        //     return $input->new_price_product >= 100000;
-        // });
-
-        if ($validator->fails()) {
-            return response()->json($validator->errors(), 422);
-        }
-
-        DB::beginTransaction();
-
-        try {
-            // Logika untuk memproses data
-            $status = $request->input('condition');
-            $description = $request->input('deskripsi', '');
-
-            $qualityData = [
-                'lolos' => $status === 'lolos' ? 'lolos' : null,
-                'damaged' => $status === 'damaged' ? $description : null,
-                'abnormal' => $status === 'abnormal' ? $description : null,
-                'non' => $status === 'non' ? $description : null,
-            ];
-
-
-            $inputData = $request->only([
-                'old_price_product',
-                'new_barcode_product',
-                'new_name_product',
-                'new_quantity_product',
-                'new_price_product',
-                'new_status_product',
-                'new_category_product',
-                'new_tag_product',
-                'price_discount',
-                'type',
-                'user_id',
-                'discount_categroy',
-                'is_so'
-            ]);
-
-            $inputData['new_status_product'] = 'display';
-            $inputData['user_id'] = $userId;
-            $inputData['is_so'] = 'addition';
-            $inputData['user_so'] = $userId;
-
-            $category = Category::where('name_category', $inputData['new_category_product'])->first();
-
-
-            $inputData['new_date_in_product'] = Carbon::now('Asia/Jakarta')->toDateString();
-            $inputData['new_quality'] = json_encode($qualityData);
-
-            if ($status !== 'lolos') {
-                $inputData['new_category_product'] = null;
-            }
-            $inputData['new_discount'] = 0;
-            $inputData['type'] = 'type1';
-            $inputData['display_price'] = $inputData['new_price_product'];
-
-            $inputData['new_barcode_product'] = generateNewBarcode($inputData['new_category_product']);
-
-            if ($inputData['new_category_product'] == null || $inputData['new_category_product'] == '') {
-            }
-
-            $activePeriod = SummarySoCategory::where('type', 'process')->first();
-
-            if (!$activePeriod) {
-                DB::rollBack();
-                return (new ResponseResource(
-                    false,
-                    "No active SO period found",
-                    null
-                ))->response()->setStatusCode(422);
-            }
-
-            $activePeriod->increment('product_addition'); // Fix: gunakan increment
-
-            $newProduct = New_product::create($inputData);
-            $newProduct['discount_category'] = $category ? $category->discount_category : null;
-
-            // $this->deleteOldProduct($request->input('old_barcode_product')); 
-
-            DB::commit();
-
-            return new ResponseResource(true, "berhasil menambah data", $newProduct);
-        } catch (\Exception $e) {
-            DB::rollback();
-            return response()->json(['error' => $e->getMessage()], 500);
-        }
-    }
-
-    public function forceProcessRedisBatch()
-    {
-        try {
-            $count = Redis::llen('product_batch');
-
-            if ($count > 0) {
-                ProductBatch::dispatchSync($count);
-
-                return response()->json([
-                    'success' => true,
-                    'message' => "Sukses! $count data berhasil dipaksa masuk ke database.",
-                    'processed_count' => $count
-                ], 200);
-            } else {
-                return response()->json([
-                    'success' => true,
-                    'message' => "Antrean kosong, tidak ada data yang perlu dimasukkan.",
-                    'processed_count' => 0
-                ], 200);
-            }
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Terjadi kesalahan saat memproses antrean: ' . $e->getMessage()
-            ], 500);
-        }
-    }
-
-    public function getRedisBatchDetails(Request $request)
-    {
-        try {
-            $querySearch = $request->input('q');
-            $perPage = (int) $request->input('per_page', 10);
-            $page = (int) $request->input('page', 1);
-
-            // Ambil semua data dari Redis
-            $redisData = Redis::lrange('product_batch', 0, -1);
-
-            // Jika antrean kosong
-            if (empty($redisData)) {
-                return response()->json([
-                    'success' => true,
-                    'message' => "Antrean kosong, tidak ada data di Redis.",
-                    'data' => [
-                        'current_page' => $page,
-                        'data' => [],
-                        'total' => 0,
-                        'per_page' => $perPage,
-                        'last_page' => 1
-                    ]
-                ], 200);
-            }
-
-            $decodedData = array_map(function ($item) {
-                return json_decode($item, true);
-            }, $redisData);
-
-            if (!empty($querySearch)) {
-                $searchLower = strtolower($querySearch);
-
-                $decodedData = array_filter($decodedData, function ($item) use ($searchLower) {
-                    $oldBarcode = strtolower($item['old_barcode_product'] ?? '');
-                    $newBarcode = strtolower($item['new_barcode_product'] ?? '');
-                    $nameProduct = strtolower($item['new_name_product'] ?? '');
-
-                    // Cari kecocokan di salah satu field tersebut
-                    return str_contains($oldBarcode, $searchLower) ||
-                        str_contains($newBarcode, $searchLower) ||
-                        str_contains($nameProduct, $searchLower);
-                });
-
-                $decodedData = array_values($decodedData);
-            }
-
-            $totalData = count($decodedData);
-            $lastPage = (int) ceil($totalData / $perPage) ?: 1;
-            $offset = ($page - 1) * $perPage;
-
-            $paginatedData = array_slice($decodedData, $offset, $perPage);
-
-            return response()->json([
-                'success' => true,
-                'message' => "Berhasil mengambil data dari antrean Redis.",
-                'data' => [
-                    'current_page' => $page,
-                    'data' => $paginatedData,
-                    'total' => $totalData,
-                    'per_page' => $perPage,
-                    'last_page' => $lastPage
-                ]
-            ], 200);
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Terjadi kesalahan saat membaca Redis: ' . $e->getMessage()
-            ], 500);
         }
     }
 }
