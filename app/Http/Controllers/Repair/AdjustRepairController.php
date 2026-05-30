@@ -89,7 +89,7 @@ class AdjustRepairController extends Controller
 
             $inputData['new_date_in_product'] = Carbon::now('Asia/Jakarta')->toDateString();
 
-            // VALIDASI CATEGORY
+            // VALIDASI CATEGORY (>=100K)
             if ($inputData['old_price_product'] >= 100000) {
 
                 $inputData['new_tag_product'] = null;
@@ -135,7 +135,7 @@ class AdjustRepairController extends Controller
 
             /**
              * =========================================
-             * MAIN LOGIC MOVE / UPDATE
+             * MAIN LOGIC
              * =========================================
              */
 
@@ -153,7 +153,12 @@ class AdjustRepairController extends Controller
                     $inputData['new_tag_product'] = $colortag->name_color;
                 }
 
-                New_product::create($inputData);
+                // ✅ FIX: UPSERT (NO DUPLICATE)
+                New_product::updateOrCreate(
+                    ['new_barcode_product' => $inputData['new_barcode_product']],
+                    $inputData
+                );
+
                 $product->delete();
             } else {
 
