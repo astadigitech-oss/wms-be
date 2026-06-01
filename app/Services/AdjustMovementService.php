@@ -5,7 +5,7 @@ namespace App\Services;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
-class MovementService
+class AdjustMovementService
 {
     /**
      * Lokasi yang dianggap "aktif" (masih di dalam inventory / masuk saldo).
@@ -391,41 +391,126 @@ class MovementService
      */
     public static function getStagingSaldo(): array
     {
-        // Realtime — query langsung ke staging_products
-        $realtime = DB::table('staging_products')
+        // =========================
+        // STAGING PRODUCTS
+        // =========================
+        $staging = DB::table('staging_products')
+            ->whereNotIn('new_status_product', [
+                'dump',
+                'sale',
+                'migrate',
+                'repair',
+                'scrap_qcd'
+            ])
+            ->where(function ($query) {
+                $query->whereRaw("
+                JSON_UNQUOTE(
+                    JSON_EXTRACT(new_quality, '$.lolos')
+                ) = 'lolos'
+            ")
+                    ->orWhereRaw("
+                JSON_UNQUOTE(
+                    JSON_EXTRACT(
+                        JSON_UNQUOTE(new_quality),
+                        '$.lolos'
+                    )
+                ) = 'lolos'
+            ");
+            })
             ->whereNull('new_tag_product')
-            ->whereIn('new_status_product', ['display', 'expired', 'slow_moving'])
-            ->where('quality_lolos', 'lolos')
-            ->selectRaw('COUNT(*) as qty, SUM(new_price_product) as total_price, SUM(old_price_product) as total_price_before')
+            ->whereNull('stage')
+            ->where('is_pending', false)
+            ->whereNotNull('new_category_product')
+            ->where('new_category_product', '!=', '')
+            ->selectRaw("
+            COUNT(*) as qty,
+            SUM(new_price_product) as total_price,
+            SUM(old_price_product) as total_price_before
+        ")
             ->first();
 
-        // Saldo awal — dari snapshot kemarin, ambil breakdown staging_reguler
+        // =========================
+        // BUNDLES
+        // =========================
+        $bundle = DB::table('bundles')
+            ->whereNotNull('category')
+            ->where('source', 'staging')
+            ->whereNull('name_color')
+            ->where('product_status', 'not sale')
+            ->where(function ($type) {
+                $type->whereNull('type')
+                    ->orWhere('type', 'type1')
+                    ->orWhere('type', 'type2');
+            })
+            ->selectRaw("
+            COUNT(*) as qty,
+            SUM(total_price_custom_bundle) as total_price
+        ")
+            ->first();
+
+        // =========================
+        // TOTAL REALTIME
+        // =========================
+        $realtimeQty =
+            (int) ($staging->qty ?? 0) +
+            (int) ($bundle->qty ?? 0);
+
+        $realtimeTotalPrice =
+            (int) ($staging->total_price ?? 0) +
+            (int) ($bundle->total_price ?? 0);
+
+        $realtimeTotalPriceBefore =
+            (int) ($staging->total_price_before ?? 0);
+
+        // =========================
+        // SNAPSHOT KEMARIN
+        // =========================
         $yesterday = now()->subDay()->toDateString();
-        $snapshot  = DB::table('daily_saldo_snapshots')
+
+        $snapshot = DB::table('daily_saldo_snapshots')
             ->where('snapshot_date', $yesterday)
             ->first();
 
         $awal = null;
+
         if ($snapshot && !empty($snapshot->breakdown)) {
-            $breakdown  = is_string($snapshot->breakdown) ? json_decode($snapshot->breakdown, true) : (array) $snapshot->breakdown;
-            $stagingRow = collect($breakdown)->firstWhere('location', 'staging_reguler');
+
+            $breakdown = is_string($snapshot->breakdown)
+                ? json_decode($snapshot->breakdown, true)
+                : (array) $snapshot->breakdown;
+
+            $stagingRow = collect($breakdown)
+                ->firstWhere('location', 'staging_reguler');
+
             if ($stagingRow) {
+
                 $awal = [
-                    'qty'                => (int) ($stagingRow['qty'] ?? 0),
-                    'total_price'        => (int) ($stagingRow['total_price'] ?? 0),
-                    'total_price_before' => isset($stagingRow['total_price_before']) ? (int) $stagingRow['total_price_before'] : null,
-                    'snapshot_date'      => $yesterday,
+                    'qty' => (int) ($stagingRow['qty'] ?? 0),
+
+                    'total_price' =>
+                    (int) ($stagingRow['total_price'] ?? 0),
+
+                    'total_price_before' =>
+                    isset($stagingRow['total_price_before'])
+                        ? (int) $stagingRow['total_price_before']
+                        : null,
+
+                    'snapshot_date' => $yesterday,
                 ];
             }
         }
 
         return [
-            'as_of'          => now()->toDateTimeString(),
-            'saldo_awal'     => $awal,
+            'as_of' => now()->toDateTimeString(),
+
+            'saldo_awal' => $awal,
+
             'saldo_realtime' => [
-                'qty'                => (int) ($realtime->qty ?? 0),
-                'total_price'        => (int) ($realtime->total_price ?? 0),
-                'total_price_before' => (int) ($realtime->total_price_before ?? 0),
+                'qty' => $realtimeQty,
+
+                'total_price' => $realtimeTotalPrice,
+
+                'total_price_before' => $realtimeTotalPriceBefore,
             ],
         ];
     }
