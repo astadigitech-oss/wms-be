@@ -365,21 +365,18 @@ class BastApprovalController extends Controller
 
                     ProductEditHistory::create($historyData);
                 } else {
-                    // BYPASS LEGACY APPROVAL SYSTEM
-                    $inputData['is_pending'] = false;
-
+                    $inputData['is_pending'] = 0;
                     $roleName = $user && $user->role ? $user->role->role_name : 'Crew';
 
                     $notification = Notification::create([
                         'notification_name' => 'Approval Perubahan Data: ' . $inputData['new_barcode_product'],
-                        'status' => 'approved',
+                        'status' => 'pending_approval',
                         'user_id' => $userId,
                         'role' => $roleName,
                     ]);
 
                     $historyData['notification_id'] = $notification->id;
-                    $historyData['status'] = 'approved';
-                    // dd($historyData['status']);
+                    $historyData['status'] = 'done';
 
                     ProductEditHistory::create($historyData);
                 }
@@ -391,7 +388,19 @@ class BastApprovalController extends Controller
             // $checkSoColor = SummarySoColor::where('type', 'process')->first();
 
             if ($qualityData['lolos'] != null) {
-                $newProduct = ProductApprove::create($inputData);
+                $modelClass = ProductApprove::class;
+                // if($checkSoCategory && $inputData['new_category_product'] !== null){
+                //     $checkSoCategory->increment('product_staging');
+                // }
+                // if($checkSoColor && $inputData['new_tag_product'] !== null){
+                //     $soColor = SoColor::where('summary_so_color_id', $checkSoColor->id)
+                //         ->where('color', $inputData['new_tag_product'])
+                //         ->first();
+                //     if ($soColor) {
+                //         $soColor->increment('total_color');
+                //     }
+                // }
+                // $riwayatCheck->total_data_lolos += 1;
             } else if ($qualityData['damaged'] != null) {
                 $modelClass = New_product::class;
                 if ($riwayatCheck->status_file == 1) {
@@ -680,7 +689,7 @@ class BastApprovalController extends Controller
                     ProductEditHistory::create($historyData);
                 } else {
                     // legacy bypass
-                    $inputData['is_pending'] = false;
+                    $inputData['is_pending'] = 0;
 
                     $roleName = $user && $user->role ? $user->role->role_name : 'Crew';
 
