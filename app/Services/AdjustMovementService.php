@@ -444,7 +444,8 @@ class AdjustMovementService
             })
             ->selectRaw("
             COUNT(*) as qty,
-            SUM(total_price_custom_bundle) as total_price
+            SUM(total_price_custom_bundle) as total_price,
+            SUM(total_price_bundle) as total_price_before
         ")
             ->first();
 
@@ -456,11 +457,12 @@ class AdjustMovementService
             (int) ($bundle->qty ?? 0);
 
         $realtimeTotalPrice =
-            (int) ($staging->total_price ?? 0) +
-            (int) ($bundle->total_price ?? 0);
+            (float) ($staging->total_price ?? 0) +
+            (float) ($bundle->total_price ?? 0);
 
         $realtimeTotalPriceBefore =
-            (int) ($staging->total_price_before ?? 0);
+            (float) ($staging->total_price_before ?? 0) +
+            (float) ($bundle->total_price_before ?? 0);
 
         // =========================
         // SNAPSHOT KEMARIN
@@ -488,11 +490,11 @@ class AdjustMovementService
                     'qty' => (int) ($stagingRow['qty'] ?? 0),
 
                     'total_price' =>
-                    (int) ($stagingRow['total_price'] ?? 0),
+                    (float) ($stagingRow['total_price'] ?? 0),
 
                     'total_price_before' =>
                     isset($stagingRow['total_price_before'])
-                        ? (int) $stagingRow['total_price_before']
+                        ? (float) $stagingRow['total_price_before']
                         : null,
 
                     'snapshot_date' => $yesterday,
