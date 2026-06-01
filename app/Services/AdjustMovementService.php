@@ -341,45 +341,132 @@ class AdjustMovementService
      *
      * @return array
      */
+
     public static function getDisplaySaldo(): array
     {
-        // Realtime — query langsung ke new_products, hanya display_reguler (ada category, tanpa tag)
-        $realtime = DB::table('new_products')
+        // =========================
+        // NEW PRODUCTS (DISPLAY)
+        // =========================
+        $display = DB::table('new_products')
             ->whereNotNull('new_category_product')
             ->whereNull('new_tag_product')
-            ->whereIn('new_status_product', ['display', 'expired', 'slow_moving'])
-            ->where('quality_lolos', 'lolos')
-            ->selectRaw('COUNT(*) as qty, SUM(new_price_product) as total_price, SUM(old_price_product) as total_price_before')
+            ->where('is_pending', false)
+            ->where(function ($query) {
+                $query->whereRaw("
+                JSON_UNQUOTE(
+                    JSON_EXTRACT(new_quality, '$.lolos')
+                ) = 'lolos'
+            ")
+                    ->orWhereRaw("
+                JSON_UNQUOTE(
+                    JSON_EXTRACT(
+                        JSON_UNQUOTE(new_quality),
+                        '$.lolos'
+                    )
+                ) = 'lolos'
+            ");
+            })
+            ->where(function ($status) {
+                $status->where('new_status_product', 'display')
+                    ->orWhere('new_status_product', 'expired')
+                    ->orWhere('new_status_product', 'slow_moving');
+            })
+            ->where(function ($type) {
+                $type->whereNull('type')
+                    ->orWhere('type', 'type1')
+                    ->orWhere('type', 'type2');
+            })
+            ->selectRaw("
+            COUNT(*) as qty,
+            SUM(new_price_product) as total_price,
+            SUM(old_price_product) as total_price_before
+        ")
             ->first();
 
-        // Saldo awal — dari snapshot kemarin, ambil breakdown display_reguler
+        // =========================
+        // BUNDLES (DISPLAY)
+        // =========================
+        $bundle = DB::table('bundles')
+            ->whereNotNull('category')
+            ->where('source', 'display')
+            ->whereNull('name_color')
+            ->where('product_status', 'not sale')
+            ->where(function ($type) {
+                $type->whereNull('type')
+                    ->orWhere('type', 'type1')
+                    ->orWhere('type', 'type2');
+            })
+            ->selectRaw("
+            COUNT(*) as qty,
+            SUM(total_price_custom_bundle) as total_price,
+            SUM(total_price_bundle) as total_price_before
+        ")
+            ->first();
+
+        // =========================
+        // TOTAL REALTIME
+        // =========================
+        $realtimeQty =
+            (int) ($display->qty ?? 0) +
+            (int) ($bundle->qty ?? 0);
+
+        $realtimeTotalPrice =
+            (float) ($display->total_price ?? 0) +
+            (float) ($bundle->total_price ?? 0);
+
+        $realtimeTotalPriceBefore =
+            (float) ($display->total_price_before ?? 0) +
+            (float) ($bundle->total_price_before ?? 0);
+
+        // =========================
+        // SNAPSHOT KEMARIN
+        // =========================
         $yesterday = now()->subDay()->toDateString();
-        $snapshot  = DB::table('daily_saldo_snapshots')
+
+        $snapshot = DB::table('daily_saldo_snapshots')
             ->where('snapshot_date', $yesterday)
             ->first();
 
         $awal = null;
+
         if ($snapshot && !empty($snapshot->breakdown)) {
-            $breakdown  = is_string($snapshot->breakdown) ? json_decode($snapshot->breakdown, true) : (array) $snapshot->breakdown;
-            $displayRow = collect($breakdown)->firstWhere('location', 'display_reguler');
+
+            $breakdown = is_string($snapshot->breakdown)
+                ? json_decode($snapshot->breakdown, true)
+                : (array) $snapshot->breakdown;
+
+            $displayRow = collect($breakdown)
+                ->firstWhere('location', 'display_reguler');
 
             if ($displayRow) {
+
                 $awal = [
-                    'qty'                => (int) ($displayRow['qty'] ?? 0),
-                    'total_price'        => (int) ($displayRow['total_price'] ?? 0),
-                    'total_price_before' => isset($displayRow['total_price_before']) ? (int) $displayRow['total_price_before'] : null,
-                    'snapshot_date'      => $yesterday,
+                    'qty' => (int) ($displayRow['qty'] ?? 0),
+
+                    'total_price' =>
+                    (float) ($displayRow['total_price'] ?? 0),
+
+                    'total_price_before' =>
+                    isset($displayRow['total_price_before'])
+                        ? (float) $displayRow['total_price_before']
+                        : null,
+
+                    'snapshot_date' => $yesterday,
                 ];
             }
         }
 
         return [
-            'as_of'          => now()->toDateTimeString(),
-            'saldo_awal'     => $awal,
+            'as_of' => now()->toDateTimeString(),
+
+            'saldo_awal' => $awal,
+
             'saldo_realtime' => [
-                'qty'                => (int) ($realtime->qty ?? 0),
-                'total_price'        => (int) ($realtime->total_price ?? 0),
-                'total_price_before' => (int) ($realtime->total_price_before ?? 0),
+                'qty' => $realtimeQty,
+
+                'total_price' => $realtimeTotalPrice,
+
+                'total_price_before' => $realtimeTotalPriceBefore,
             ],
         ];
     }

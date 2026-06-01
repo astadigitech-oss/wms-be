@@ -175,6 +175,7 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Crew,Captai
 // ========================================================================================================
 Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Crew,Captain'])->group(function () {
     Route::get('movement/staging/saldo', [DataController::class, 'stagingSaldoBaru']);
+    Route::get('movement/display/saldo', [DataController::class, 'displaySaldo']);
 });
 
 // ========================================================================================================
@@ -829,7 +830,7 @@ Route::middleware('auth.multiple:Admin,Spv,Team leader,Crew,Developer')->group(f
 Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Admin Kasir,Crew,Reparasi,Kasir leader,Developer,Audit,Captain'])->group(function () {
     Route::get('movement/saldo', [MovementProductController::class, 'saldo']);
     // Route::get('movement/staging/saldo', [MovementProductController::class, 'stagingSaldo']);
-    Route::get('movement/display/saldo', [MovementProductController::class, 'displaySaldo']);
+    // Route::get('movement/display/saldo', [MovementProductController::class, 'displaySaldo']);
     Route::get('movement/display-color/saldo', [MovementProductController::class, 'displayColorSaldo']);
     Route::get('movement/last-state', [MovementProductController::class, 'lastStateAll']);
     Route::get('movement/{productId}/last-state', [MovementProductController::class, 'lastState']);
