@@ -378,7 +378,7 @@ class BastApprovalController extends Controller
                     ]);
 
                     $historyData['notification_id'] = $notification->id;
-                    $historyData['status'] = 'pending';
+                    $historyData['status'] = 'approved';
 
                     ProductEditHistory::create($historyData);
                 }
