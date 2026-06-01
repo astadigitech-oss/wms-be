@@ -272,6 +272,9 @@ class BastApprovalController extends Controller
 
         $inputData = $this->prepareInputData($request, $status, $qualityData, $userId);
 
+        // Ensure is_pending is always false
+        $inputData['is_pending'] = false;
+
         $oldBarcode = $request->input('old_barcode_product');
 
         DB::beginTransaction();
@@ -365,7 +368,6 @@ class BastApprovalController extends Controller
 
                     ProductEditHistory::create($historyData);
                 } else {
-                    $inputData['is_pending'] = false;
                     $roleName = $user && $user->role ? $user->role->role_name : 'Crew';
 
                     $notification = Notification::create([
