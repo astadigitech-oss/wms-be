@@ -379,7 +379,7 @@ class BastApprovalController extends Controller
 
                     $historyData['notification_id'] = $notification->id;
                     $historyData['status'] = 'approved';
-                    dd($historyData['status']);
+                    // dd($historyData['status']);
 
                     ProductEditHistory::create($historyData);
                 }
@@ -391,19 +391,7 @@ class BastApprovalController extends Controller
             // $checkSoColor = SummarySoColor::where('type', 'process')->first();
 
             if ($qualityData['lolos'] != null) {
-                $modelClass = ProductApprove::class;
-                // if($checkSoCategory && $inputData['new_category_product'] !== null){
-                //     $checkSoCategory->increment('product_staging');
-                // }
-                // if($checkSoColor && $inputData['new_tag_product'] !== null){
-                //     $soColor = SoColor::where('summary_so_color_id', $checkSoColor->id)
-                //         ->where('color', $inputData['new_tag_product'])
-                //         ->first();
-                //     if ($soColor) {
-                //         $soColor->increment('total_color');
-                //     }
-                // }
-                // $riwayatCheck->total_data_lolos += 1;
+                $newProduct = ProductApprove::create($inputData);
             } else if ($qualityData['damaged'] != null) {
                 $modelClass = New_product::class;
                 if ($riwayatCheck->status_file == 1) {
