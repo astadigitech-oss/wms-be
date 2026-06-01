@@ -365,7 +365,7 @@ class BastApprovalController extends Controller
 
                     ProductEditHistory::create($historyData);
                 } else {
-                    $inputData['is_pending'] = 0;
+                    $inputData['is_pending'] = false;
                     $roleName = $user && $user->role ? $user->role->role_name : 'Crew';
 
                     $notification = Notification::create([
@@ -689,7 +689,7 @@ class BastApprovalController extends Controller
                     ProductEditHistory::create($historyData);
                 } else {
                     // legacy bypass
-                    $inputData['is_pending'] = 0;
+                    $inputData['is_pending'] = false;
 
                     $roleName = $user && $user->role ? $user->role->role_name : 'Crew';
 
