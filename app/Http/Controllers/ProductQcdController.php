@@ -12,6 +12,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
 use App\Http\Resources\ResponseResource;
+use App\Services\MovementService;
 use Carbon\Carbon;
 
 class ProductQcdController extends Controller
@@ -175,6 +176,24 @@ class ProductQcdController extends Controller
             ]);
 
             DB::commit();
+
+            try {
+                $from = $source === 'staging'
+                    ? 'staging_reguler'
+                    : ($product->new_tag_product ? 'display_color' : 'display_reguler');
+
+                MovementService::log(
+                    productId: $product->new_barcode_product,
+                    isSku: false,
+                    type: 'Out',
+                    typeOut: 'qcd',
+                    from: $from,
+                    to: 'qcd',
+                    qty: null
+                );
+            } catch (\Exception $movEx) {
+                Log::error('[Movement] ProductQcd moveToScrap log failed: ' . $movEx->getMessage());
+            }
 
             return (new ResponseResource(true, "Berhasil menghapus produk QCD (Scrap)", $product))
                 ->response()

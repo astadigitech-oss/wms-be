@@ -15,6 +15,8 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
+use App\Services\MovementService;
+use Illuminate\Support\Facades\Log;
 
 class MigrateBulkyProductController extends Controller
 {
@@ -407,6 +409,23 @@ class MigrateBulkyProductController extends Controller
             }
 
             DB::commit();
+
+            // [Movement] repair → display_reguler / display_color
+            try {
+                $to = $inputData['old_price_product'] < 100000 ? 'display_color' : 'display_reguler';
+                MovementService::log(
+                    productId: $existingProduct->new_barcode_product,
+                    isSku: false,
+                    type: 'Move',
+                    typeOut: null,
+                    from: 'repair',
+                    to: $to,
+                    qty: $existingProduct->new_quantity_product
+                );
+            } catch (\Exception $movEx) {
+                Log::error('[Movement] migrate-bulky toDisplay log failed: ' . $movEx->getMessage());
+            }
+            
             return new ResponseResource(true, "Produk dipindahkan ke Display", $existingProduct);
         } catch (Exception $e) {
             DB::rollBack();

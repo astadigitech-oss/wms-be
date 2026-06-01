@@ -9,6 +9,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use App\Http\Resources\ResponseResource;
+use App\Services\MovementService;
 use App\Models\Product_Bundle;
 use App\Models\ProductInput;
 use App\Models\StagingProduct;
@@ -187,9 +188,19 @@ class BundleController extends Controller
         DB::beginTransaction();
         try {
             $productBundles = $bundle->product_bundles;
+            $movementRows = [];
 
             foreach ($productBundles as $product) {
                 $source = $product->source ?? 'display';
+                $movementRows[] = [
+                    'product_id' => $product->new_barcode_product,
+                    'is_sku' => false,
+                    'type' => 'Unbundler',
+                    'type_out' => null,
+                    'from' => 'bundle',
+                    'to' => $source === 'staging' ? 'staging_reguler' : ($product->new_tag_product ? 'display_color' : 'display_reguler'),
+                    'qty' => $product->new_quantity_product,
+                ];
                 $productData = [
                     'code_document' => $product->code_document,
                     'old_barcode_product' => $product->old_barcode_product,
@@ -224,6 +235,14 @@ class BundleController extends Controller
             $bundle->delete();
 
             DB::commit();
+
+            // [Movement] bundle → display/staging (Unbundler)
+            try {
+                MovementService::logBulk($movementRows);
+            } catch (\Exception $e) {
+                Log::error('[Movement] Bundle destroy log failed: ' . $e->getMessage());
+            }
+
             return new ResponseResource(true, "Produk bundle berhasil di-unbundle dan dikembalikan ke tabel asal", null);
         } catch (\Exception $e) {
             DB::rollback();
@@ -415,6 +434,15 @@ class BundleController extends Controller
             ]);
 
             $insertData = New_product::where('new_tag_product', $bundle->total_product_bundle)->get();
+            $bundleMovementRows = $insertData->map(fn($item) => [
+                'product_id' => $item->new_barcode_product,
+                'is_sku' => false,
+                'type' => 'Bundler',
+                'type_out' => null,
+                'from' => 'display_color',
+                'to' => 'bundle',
+                'qty' => $item->new_quantity_product,
+            ])->toArray();
 
             // Menggunakan chunk untuk memproses data dalam kelompok 100 item
             $insertData->chunk(100)->each(function ($chunkedData) use ($bundle) {
@@ -452,6 +480,14 @@ class BundleController extends Controller
             logUserAction($request, $request->user(), "storage/moving_product/create_bundle", "Create bundle color");
 
             DB::commit();
+
+            // [Movement] display_color → bundle (Bundler)
+            try {
+                MovementService::logBulk($bundleMovementRows);
+            } catch (\Exception $e) {
+                Log::error('[Movement] Bundle bundleColor log failed: ' . $e->getMessage());
+            }
+
             return new ResponseResource(true, "Bundle berhasil dibuat", $bundle);
         } catch (\Exception $e) {
             DB::rollback();

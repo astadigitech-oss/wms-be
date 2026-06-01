@@ -34,6 +34,7 @@ use App\Http\Controllers\Inbound\BastApprovalController;
 use App\Http\Controllers\Inbound\HalamanApprovalController;
 use App\Http\Controllers\LoyaltyRankController;
 use App\Http\Controllers\MigrateBulkyController;
+use App\Http\Controllers\MovementProductController;
 use App\Http\Controllers\MigrateBulkyProductController;
 use App\Http\Controllers\MigrateController;
 use App\Http\Controllers\MigrateDocumentController;
@@ -61,6 +62,7 @@ use App\Http\Controllers\ProductSoController;
 use App\Http\Controllers\ProductStatusController;
 use App\Http\Controllers\PromoController;
 use App\Http\Controllers\RackController;
+use App\Http\Controllers\Repair\AdjustRepairController;
 use App\Http\Controllers\RepairController;
 use App\Http\Controllers\RepairFilterController;
 use App\Http\Controllers\RepairProductController;
@@ -164,6 +166,7 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Crew,Captai
     Route::post('edit-scan', [BastApprovalController::class, 'mintaApproveDataAsal']);
     Route::get('scan-paused', [BastApprovalController::class, 'checkScanPaused']);
     Route::post('scanner-bast', [BastApprovalController::class, 'scannerBaru']);
+    Route::post('product-approves', [BastApprovalController::class, 'scannerSubmitBaru']);
 });
 
 // ========================================================================================================
@@ -173,6 +176,13 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv'])->group(function () {
     Route::get('approval-bast', [HalamanApprovalController::class, 'listApprovalBast']);
     Route::post('approval-bast/{id}/approve', [HalamanApprovalController::class, 'approveBast']);
     Route::post('approval-bast/{id}/reject', [HalamanApprovalController::class, 'rejectBast']);
+});
+
+// ========================================================================================================
+// 0. Fixing Helper - Adjust Repair (Update Produk Repair Langsung)
+// ========================================================================================================
+Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Admin Kasir,Reparasi,Captain'])->group(function () {
+    // Route::put('repair/update/{id}', [AdjustRepairController::class, 'updateRepair']);
 });
 
 // ========================================================================================================
@@ -281,7 +291,7 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Crew,Audit,
 
 // [WRITE / POST / ACTION - TANPA Audit]
 Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Crew,Captain'])->group(function () {
-    Route::post('product-approves', [ProductApproveController::class, 'store']);
+    // Route::post('product-approves', [ProductApproveController::class, 'store']);
     Route::post('addProductOld', [ProductApproveController::class, 'addProductOld']);
     Route::resource('/documents', DocumentController::class)->except(['index', 'show', 'destroy']);
     Route::post('historys', [RiwayatCheckController::class, 'store']);
@@ -803,6 +813,19 @@ Route::middleware('auth.multiple:Admin,Spv,Team leader,Crew,Developer')->group(f
 // ========================================================================================================
 // 10. FRONTEND REQUESTS & COMPLEX LOGIC
 // ========================================================================================================
+
+// ========================================================================================================
+// 10.1 MOVEMENT TRACKING & SALDO PER LOKASI
+// ========================================================================================================
+
+Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Admin Kasir,Crew,Reparasi,Kasir leader,Developer,Audit,Captain'])->group(function () {
+    Route::get('movement/saldo', [MovementProductController::class, 'saldo']);
+    Route::get('movement/staging/saldo', [MovementProductController::class, 'stagingSaldo']);
+    Route::get('movement/display/saldo', [MovementProductController::class, 'displaySaldo']);
+    Route::get('movement/display-color/saldo', [MovementProductController::class, 'displayColorSaldo']);
+    Route::get('movement/last-state', [MovementProductController::class, 'lastStateAll']);
+    Route::get('movement/{productId}/last-state', [MovementProductController::class, 'lastState']);
+});
 
 // [READ ONLY - Termasuk Audit]
 Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Admin Kasir,Crew,Reparasi,Kasir leader,Developer,Audit,Captain'])->group(function () {

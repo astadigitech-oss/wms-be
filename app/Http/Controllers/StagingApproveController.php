@@ -3,6 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Http\Resources\ResponseResource;
+use App\Services\MovementService;
+use Illuminate\Support\Facades\Log;
 use App\Models\BarcodeDamaged;
 use App\Models\FilterStaging;
 use App\Models\New_product;
@@ -152,6 +154,8 @@ class StagingApproveController extends Controller
 
                     $chunkedProductApproves = $productApproves->chunk(100);
 
+                    $movementRows = [];
+                    
                     foreach ($chunkedProductApproves as $chunk) {
                         // Siapkan data untuk insert ke New_product
                         $dataToInsert = $chunk->map(function ($productApprove) {
@@ -188,9 +192,29 @@ class StagingApproveController extends Controller
                         New_product::insert($dataToInsert);
 
                         StagingProduct::whereIn('id', $chunk->pluck('id'))->delete();
+
+                        // Kumpulkan data movement untuk di-log setelah commit
+                        foreach ($chunk as $p) {
+                            $movementRows[] = [
+                                'product_id' => $p->new_barcode_product,
+                                'is_sku'     => false,
+                                'type'       => 'In',
+                                'type_out'   => null,
+                                'from'       => 'staging_reguler',
+                                'to'         => 'display_reguler',
+                                'qty'        => $p->new_quantity_product,
+                            ];
+                        }
                     }
 
                     DB::commit();
+
+                    // [Movement] staging_reguler → display_reguler
+                    try {
+                        MovementService::logBulk($movementRows);
+                    } catch (\Exception $e) {
+                        Log::error('[Movement] stagingTransaction log failed: ' . $e->getMessage());
+                    }
 
                     // Kembalikan response sukses
                     return new ResponseResource(true, 'Transaksi berhasil diapprove', null);

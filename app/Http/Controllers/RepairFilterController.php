@@ -9,6 +9,8 @@ use App\Models\RepairProduct;
 use Illuminate\Support\Facades\DB;
 use App\Http\Resources\ResponseResource;
 use App\Models\Repair;
+use App\Services\MovementService;
+use Illuminate\Support\Facades\Log;
 
 class RepairFilterController extends Controller
 {
@@ -142,6 +144,23 @@ class RepairFilterController extends Controller
             $repairFilter->delete();
 
             DB::commit();
+
+            // [Movement] display_color/display_reguler → display_color/display_reguler (batal repair filter)
+            try {
+                $loc = $repairFilter->new_tag_product ? 'display_color' : 'display_reguler';
+                MovementService::log(
+                    productId: $repairFilter->new_barcode_product,
+                    isSku: false,
+                    type: 'Move',
+                    typeOut: null,
+                    from: $loc,
+                    to: $loc,
+                    qty: $repairFilter->new_quantity_product
+                );
+            } catch (\Exception $movEx) {
+                Log::error('[Movement] repair filter cancel log failed: ' . $movEx->getMessage());
+            }
+
             return new ResponseResource(true, "Item dikembalikan ke inventory (Batal Repair)", null);
         } catch (\Exception $e) {
             DB::rollBack();
