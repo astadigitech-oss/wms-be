@@ -5,7 +5,7 @@ namespace App\Services;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
-class MovementService
+class AdjustMovementService
 {
     /**
      * Lokasi yang dianggap "aktif" (masih di dalam inventory / masuk saldo).
