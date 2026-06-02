@@ -152,7 +152,7 @@ Route::middleware([
     // =====================================================================
 
     Route::middleware([
-        'check.role:Admin,Captain,TeamLeader,Crew'
+        'check.role:Admin,Captain,TeamLeader,Crew,Reparasi'
     ])->group(function () {
 
         Route::post('bag', [BagController::class, 'buatBag']);
