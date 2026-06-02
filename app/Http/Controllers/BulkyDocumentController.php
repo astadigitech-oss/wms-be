@@ -544,7 +544,7 @@ class BulkyDocumentController extends Controller
     {
         try {
             $documents = BulkyDocument::where('type', BulkyDocument::TYPE_ONLINE)
-                ->where('is_sale', BulkyDocument::SALE_NOT)
+                ->where('is_sale', BulkyDocument::SALE_READY)
                 ->whereNotNull('length')
                 ->whereNotNull('width')
                 ->whereNotNull('height')
