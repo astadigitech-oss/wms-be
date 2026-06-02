@@ -895,7 +895,6 @@ class StagingProductController extends Controller
             if ($document) {
 
                 $pendingProducts = ProductApprove::where('code_document', $code_document)
-                    ->where('is_pending', true)
                     ->pluck('new_barcode_product')
                     ->toArray();
 
