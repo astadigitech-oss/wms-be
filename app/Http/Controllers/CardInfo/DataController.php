@@ -25,4 +25,40 @@ class DataController extends Controller
             ],
         ]);
     }
+
+    public function displaySaldo()
+    {
+        $result = AdjustMovementService::getDisplaySaldo();
+
+        return response()->json([
+            'code'    => 200,
+            'success' => true,
+            'message' => 'Data saldo display berhasil diambil.',
+            'data'    => [
+                'saldo_awal'     => $result['saldo_awal'],
+                'saldo_realtime' => $result['saldo_realtime'],
+            ],
+            'meta'    => [
+                'as_of' => $result['as_of'],
+            ],
+        ]);
+    }
+
+    public function displayColorSaldo()
+    {
+        $result = AdjustMovementService::getDisplayColorSaldo();
+
+        return response()->json([
+            'code'    => 200,
+            'success' => true,
+            'message' => 'Data saldo display color berhasil diambil.',
+            'data'    => [
+                'saldo_awal'     => $result['saldo_awal'],
+                'saldo_realtime' => $result['saldo_realtime'],
+            ],
+            'meta'    => [
+                'as_of' => $result['as_of'],
+            ],
+        ]);
+    }
 }

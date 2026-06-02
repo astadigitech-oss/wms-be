@@ -167,7 +167,7 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Crew,Captai
     Route::post('edit-scan', [BastApprovalController::class, 'mintaApproveDataAsal']);
     Route::get('scan-paused', [BastApprovalController::class, 'checkScanPaused']);
     Route::post('scanner-bast', [BastApprovalController::class, 'scannerBaru']);
-    // Route::post('product-approves', [BastApprovalController::class, 'scannerSubmitBaru']);
+    Route::post('product-approves', [BastApprovalController::class, 'scannerSubmitBaru']);
 });
 
 // ========================================================================================================
@@ -175,6 +175,8 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Crew,Captai
 // ========================================================================================================
 Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Crew,Captain'])->group(function () {
     Route::get('movement/staging/saldo', [DataController::class, 'stagingSaldoBaru']);
+    Route::get('movement/display/saldo', [DataController::class, 'displaySaldo']);
+    Route::get('movement/display-color/saldo', [DataController::class, 'displayColorSaldo']);
 });
 
 // ========================================================================================================
@@ -299,7 +301,7 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Crew,Audit,
 
 // [WRITE / POST / ACTION - TANPA Audit]
 Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Crew,Captain'])->group(function () {
-    Route::post('product-approves', [ProductApproveController::class, 'store']);
+    // Route::post('product-approves', [ProductApproveController::class, 'store']);
     Route::post('addProductOld', [ProductApproveController::class, 'addProductOld']);
     Route::resource('/documents', DocumentController::class)->except(['index', 'show', 'destroy']);
     Route::post('historys', [RiwayatCheckController::class, 'store']);
@@ -829,8 +831,8 @@ Route::middleware('auth.multiple:Admin,Spv,Team leader,Crew,Developer')->group(f
 Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Admin Kasir,Crew,Reparasi,Kasir leader,Developer,Audit,Captain'])->group(function () {
     Route::get('movement/saldo', [MovementProductController::class, 'saldo']);
     // Route::get('movement/staging/saldo', [MovementProductController::class, 'stagingSaldo']);
-    Route::get('movement/display/saldo', [MovementProductController::class, 'displaySaldo']);
-    Route::get('movement/display-color/saldo', [MovementProductController::class, 'displayColorSaldo']);
+    // Route::get('movement/display/saldo', [MovementProductController::class, 'displaySaldo']);
+    // Route::get('movement/display-color/saldo', [MovementProductController::class, 'displayColorSaldo']);
     Route::get('movement/last-state', [MovementProductController::class, 'lastStateAll']);
     Route::get('movement/{productId}/last-state', [MovementProductController::class, 'lastState']);
 });
