@@ -167,7 +167,7 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Crew,Captai
     Route::post('edit-scan', [BastApprovalController::class, 'mintaApproveDataAsal']);
     Route::get('scan-paused', [BastApprovalController::class, 'checkScanPaused']);
     Route::post('scanner-bast', [BastApprovalController::class, 'scannerBaru']);
-    // Route::post('product-approves', [BastApprovalController::class, 'scannerSubmitBaru']);
+    Route::post('product-approves', [BastApprovalController::class, 'scannerSubmitBaru']);
 });
 
 // ========================================================================================================
@@ -301,7 +301,7 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Crew,Audit,
 
 // [WRITE / POST / ACTION - TANPA Audit]
 Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Crew,Captain'])->group(function () {
-    Route::post('product-approves', [ProductApproveController::class, 'store']);
+    // Route::post('product-approves', [ProductApproveController::class, 'store']);
     Route::post('addProductOld', [ProductApproveController::class, 'addProductOld']);
     Route::resource('/documents', DocumentController::class)->except(['index', 'show', 'destroy']);
     Route::post('historys', [RiwayatCheckController::class, 'store']);
