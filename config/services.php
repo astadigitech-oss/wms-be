@@ -36,4 +36,10 @@ return [
     'olsera' => [
         'base_url' => env('OLSERA_BASE_URL'),
     ],
+
+    'pos' => [
+        'url' => env('POS_API_URL'),
+        'client_id' => env('POS_CLIENT_ID'),
+        'client_secret' => env('POS_CLIENT_SECRET'),
+    ],
 ];
