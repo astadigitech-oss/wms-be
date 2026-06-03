@@ -15,9 +15,9 @@ class PosService
 
     public function __construct()
     {
-        $this->baseUrl = rtrim(env('POS_API_URL'), '/');
-        $this->clientId = env('POS_CLIENT_ID');
-        $this->clientSecret = env('POS_CLIENT_SECRET');
+        $this->baseUrl = rtrim(config('services.pos.url'), '/');
+        $this->clientId = config('services.pos.client_id');
+        $this->clientSecret = config('services.pos.client_secret');
     }
 
     /**

@@ -33,6 +33,7 @@ use App\Http\Controllers\FormatBarcodeController;
 use App\Http\Controllers\GenerateController;
 use App\Http\Controllers\Inbound\BastApprovalController;
 use App\Http\Controllers\Inbound\HalamanApprovalController;
+use App\Http\Controllers\Inventory\Sku\SkuController;
 use App\Http\Controllers\LoyaltyRankController;
 use App\Http\Controllers\MigrateBulkyController;
 use App\Http\Controllers\MovementProductController;
@@ -152,7 +153,7 @@ Route::middleware([
     // =====================================================================
 
     Route::middleware([
-        'check.role:Admin,Captain,TeamLeader,Crew'
+        'check.role:Admin,Captain,TeamLeader,Crew,Reparasi'
     ])->group(function () {
 
         Route::post('bag', [BagController::class, 'buatBag']);
@@ -194,6 +195,14 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv'])->group(function () {
 Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Admin Kasir,Reparasi,Captain'])->group(function () {
     // Route::put('repair/update/{id}', [AdjustRepairController::class, 'updateRepair']);
 });
+
+// ========================================================================================================
+// 0. Fixing Helper - Adjust Edit SKU
+// ========================================================================================================
+Route::middleware(['auth:sanctum', 'check.role:Admin,Spv'])->group(function () {
+    Route::post('sku/edit-harga-qty/{id}', [SkuController::class, 'editHargaDanQty']);
+});
+
 
 // ========================================================================================================
 // 1. AUTH & PUBLIC ROUTES
