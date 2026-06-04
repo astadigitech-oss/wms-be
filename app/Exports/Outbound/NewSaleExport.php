@@ -40,6 +40,7 @@ class NewSaleExport implements FromQuery, WithHeadings, WithMapping
             'Document Penjualan',
             'Barcode Gudang',
             'Barcode Asal',
+            'Nama Produk',
             'Total Item',
             'Harga Asal',
             'Harga Jual',
