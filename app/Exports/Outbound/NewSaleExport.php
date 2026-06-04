@@ -45,6 +45,7 @@ class NewSaleExport implements FromQuery, WithHeadings, WithMapping
             'Kategori',
             'Harga Asal',
             'Harga Jual',
+            'Harga Jual Setelah Diskon Rank'
         ];
     }
 
@@ -58,6 +59,7 @@ class NewSaleExport implements FromQuery, WithHeadings, WithMapping
             $sale->product_qty_sale,
             $sale->product_category_sale,
             $sale->product_old_price_sale,
+            $sale->display_price,
             $sale->product_price_sale,
         ];
     }
