@@ -65,7 +65,7 @@ class NewSaleController extends Controller
             $start = $request->start_date ?? 'all';
             $end = $request->end_date ?? 'all';
 
-            $fileName = "bulky-sale-{$start}_to_{$end}.xlsx";
+            $fileName = "b2b-sales-{$start}_to_{$end}-" . now()->format('YmdHis') . ".xlsx";
             $publicPath = 'exports';
 
             Excel::store(
