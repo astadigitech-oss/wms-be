@@ -33,6 +33,7 @@ use App\Http\Controllers\FormatBarcodeController;
 use App\Http\Controllers\GenerateController;
 use App\Http\Controllers\Inbound\BastApprovalController;
 use App\Http\Controllers\Inbound\HalamanApprovalController;
+use App\Http\Controllers\Inventory\Sku\SkuController;
 use App\Http\Controllers\LoyaltyRankController;
 use App\Http\Controllers\MigrateBulkyController;
 use App\Http\Controllers\MovementProductController;
@@ -44,6 +45,8 @@ use App\Http\Controllers\NewProductController;
 use App\Http\Controllers\NonDocumentController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\Outbound\BagController;
+use App\Http\Controllers\Outbound\NewSaleController;
+use App\Http\Controllers\Outbound\SaleController as OutboundSaleController;
 use App\Http\Controllers\PaletBrandController;
 use App\Http\Controllers\PaletController;
 use App\Http\Controllers\PaletFilterController;
@@ -193,6 +196,21 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv'])->group(function () {
 // ========================================================================================================
 Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Admin Kasir,Reparasi,Captain'])->group(function () {
     // Route::put('repair/update/{id}', [AdjustRepairController::class, 'updateRepair']);
+});
+
+// ========================================================================================================
+// 0. Fixing Helper - Adjust Edit SKU
+// ========================================================================================================
+Route::middleware(['auth:sanctum', 'check.role:Admin,Spv'])->group(function () {
+    Route::post('sku/edit-harga-qty/{id}', [SkuController::class, 'editHargaDanQty']);
+});
+
+// ========================================================================================================
+// 0. Fixing Helper - Export Export
+// ========================================================================================================
+Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Kasir leader'])->group(function () {
+    Route::post('export-sales-reguler', [NewSaleController::class, 'exportSales']);
+    Route::post('export-sales-bulky', [NewSaleController::class, 'exportBulkySale']);
 });
 
 // ========================================================================================================
