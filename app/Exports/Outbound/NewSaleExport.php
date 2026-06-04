@@ -53,7 +53,7 @@ class NewSaleExport implements FromQuery, WithHeadings, WithMapping
             $sale->code_document_sale,
             $sale->product_barcode_sale,
             $sale->old_barcode_product,
-            $sale->prooduct_name_sale,
+            $sale->product_name_sale,
             $sale->product_qty_sale,
             $sale->product_old_price_sale,
             $sale->product_price_sale,
