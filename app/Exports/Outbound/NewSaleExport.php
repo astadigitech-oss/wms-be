@@ -42,6 +42,7 @@ class NewSaleExport implements FromQuery, WithHeadings, WithMapping
             'Barcode Asal',
             'Nama Produk',
             'Total Item',
+            'Kategori',
             'Harga Asal',
             'Harga Jual',
         ];
@@ -55,6 +56,7 @@ class NewSaleExport implements FromQuery, WithHeadings, WithMapping
             $sale->old_barcode_product,
             $sale->product_name_sale,
             $sale->product_qty_sale,
+            $sale->product_category_sale,
             $sale->product_old_price_sale,
             $sale->product_price_sale,
         ];
