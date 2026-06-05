@@ -32,6 +32,7 @@ use App\Http\Controllers\Fixing\FixingController;
 use App\Http\Controllers\FormatBarcodeController;
 use App\Http\Controllers\GenerateController;
 use App\Http\Controllers\Inbound\BastApprovalController;
+use App\Http\Controllers\Inbound\BulkController;
 use App\Http\Controllers\Inbound\HalamanApprovalController;
 use App\Http\Controllers\Inventory\Sku\SkuController;
 use App\Http\Controllers\LoyaltyRankController;
@@ -214,6 +215,14 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Kasir leader'])->group(
 });
 
 // ========================================================================================================
+// 0. Fixing Helper - Export Export
+// ========================================================================================================
+Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader'])->group(function () {
+    Route::post('bulking_tag_warna', [BulkController::class, 'processExcelFilesTagColor']);
+});
+
+
+// ========================================================================================================
 // 1. AUTH & PUBLIC ROUTES
 // ========================================================================================================
 
@@ -336,7 +345,7 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Audit'])->group(functio
 Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader'])->group(function () {
     Route::post('/excelOld', [StagingProductController::class, 'processExcelFilesCategoryStaging']);
     Route::post('/bulkingInventory', [NewProductController::class, 'processExcelFilesCategory']);
-    Route::post('/bulking_tag_warna', [NewProductController::class, 'processExcelFilesTagColor']);
+    // Route::post('/bulking_tag_warna', [NewProductController::class, 'processExcelFilesTagColor']);
     Route::post('/export-buyers/action/{id}', [BuyerController::class, 'actionExportRequest']);
     Route::post('/redis/force-process', [ProductApproveController::class, 'forceProcessRedisBatch']);
 });

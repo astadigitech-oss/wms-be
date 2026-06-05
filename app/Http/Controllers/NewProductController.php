@@ -2290,7 +2290,7 @@ class NewProductController extends Controller
             }
 
             DB::commit();
-            
+
             // [Movement] pending → staging_reguler / display_color
             try {
                 $to = $inputData['old_price_product'] < 100000 ? 'display_color' : 'staging_reguler';
@@ -2306,7 +2306,7 @@ class NewProductController extends Controller
             } catch (\Exception $movEx) {
                 Log::error('[Movement] addProductByAdmin log failed: ' . $movEx->getMessage());
             }
-            
+
             return new ResponseResource(true, $message, $newProduct);
         } catch (\Exception $e) {
             DB::rollback();
@@ -2496,7 +2496,7 @@ class NewProductController extends Controller
             $oldFiles = File::glob($directoryPath . '/product-by-color-*.xlsx');
             foreach ($oldFiles as $file) {
                 if (is_file($file)) {
-                    unlink($file); 
+                    unlink($file);
                 }
             }
 
