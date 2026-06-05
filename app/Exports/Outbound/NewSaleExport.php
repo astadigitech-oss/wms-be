@@ -40,9 +40,12 @@ class NewSaleExport implements FromQuery, WithHeadings, WithMapping
             'Document Penjualan',
             'Barcode Gudang',
             'Barcode Asal',
+            'Nama Produk',
             'Total Item',
+            'Kategori',
             'Harga Asal',
             'Harga Jual',
+            'Harga Jual Setelah Diskon Rank'
         ];
     }
 
@@ -52,8 +55,11 @@ class NewSaleExport implements FromQuery, WithHeadings, WithMapping
             $sale->code_document_sale,
             $sale->product_barcode_sale,
             $sale->old_barcode_product,
+            $sale->product_name_sale,
             $sale->product_qty_sale,
+            $sale->product_category_sale,
             $sale->product_old_price_sale,
+            $sale->display_price,
             $sale->product_price_sale,
         ];
     }
