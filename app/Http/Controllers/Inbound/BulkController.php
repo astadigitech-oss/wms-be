@@ -36,16 +36,20 @@ class BulkController extends Controller
 
         $request->validate([
             'file' => 'required|file|mimes:xlsx,xls',
+            'is_extra' => 'nullable|boolean',
         ], [
             'file.required' => 'File harus diunggah.',
             'file.file' => 'File yang diunggah tidak valid.',
             'file.mimes' => 'File harus berupa file Excel dengan ekstensi .xlsx atau .xls.',
+            'is_extra.boolean' => 'Field is_extra harus berupa boolean (true/false).',
         ]);
 
         $file = $request->file('file');
         $filePath = $file->getPathname();
         $fileName = $file->getClientOriginalName();
         $file->storeAs('public/ekspedisis', $fileName);
+
+        $isExtra = $request->boolean('is_extra', false);
 
         DB::beginTransaction();
 
@@ -174,6 +178,7 @@ class BulkController extends Controller
                         'type' => 'type1',
                         'user_id' => $user_id,
                         'is_so' => null,
+                        'is_extra' => $isExtra,
                         'new_tag_product' => $newProductDataToInsert['new_tag_product'] ?? null,
                         'new_quality' => json_encode(['lolos' => 'lolos']),
                         'actual_new_quality' => json_encode(['lolos' => 'lolos']),
