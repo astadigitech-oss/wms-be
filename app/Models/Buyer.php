@@ -37,4 +37,11 @@ class Buyer extends Model
     {
         return $this->hasMany(SaleDocument::class, 'buyer_id_document_sale', 'id');
     }
+
+    // Voucher relationship
+    public function vouchers()
+    {
+        return $this->belongsToMany(Voucher::class)
+            ->withTimestamps();
+    }
 }

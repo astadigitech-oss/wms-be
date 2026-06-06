@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\AbnormalDocumentController;
+use App\Http\Controllers\AdminPanel\VoucherController;
 use App\Http\Controllers\ApproveQueueController;
 use App\Http\Controllers\ArchiveStorageController;
 use App\Http\Controllers\AuthController;
@@ -219,6 +220,23 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Kasir leader'])->group(
 // ========================================================================================================
 Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader'])->group(function () {
     Route::post('bulking_tag_warna', [BulkController::class, 'processExcelFilesTagColor']);
+});
+
+// ========================================================================================================
+// 0. Fixing Helper - Voucher
+// ========================================================================================================
+Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Kasir leader'])->group(function () {
+    Route::get('vouchers', [VoucherController::class, 'listVoucher']);
+    Route::post('vouchers', [VoucherController::class, 'buatVoucher']);
+    Route::post('vouchers/{id}', [VoucherController::class, 'updateVoucher']);
+    Route::post('vouchers/{id}/tambah-buyer', [VoucherController::class, 'tambahBuyerKeVoucher']);
+});
+
+// ========================================================================================================
+// 0. Fixing Helper - Adjust Usage Voucher
+// ========================================================================================================
+Route::middleware(['auth:sanctum', 'check.role:Admin,Kasir leader,Admin Kasir'])->group(function () {
+    Route::get('list-voucher-buyer/{id}', [NewSaleController::class, 'listVoucherBuyer']);
 });
 
 
