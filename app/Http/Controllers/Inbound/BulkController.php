@@ -36,12 +36,11 @@ class BulkController extends Controller
 
         $request->validate([
             'file' => 'required|file|mimes:xlsx,xls',
-            'is_extra' => 'nullable|boolean',
+            'is_extra' => 'nullable|string',
         ], [
             'file.required' => 'File harus diunggah.',
             'file.file' => 'File yang diunggah tidak valid.',
             'file.mimes' => 'File harus berupa file Excel dengan ekstensi .xlsx atau .xls.',
-            'is_extra.boolean' => 'Field is_extra harus berupa boolean (true/false).',
         ]);
 
         $file = $request->file('file');
@@ -49,9 +48,8 @@ class BulkController extends Controller
         $fileName = $file->getClientOriginalName();
         $file->storeAs('public/ekspedisis', $fileName);
 
-        $isExtra = $request->boolean('is_extra', false);
-
-        DB::beginTransaction();
+        // Convert string to boolean: "true", "1", "yes" → true, sisanya → false
+        $isExtra = filter_var($request->input('is_extra', false), FILTER_VALIDATE_BOOLEAN);
 
         try {
             $spreadsheet = IOFactory::load($filePath);
