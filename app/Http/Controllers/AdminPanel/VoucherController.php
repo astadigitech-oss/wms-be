@@ -204,4 +204,29 @@ class VoucherController extends Controller
             );
         }
     }
+
+    public function detailVoucer($id)
+    {
+        try {
+            $voucher = Voucher::findOrFail($id);
+
+            return new ResponseResource(
+                true,
+                'Detail Voucher',
+                $voucher
+            );
+        } catch (\Throwable $e) {
+            Log::error('Error detail voucher', [
+                'message' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+            ]);
+
+            return new ResponseResource(
+                false,
+                'Gagal mengambil detail voucher',
+                null
+            );
+        }
+    }
 }
