@@ -208,7 +208,12 @@ class VoucherController extends Controller
     public function detailVoucer($id)
     {
         try {
-            $voucher = Voucher::findOrFail($id);
+            $voucher = Voucher::findOrFail($id)
+                ->makeHidden([
+                    'deleted_at',
+                    'created_at',
+                    'updated_at'
+                ]);
 
             return new ResponseResource(
                 true,
