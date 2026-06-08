@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\AbnormalDocumentController;
+use App\Http\Controllers\AdminPanel\VoucherController;
 use App\Http\Controllers\ApproveQueueController;
 use App\Http\Controllers\ArchiveStorageController;
 use App\Http\Controllers\AuthController;
@@ -32,7 +33,9 @@ use App\Http\Controllers\Fixing\FixingController;
 use App\Http\Controllers\FormatBarcodeController;
 use App\Http\Controllers\GenerateController;
 use App\Http\Controllers\Inbound\BastApprovalController;
+use App\Http\Controllers\Inbound\BulkController;
 use App\Http\Controllers\Inbound\HalamanApprovalController;
+use App\Http\Controllers\Inbound\NewBastController;
 use App\Http\Controllers\Inventory\Sku\SkuController;
 use App\Http\Controllers\LoyaltyRankController;
 use App\Http\Controllers\MigrateBulkyController;
@@ -172,6 +175,9 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Crew,Captai
     Route::post('scanner-bast', [BastApprovalController::class, 'scannerBaru']);
     Route::post('product-approves', [BastApprovalController::class, 'scannerSubmitBaru']);
 });
+Route::middleware(['auth:sanctum', 'check.role:Admin,Spv'])->group(function () {
+    Route::post('generate/merge-headers', [NewBastController::class, 'mapAndMergeHeaders']);
+});
 
 // ========================================================================================================
 // 0. Fixing Helper - Card Info
@@ -212,6 +218,31 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Kasir leader'])->group(
     Route::post('export-sales-reguler', [NewSaleController::class, 'exportSales']);
     Route::post('export-sales-bulky', [NewSaleController::class, 'exportBulkySale']);
 });
+
+// ========================================================================================================
+// 0. Fixing Helper - Export Export
+// ========================================================================================================
+Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader'])->group(function () {
+    Route::post('bulking_tag_warna', [BulkController::class, 'processExcelFilesTagColor']);
+});
+
+// ========================================================================================================
+// 0. Fixing Helper - Voucher
+// ========================================================================================================
+Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Kasir leader'])->group(function () {
+    Route::get('vouchers', [VoucherController::class, 'listVoucher']);
+    Route::post('vouchers', [VoucherController::class, 'buatVoucher']);
+    Route::post('vouchers/{id}', [VoucherController::class, 'updateVoucher']);
+    Route::post('vouchers/{id}/tambah-buyer', [VoucherController::class, 'tambahBuyerKeVoucher']);
+});
+
+// ========================================================================================================
+// 0. Fixing Helper - Adjust Usage Voucher
+// ========================================================================================================
+Route::middleware(['auth:sanctum', 'check.role:Admin,Kasir leader,Admin Kasir'])->group(function () {
+    Route::get('list-voucher-buyer/{id}', [NewSaleController::class, 'listVoucherBuyer']);
+});
+
 
 // ========================================================================================================
 // 1. AUTH & PUBLIC ROUTES
@@ -294,7 +325,7 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Kasir leade
 // [WRITE / POST / ACTION - TANPA Audit]
 Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Kasir leader,Admin Kasir,Crew,Captain'])->group(function () {
     Route::post('/generate', [GenerateController::class, 'processExcelFiles']);
-    Route::post('/generate/merge-headers', [GenerateController::class, 'mapAndMergeHeaders']);
+    // Route::post('/generate/merge-headers', [GenerateController::class, 'mapAndMergeHeaders']);
     Route::post('changeBarcodeDocument', [DocumentController::class, 'changeBarcodeDocument']);
     Route::resource('product-approves', ProductApproveController::class)->except(['index', 'show']);
     Route::resource('historys', RiwayatCheckController::class)->except(['index', 'show', 'destroy']);
@@ -336,7 +367,7 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Audit'])->group(functio
 Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader'])->group(function () {
     Route::post('/excelOld', [StagingProductController::class, 'processExcelFilesCategoryStaging']);
     Route::post('/bulkingInventory', [NewProductController::class, 'processExcelFilesCategory']);
-    Route::post('/bulking_tag_warna', [NewProductController::class, 'processExcelFilesTagColor']);
+    // Route::post('/bulking_tag_warna', [NewProductController::class, 'processExcelFilesTagColor']);
     Route::post('/export-buyers/action/{id}', [BuyerController::class, 'actionExportRequest']);
     Route::post('/redis/force-process', [ProductApproveController::class, 'forceProcessRedisBatch']);
 });

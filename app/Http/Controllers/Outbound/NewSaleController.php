@@ -6,6 +6,7 @@ use App\Exports\Outbound\NewBulkySaleExport;
 use App\Exports\Outbound\NewSaleExport;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\ResponseResource;
+use App\Models\Buyer;
 use Illuminate\Http\Request;
 use Maatwebsite\Excel\Facades\Excel;
 
@@ -84,6 +85,34 @@ class NewSaleController extends Controller
                 false,
                 'Gagal export: ' . $e->getMessage(),
                 []
+            );
+        }
+    }
+
+    public function listVoucherBuyer(Request $request, $id)
+    {
+        try {
+            $buyer = Buyer::findOrFail($id);
+
+            $data = $buyer->vouchers()
+                ->select(
+                    'vouchers.id',
+                    'vouchers.code',
+                    'vouchers.name',
+                    'vouchers.amount'
+                )
+                ->get();
+
+            return new ResponseResource(
+                true,
+                'List Voucher',
+                $data
+            );
+        } catch (\Exception $e) {
+            return new ResponseResource(
+                false,
+                $e->getMessage(),
+                null
             );
         }
     }
