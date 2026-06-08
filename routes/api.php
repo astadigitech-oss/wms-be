@@ -234,6 +234,7 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Kasir leader'])->group(
     Route::post('vouchers', [VoucherController::class, 'buatVoucher']);
     Route::post('vouchers/{id}', [VoucherController::class, 'updateVoucher']);
     Route::post('vouchers/{id}/tambah-buyer', [VoucherController::class, 'tambahBuyerKeVoucher']);
+    Route::get('vouchers/{id}', [VoucherController::class, 'detailVoucer']);
 });
 
 // ========================================================================================================
