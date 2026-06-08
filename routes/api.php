@@ -35,6 +35,7 @@ use App\Http\Controllers\GenerateController;
 use App\Http\Controllers\Inbound\BastApprovalController;
 use App\Http\Controllers\Inbound\BulkController;
 use App\Http\Controllers\Inbound\HalamanApprovalController;
+use App\Http\Controllers\Inbound\NewBastController;
 use App\Http\Controllers\Inventory\Sku\SkuController;
 use App\Http\Controllers\LoyaltyRankController;
 use App\Http\Controllers\MigrateBulkyController;
@@ -173,6 +174,9 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Crew,Captai
     Route::get('scan-paused', [BastApprovalController::class, 'checkScanPaused']);
     Route::post('scanner-bast', [BastApprovalController::class, 'scannerBaru']);
     Route::post('product-approves', [BastApprovalController::class, 'scannerSubmitBaru']);
+});
+Route::middleware(['auth:sanctum', 'check.role:Admin,Spv'])->group(function () {
+    Route::post('generate/merge-headers', [NewBastController::class, 'mapAndMergeHeaders']);
 });
 
 // ========================================================================================================
@@ -321,7 +325,7 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Kasir leade
 // [WRITE / POST / ACTION - TANPA Audit]
 Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Kasir leader,Admin Kasir,Crew,Captain'])->group(function () {
     Route::post('/generate', [GenerateController::class, 'processExcelFiles']);
-    Route::post('/generate/merge-headers', [GenerateController::class, 'mapAndMergeHeaders']);
+    // Route::post('/generate/merge-headers', [GenerateController::class, 'mapAndMergeHeaders']);
     Route::post('changeBarcodeDocument', [DocumentController::class, 'changeBarcodeDocument']);
     Route::resource('product-approves', ProductApproveController::class)->except(['index', 'show']);
     Route::resource('historys', RiwayatCheckController::class)->except(['index', 'show', 'destroy']);
