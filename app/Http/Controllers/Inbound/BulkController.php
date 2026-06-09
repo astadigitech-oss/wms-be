@@ -98,6 +98,7 @@ class BulkController extends Controller
 
             // Validasi tag yang tidak ditemukan
             $invalidTagBarcodes = collect();
+            $skippedBarcodes = collect();
 
             // Process in chunks
             for ($i = 1; $i < count($ekspedisiData); $i += $chunkSize) {
@@ -125,33 +126,58 @@ class BulkController extends Controller
                         }
                     }
 
-                    if (isset($newProductDataToInsert['old_price_product']) && $newProductDataToInsert['old_price_product'] > 99999) {
-                        continue;
+                    $price = $newProductDataToInsert['old_price_product'] ?? 0;
+                    $tagFromExcel = trim($newProductDataToInsert['tag_from_excel'] ?? '');
+
+                    // Jika harga >= 100rb maka wajib ada tag
+                    // Jika harga >= 100rb maka wajib ada tag
+                    if ($price >= 100000) {
+
+                        if (empty($tagFromExcel)) {
+                            $barcode = $newProductDataToInsert['old_barcode_product'] ?? 'Unknown';
+
+                            $skippedBarcodes->push(
+                                $barcode . ' - Harga >= 100000 tanpa tag, data di-skip'
+                            );
+
+                            continue;
+                        }
+
+                        $colors = Color_tag::where('name_color', $tagFromExcel)->first();
+
+                        if ($colors) {
+                            $newProductDataToInsert['new_tag_product'] = $colors->name_color;
+                            $newProductDataToInsert['display_price'] = $colors->fixed_price_color;
+                            $newProductDataToInsert['new_price_product'] = $colors->fixed_price_color;
+                        } else {
+                            $barcode = $newProductDataToInsert['old_barcode_product'] ?? 'Unknown';
+                            $invalidTagBarcodes->push($barcode . ' - Tag: ' . $tagFromExcel . ' (tidak ditemukan)');
+                            continue;
+                        }
                     }
 
-                    // Logic baru untuk handle Tag
-                    if (isset($newProductDataToInsert['old_price_product']) && $newProductDataToInsert['old_price_product'] < 100000) {
-                        $tagFromExcel = $newProductDataToInsert['tag_from_excel'] ?? '';
+                    // Harga < 100rb
+                    else {
 
-                        // Jika Tag ada isinya (tidak kosong)
+                        // Jika tag diisi, pakai tag
                         if (!empty($tagFromExcel)) {
+
                             $colors = Color_tag::where('name_color', $tagFromExcel)->first();
 
                             if ($colors) {
-                                // Tag ditemukan, gunakan fixed price dari tag tersebut
                                 $newProductDataToInsert['new_tag_product'] = $colors->name_color;
                                 $newProductDataToInsert['display_price'] = $colors->fixed_price_color;
                                 $newProductDataToInsert['new_price_product'] = $colors->fixed_price_color;
                             } else {
-                                // Tag tidak ditemukan, simpan untuk validasi error
                                 $barcode = $newProductDataToInsert['old_barcode_product'] ?? 'Unknown';
                                 $invalidTagBarcodes->push($barcode . ' - Tag: ' . $tagFromExcel . ' (tidak ditemukan)');
                                 continue;
                             }
                         } else {
-                            // Jika Tag kosong, gunakan logic lama (range min-max price)
-                            $colors = Color_tag::where('min_price_color', '<=', $newProductDataToInsert['old_price_product'])
-                                ->where('max_price_color', '>=', $newProductDataToInsert['old_price_product'])
+
+                            // Logic lama berdasarkan range harga
+                            $colors = Color_tag::where('min_price_color', '<=', $price)
+                                ->where('max_price_color', '>=', $price)
                                 ->first();
 
                             if ($colors) {
@@ -275,7 +301,7 @@ class BulkController extends Controller
                 'code_document' => $code_document,
                 'file_name' => $fileName,
                 'total_column_count' => count($headerMappings) - 1, // Exclude tag_from_excel
-                'total_row_count' => count($ekspedisiData) - 2, // Exclude header
+                'total_row_count' => count($ekspedisiData) - 1, // Exclude header
             ]);
         } catch (\Exception $e) {
             DB::rollBack();
