@@ -95,13 +95,32 @@ class NewSaleController extends Controller
             $buyer = Buyer::findOrFail($id);
 
             $data = $buyer->vouchers()
+                ->wherePivot('status', true) // Hanya ambil voucher yang aktif
                 ->select(
                     'vouchers.id',
                     'vouchers.code',
                     'vouchers.name',
-                    'vouchers.amount'
+                    'vouchers.amount',
+                    'vouchers.max_week'
                 )
-                ->get();
+                ->get()
+                ->map(function ($voucher) {
+                    $tanggalDapat = \Carbon\Carbon::parse($voucher->pivot->start_date);
+
+                    $expiredDate = $tanggalDapat->copy()->addWeeks($voucher->max_week);
+
+                    $sisaHari = now()->diffInDays($expiredDate, false);
+
+                    return [
+                        'id' => $voucher->id,
+                        'code' => $voucher->code,
+                        'name' => $voucher->name,
+                        'amount' => $voucher->amount,
+                        'tanggal_dapat_voucher' => $tanggalDapat->translatedFormat('d M Y'),
+                        'sisa_hari' => max(0, $sisaHari),
+                        'status' => $voucher->pivot->status ? 'active' : 'inactive',
+                    ];
+                });
 
             return new ResponseResource(
                 true,
