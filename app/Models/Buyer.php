@@ -42,6 +42,10 @@ class Buyer extends Model
     public function vouchers()
     {
         return $this->belongsToMany(Voucher::class)
+            ->withPivot([
+                'start_date',
+                'status'
+            ])
             ->withTimestamps();
     }
 }

@@ -156,13 +156,13 @@ class BastApprovalController extends Controller
             return new ResponseResource(false, "Barcode tidak boleh kosong.", null);
         }
 
-        $isProcessed = \App\Models\New_product::where('code_document', $codeDocument)
-            ->where('old_barcode_product', $oldBarcode)
-            ->exists();
+        // $isProcessed = \App\Models\New_product::where('code_document', $codeDocument)
+        //     ->where('old_barcode_product', $oldBarcode)
+        //     ->exists();
 
-        if ($isProcessed) {
-            return new ResponseResource(false, "Produk ini sudah selesai diproses.", []);
-        }
+        // if ($isProcessed) {
+        //     return new ResponseResource(false, "Produk ini sudah selesai diproses.", []);
+        // }
 
         $product = \App\Models\Product_old::where('code_document', $codeDocument)
             ->where('old_barcode_product', $oldBarcode)

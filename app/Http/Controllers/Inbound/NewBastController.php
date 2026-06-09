@@ -153,4 +153,39 @@ class NewBastController extends Controller
             return response()->json(['error' => 'An error occurred: ' . $e->getMessage()], 500);
         }
     }
+
+    public function searchByDocument(Request $request)
+    {
+        $query = $request->input('q');
+        $search = $request->input('search');
+
+        $code_documents = Product_old::where('code_document', $search)
+            ->where(function ($subQuery) use ($query) {
+                $subQuery->where('old_barcode_product', 'LIKE', '%' . $query . '%')
+                    ->orWhere('old_name_product', 'LIKE', '%' . $query . '%');
+            })
+            ->paginate(50);
+
+        $document = Document::where('code_document', $search)->first();
+
+        if ($document) {
+            foreach ($code_documents as $code_document) {
+                $code_document->custom_barcode = $document->custom_barcode ?? null;
+            }
+
+            return new ResponseResource(true, "Data Document products", [
+                'document_name' => $document->base_document ?? 'N/A',
+                'status' => $document->status_document ?? 'N/A',
+                'total_columns' => $document->total_column_in_document ?? 0,
+                'custom_barcode' => $document->custom_barcode ?? null,
+                'code_document' => $document->code_document ?? 'N/A',
+                'data' => $code_documents ?? null,
+            ]);
+        } else {
+            // Dokumen tidak ditemukan
+            return (new ResponseResource(false, "code document tidak ada", null))
+                ->response()
+                ->setStatusCode(404);
+        }
+    }
 }
