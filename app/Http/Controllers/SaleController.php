@@ -115,6 +115,8 @@ class SaleController extends Controller
             'current_transaction' => $currentTransaction,
             'monthly_point' => (int) $monthlyPoint,
             'monthly_rank_position' => $monthlyRank > 0 ? $monthlyRank : '-',
+            'voucher_rank_available' => $totalSale >= 5000000,
+            'voucher_rank_value' => $saleDocument?->voucher_rank_value ?? 0,
         ];
 
         $data += $sale->toArray();
