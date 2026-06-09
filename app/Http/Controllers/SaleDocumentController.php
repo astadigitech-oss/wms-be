@@ -394,7 +394,11 @@ class SaleDocumentController extends Controller
 
             $totalProductPriceSale = Sale::where('code_document_sale', $saleDocument->code_document_sale)->sum('product_price_sale');
 
-            $totalProductPriceSale = $request['voucher'] ? $totalProductPriceSale - $request['voucher'] : $totalProductPriceSale;
+            // $totalProductPriceSale = $request['voucher'] ? $totalProductPriceSale - $request['voucher'] : $totalProductPriceSale;
+            $totalProductPriceSale =
+                $totalProductPriceSale
+                - ($request->voucher ?? 0)
+                - ($saleDocument->voucher_rank_value ?? 0);
 
             $totalProductOldPriceSale = Sale::where('code_document_sale', $saleDocument->code_document_sale)->sum('product_old_price_sale');
 

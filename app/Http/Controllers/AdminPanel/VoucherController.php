@@ -181,11 +181,20 @@ class VoucherController extends Controller
 
             $data = $validator->validated();
 
-            // Cek apakah buyer sudah memiliki voucher ini
-            if ($voucher->buyers()->where('buyer_id', $data['buyer_id'])->exists()) {
+            $startDate = \Carbon\Carbon::parse(
+                $data['start_date'] ?? now()
+            );
+
+            $alreadyExists = $voucher->buyers()
+                ->where('buyer_id', $data['buyer_id'])
+                ->whereMonth('buyer_voucher.start_date', $startDate->month)
+                ->whereYear('buyer_voucher.start_date', $startDate->year)
+                ->exists();
+
+            if ($alreadyExists) {
                 return new ResponseResource(
                     false,
-                    'Buyer sudah memiliki voucher ini',
+                    'Buyer sudah memiliki voucher ini pada bulan yang sama',
                     null
                 );
             }

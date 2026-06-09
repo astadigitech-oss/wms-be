@@ -41,4 +41,9 @@ class Voucher extends Model
             ])
             ->withTimestamps();
     }
+
+    public function saleDocuments()
+    {
+        return $this->hasMany(SaleDocument::class);
+    }
 }
