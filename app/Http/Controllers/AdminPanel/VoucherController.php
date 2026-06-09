@@ -155,12 +155,11 @@ class VoucherController extends Controller
 
     public function tambahBuyerKeVoucher(Request $request, $id)
     {
-        // dd($request->all());
         $validator = Validator($request->all(), [
             'buyer_id' => 'required|integer|exists:buyers,id',
+            'start_date' => 'nullable|date',
         ]);
-        // $buyer = Buyer::find($request->buyer_id);
-        // dd($buyer);
+
         if ($validator->fails()) {
             return new ResponseResource(
                 false,
@@ -180,8 +179,32 @@ class VoucherController extends Controller
                 );
             }
 
+            $data = $validator->validated();
+
+            $startDate = \Carbon\Carbon::parse(
+                $data['start_date'] ?? now()
+            );
+
+            $alreadyExists = $voucher->buyers()
+                ->where('buyer_id', $data['buyer_id'])
+                ->whereMonth('buyer_voucher.start_date', $startDate->month)
+                ->whereYear('buyer_voucher.start_date', $startDate->year)
+                ->exists();
+
+            if ($alreadyExists) {
+                return new ResponseResource(
+                    false,
+                    'Buyer sudah memiliki voucher ini pada bulan yang sama',
+                    null
+                );
+            }
+
             $voucher->buyers()->attach(
-                $validator->validated()['buyer_id']
+                $data['buyer_id'],
+                [
+                    'start_date' => $data['start_date'] ?? now(),
+                    'status' => true,
+                ]
             );
 
             return new ResponseResource(

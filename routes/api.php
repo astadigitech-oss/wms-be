@@ -242,8 +242,9 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Kasir leader'])->group(
 // ========================================================================================================
 Route::middleware(['auth:sanctum', 'check.role:Admin,Kasir leader,Admin Kasir'])->group(function () {
     Route::get('list-voucher-buyer/{id}', [NewSaleController::class, 'listVoucherBuyer']);
+    Route::post('pakai-voucher', [NewSaleController::class, 'pakaiVoucher']);
+    Route::post('lepas-voucher', [NewSaleController::class, 'lepasVoucher']);
 });
-
 
 // ========================================================================================================
 // 1. AUTH & PUBLIC ROUTES

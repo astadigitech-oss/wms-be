@@ -13,6 +13,10 @@ class SaleDocument extends Model
 
     protected $appends = ['grand_total'];
 
+    protected $casts = [
+        'voucher_rank_value' => 'decimal:2',
+    ];
+
     public function getGrandTotalAttribute()
     {
         return $this->cardbox_total_price + $this->total_price_document_sale;
@@ -31,5 +35,10 @@ class SaleDocument extends Model
     public function buyer()
     {
         return $this->belongsTo(Buyer::class, 'buyer_id_document_sale');
+    }
+
+    public function voucher()
+    {
+        return $this->belongsTo(Voucher::class);
     }
 }
