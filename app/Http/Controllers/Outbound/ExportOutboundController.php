@@ -8,6 +8,7 @@ use App\Http\Resources\ResponseResource;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Storage;
 use Maatwebsite\Excel\Facades\Excel;
 
 class ExportOutboundController extends Controller
@@ -15,15 +16,26 @@ class ExportOutboundController extends Controller
     public function exportB2BBaru()
     {
         $filename = sprintf(
-            'B2B_%s_%s_%s.xlsx',
+            'B2B_%s_%s.xlsx',
             now()->format('dmY'),
-            now()->format('His'),
-            rand(1000, 9999)
+            now()->format('His')
         );
 
-        return Excel::download(
+        $path = 'exports/' . $filename;
+
+        Excel::store(
             new NewCargoExport(),
-            $filename
+            $path,
+            'public'
+        );
+
+        return new ResponseResource(
+            true,
+            'Berhasil generate file B2B',
+            [
+                'file_name' => $filename,
+                'link' => Storage::disk('public')->url($path),
+            ]
         );
     }
 }
