@@ -16,6 +16,9 @@ class ExportOutboundController extends Controller
 {
     public function exportB2BBaru()
     {
+        set_time_limit(600);
+        ini_set('memory_limit', '1024M');
+
         try {
             $filename = sprintf(
                 'B2B_%s_%s.xlsx',
@@ -45,6 +48,7 @@ class ExportOutboundController extends Controller
                 'message' => $th->getMessage(),
                 'file' => $th->getFile(),
                 'line' => $th->getLine(),
+                'trace' => $th->getTraceAsString(),
             ]);
 
             return new ResponseResource(
