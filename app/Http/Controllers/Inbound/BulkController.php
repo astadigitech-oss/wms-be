@@ -15,6 +15,8 @@ use App\Models\SoColor;
 use App\Models\StagingProduct;
 use App\Models\RiwayatCheck;
 use App\Http\Resources\ResponseResource;
+use App\Models\ColorRack;
+use App\Models\ColorRackProduct;
 
 class BulkController extends Controller
 {
@@ -306,6 +308,92 @@ class BulkController extends Controller
         } catch (\Exception $e) {
             DB::rollBack();
             return response()->json(['error' => 'Error importing data: ' . $e->getMessage()], 500);
+        }
+    }
+
+    public function assignColorRack(Request $request)
+    {
+        DB::beginTransaction();
+
+        try {
+
+            $request->validate([
+                'code_document' => 'required|string',
+                'color_rack_barcode' => 'required|string',
+            ], [
+                'code_document.required' => 'Code document wajib diisi',
+                'color_rack_barcode.required' => 'Barcode rack wajib diisi',
+            ]);
+
+            $colorRack = ColorRack::where(
+                'barcode',
+                $request->color_rack_barcode
+            )->first();
+
+            if (!$colorRack) {
+
+                $response = new ResponseResource(
+                    false,
+                    'Color rack tidak ditemukan',
+                    null
+                );
+
+                return $response->response()->setStatusCode(404);
+            }
+
+            $products = New_product::where(
+                'code_document',
+                $request->code_document
+            )
+                ->select('id')
+                ->get();
+
+            if ($products->isEmpty()) {
+
+                $response = new ResponseResource(
+                    false,
+                    'Data product tidak ditemukan',
+                    null
+                );
+
+                return $response->response()->setStatusCode(404);
+            }
+
+            $insertData = [];
+
+            foreach ($products as $product) {
+                $insertData[] = [
+                    'new_product_id' => $product->id,
+                    'color_rack_id' => $colorRack->id,
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ];
+            }
+
+            ColorRackProduct::insert($insertData);
+
+            DB::commit();
+
+            return new ResponseResource(
+                true,
+                'Berhasil assign rack ke product',
+                [
+                    'code_document' => $request->code_document,
+                    'color_rack_id' => $colorRack->id,
+                    'total_product' => count($insertData),
+                ]
+            );
+        } catch (\Exception $e) {
+
+            DB::rollBack();
+
+            $response = new ResponseResource(
+                false,
+                $e->getMessage(),
+                null
+            );
+
+            return $response->response()->setStatusCode(500);
         }
     }
 }

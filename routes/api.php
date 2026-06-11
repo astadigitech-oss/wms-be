@@ -48,6 +48,7 @@ use App\Http\Controllers\NewProductController;
 use App\Http\Controllers\NonDocumentController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\Outbound\BagController;
+use App\Http\Controllers\Outbound\ExportOutboundController;
 use App\Http\Controllers\Outbound\NewSaleController;
 use App\Http\Controllers\Outbound\SaleController as OutboundSaleController;
 use App\Http\Controllers\PaletBrandController;
@@ -122,6 +123,7 @@ Route::middleware([
     Route::middleware([
         'check.role:Admin,Spv,Team leader,TeamLeader'
     ])->group(function () {
+        Route::get('cargo/export', [ExportOutboundController::class, 'exportB2BBaru']);
 
         Route::get('cargo/{idCargo}/bags', [CargoController::class, 'listBagCargo']);
         Route::get('cargo/{idCargo}/info', [CargoController::class, 'infoDetailCargo']);
@@ -224,6 +226,7 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Kasir leader'])->group(
 // ========================================================================================================
 Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader'])->group(function () {
     Route::post('bulking_tag_warna', [BulkController::class, 'processExcelFilesTagColor']);
+    Route::post('masukin_tag_warna_ke_rak', [BulkController::class, 'assignColorRack']);
 });
 
 // ========================================================================================================
