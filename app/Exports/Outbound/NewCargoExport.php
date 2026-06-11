@@ -48,7 +48,7 @@ class NewCargoExport implements WithMultipleSheets
                 {
                     return [
                         $row->code_document_bulky,
-                        $row->name_document_bulky,
+                        $row->name_document,
                         $row->total_product_bulky,
                         $row->total_old_price_bulky,
                     ];
