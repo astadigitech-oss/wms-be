@@ -255,6 +255,7 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Kasir leader,Admin Kasir'])
 // ========================================================================================================
 Route::middleware(['auth:sanctum', 'check.role:Admin'])->group(function () {
     Route::post('/search-product', [FindProductController::class, 'findProduct']);
+    Route::post('/update-harga-excel', [FindProductController::class, 'updateHargaExcel']);
 });
 
 // ========================================================================================================
