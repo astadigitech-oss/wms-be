@@ -254,7 +254,7 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Kasir leader,Admin Kasir'])
 // 0. Fixing Helper - Helper
 // ========================================================================================================
 Route::middleware(['auth:sanctum', 'check.role:Admin'])->group(function () {
-    Route::get('/search-product', [FindProductController::class, 'findProduct']);
+    Route::post('/search-product', [FindProductController::class, 'findProduct']);
 });
 
 // ========================================================================================================
