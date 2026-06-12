@@ -15,7 +15,6 @@ class NewCargoExport implements WithMultipleSheets
     public function sheets(): array
     {
         $documentIds = BulkyDocument::query()
-            ->where('status_bulky', '!=', 'selesai')
             ->where('is_sale', BulkyDocument::SALE_NOT)
             ->where('type', BulkyDocument::TYPE_OFFLINE)
             ->pluck('id');

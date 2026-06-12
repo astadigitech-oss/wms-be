@@ -18,6 +18,7 @@ use App\Http\Controllers\CardInfo\DataController;
 use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\CategoryPaletController;
 use App\Http\Controllers\CheckConnectionController;
+use App\Http\Controllers\CheckController\FindProductController;
 use App\Http\Controllers\ColorRackController;
 use App\Http\Controllers\ColorTag2Controller;
 use App\Http\Controllers\ColorTagController;
@@ -247,6 +248,13 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Kasir leader,Admin Kasir'])
     Route::get('list-voucher-buyer/{id}', [NewSaleController::class, 'listVoucherBuyer']);
     Route::post('pakai-voucher', [NewSaleController::class, 'pakaiVoucher']);
     Route::post('lepas-voucher', [NewSaleController::class, 'lepasVoucher']);
+});
+
+// ========================================================================================================
+// 0. Fixing Helper - Helper
+// ========================================================================================================
+Route::middleware(['auth:sanctum', 'check.role:Admin'])->group(function () {
+    Route::get('/search-product', [FindProductController::class, 'findProduct']);
 });
 
 // ========================================================================================================
