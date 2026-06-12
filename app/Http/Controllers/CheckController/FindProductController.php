@@ -17,15 +17,13 @@ class FindProductController extends Controller
 
         $rows = Excel::toArray([], $request->file('file'));
 
-        // Sheet pertama
         $sheet = $rows[0];
 
         $barcodes = [];
 
         foreach ($sheet as $index => $row) {
-            // Skip header (row pertama)
             if ($index === 0) {
-                continue;
+                continue; // skip header
             }
 
             if (!empty($row[0])) {
@@ -37,16 +35,28 @@ class FindProductController extends Controller
 
         $newProducts = DB::table('new_products')
             ->whereIn('new_barcode_product', $barcodes)
-            ->get();
+            ->pluck('new_barcode_product')
+            ->toArray();
 
         $stagingProducts = DB::table('staging_products')
             ->whereIn('new_barcode_product', $barcodes)
-            ->get();
+            ->pluck('new_barcode_product')
+            ->toArray();
+
+        $foundBarcodes = array_unique(array_merge(
+            $newProducts,
+            $stagingProducts
+        ));
+
+        $notFoundBarcodes = array_values(
+            array_diff($barcodes, $foundBarcodes)
+        );
 
         return response()->json([
-            'total_barcodes' => count($barcodes),
-            'new_products' => $newProducts,
-            'staging_products' => $stagingProducts,
+            'total_excel' => count($barcodes),
+            'found_count' => count($foundBarcodes),
+            'not_found_count' => count($notFoundBarcodes),
+            'not_found_barcodes' => $notFoundBarcodes,
         ]);
     }
 }
