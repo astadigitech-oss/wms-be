@@ -99,4 +99,9 @@ class User extends Authenticatable
     {
         return $this->hasMany(ScanPending::class, 'approver_id');
     }
+
+    public function skuBatches()
+    {
+        return $this->hasMany(SkuBatch::class, 'created_by');
+    }
 }

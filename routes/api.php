@@ -37,6 +37,7 @@ use App\Http\Controllers\Inbound\BastApprovalController;
 use App\Http\Controllers\Inbound\BulkController;
 use App\Http\Controllers\Inbound\HalamanApprovalController;
 use App\Http\Controllers\Inbound\NewBastController;
+use App\Http\Controllers\Inbound\NewSkuController;
 use App\Http\Controllers\Inventory\Sku\SkuController;
 use App\Http\Controllers\LoyaltyRankController;
 use App\Http\Controllers\MigrateBulkyController;
@@ -256,6 +257,12 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Kasir leader,Admin Kasir'])
 Route::middleware(['auth:sanctum', 'check.role:Admin'])->group(function () {
     Route::post('/search-product', [FindProductController::class, 'findProduct']);
     Route::post('/update-harga-excel', [FindProductController::class, 'updateHargaExcel']);
+});
+
+Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader'])->group(function () {
+    Route::post('sku/up-batch/{id}', [NewSkuController::class, 'melakukanBatch']);
+    Route::post('sku/rollback-batch/{id}', [NewSkuController::class, 'melakukanRollback']);
+    Route::get('sku/batch/{id}', [NewSkuController::class, 'getBatchByProductOld']);
 });
 
 // ========================================================================================================

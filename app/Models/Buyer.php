@@ -43,7 +43,7 @@ class Buyer extends Model
     {
         return $this->belongsToMany(Voucher::class)
             ->withPivot([
-                'start_date',
+                'used',
                 'status'
             ])
             ->withTimestamps();
