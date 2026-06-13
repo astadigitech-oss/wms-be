@@ -414,7 +414,6 @@ class BulkController extends Controller
                 ->pluck('old_barcode_product')
                 ->filter()
                 ->map(fn($item) => trim((string) $item))
-                ->unique()
                 ->values()
                 ->toArray();
 
