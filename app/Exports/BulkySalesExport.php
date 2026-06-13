@@ -25,28 +25,32 @@ class BulkySalesExport implements WithMultipleSheets
         $this->querySearch = $this->cleanString($querySearch);
     }
 
-    private function cleanString($string)
+    private function cleanString($value)
     {
-        if (empty($string)) {
+        if ($value === null) {
             return '';
         }
-        $string = (string) $string;
-        $cleaned = '';
-        $length = strlen($string);
-        for ($i = 0; $i < $length; $i++) {
-            $ord = ord($string[$i]);
-            if ($ord >= 32 && $ord <= 126) {
-                $cleaned .= $string[$i];
-            }
+
+        $value = (string) $value;
+
+        // Buang byte UTF-8 yang rusak
+        $value = @iconv('UTF-8', 'UTF-8//IGNORE', $value);
+
+        if ($value === false) {
+            $value = '';
         }
-        return trim($cleaned);
+
+        // Hapus karakter kontrol yang tidak bisa ditulis Excel
+        $value = preg_replace('/[\x00-\x1F\x7F]/u', '', $value);
+
+        return trim($value);
     }
 
     public function sheets(): array
     {
         return [
-            new BulkyDocumentSheet($this->filterStatus, $this->querySearch), 
-            new BulkySaleSheet($this->filterStatus, $this->querySearch)      
+            new BulkyDocumentSheet($this->filterStatus, $this->querySearch),
+            new BulkySaleSheet($this->filterStatus, $this->querySearch)
         ];
     }
 }

@@ -18,6 +18,7 @@ use App\Http\Controllers\CardInfo\DataController;
 use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\CategoryPaletController;
 use App\Http\Controllers\CheckConnectionController;
+use App\Http\Controllers\CheckController\FindProductController;
 use App\Http\Controllers\ColorRackController;
 use App\Http\Controllers\ColorTag2Controller;
 use App\Http\Controllers\ColorTagController;
@@ -36,6 +37,7 @@ use App\Http\Controllers\Inbound\BastApprovalController;
 use App\Http\Controllers\Inbound\BulkController;
 use App\Http\Controllers\Inbound\HalamanApprovalController;
 use App\Http\Controllers\Inbound\NewBastController;
+use App\Http\Controllers\Inbound\NewSkuController;
 use App\Http\Controllers\Inventory\Sku\SkuController;
 use App\Http\Controllers\LoyaltyRankController;
 use App\Http\Controllers\MigrateBulkyController;
@@ -48,6 +50,7 @@ use App\Http\Controllers\NewProductController;
 use App\Http\Controllers\NonDocumentController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\Outbound\BagController;
+use App\Http\Controllers\Outbound\ExportOutboundController;
 use App\Http\Controllers\Outbound\NewSaleController;
 use App\Http\Controllers\Outbound\SaleController as OutboundSaleController;
 use App\Http\Controllers\PaletBrandController;
@@ -122,6 +125,7 @@ Route::middleware([
     Route::middleware([
         'check.role:Admin,Spv,Team leader,TeamLeader'
     ])->group(function () {
+        Route::get('cargo/export', [ExportOutboundController::class, 'exportB2BBaru']);
 
         Route::get('cargo/{idCargo}/bags', [CargoController::class, 'listBagCargo']);
         Route::get('cargo/{idCargo}/info', [CargoController::class, 'infoDetailCargo']);
@@ -224,6 +228,7 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Kasir leader'])->group(
 // ========================================================================================================
 Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader'])->group(function () {
     Route::post('bulking_tag_warna', [BulkController::class, 'processExcelFilesTagColor']);
+    Route::post('masukin_tag_warna_ke_rak', [BulkController::class, 'assignColorRack']);
 });
 
 // ========================================================================================================
@@ -244,6 +249,20 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Kasir leader,Admin Kasir'])
     Route::get('list-voucher-buyer/{id}', [NewSaleController::class, 'listVoucherBuyer']);
     Route::post('pakai-voucher', [NewSaleController::class, 'pakaiVoucher']);
     Route::post('lepas-voucher', [NewSaleController::class, 'lepasVoucher']);
+});
+
+// ========================================================================================================
+// 0. Fixing Helper - Helper
+// ========================================================================================================
+Route::middleware(['auth:sanctum', 'check.role:Admin'])->group(function () {
+    Route::post('/search-product', [FindProductController::class, 'findProduct']);
+    Route::post('/update-harga-excel', [FindProductController::class, 'updateHargaExcel']);
+});
+
+Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader'])->group(function () {
+    Route::post('sku/up-batch/{id}', [NewSkuController::class, 'melakukanBatch']);
+    Route::post('sku/rollback-batch/{id}', [NewSkuController::class, 'melakukanRollback']);
+    Route::get('sku/batch/{id}', [NewSkuController::class, 'getBatchByProductOld']);
 });
 
 // ========================================================================================================

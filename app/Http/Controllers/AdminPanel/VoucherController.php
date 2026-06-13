@@ -53,6 +53,7 @@ class VoucherController extends Controller
             'amount' => 'required|numeric',
             'max_usage' => 'required|integer',
             'max_week' => 'required|integer',
+            'start_date' => 'nullable|date',
         ]);
 
         if ($validator->fails()) {
@@ -157,7 +158,6 @@ class VoucherController extends Controller
     {
         $validator = Validator($request->all(), [
             'buyer_id' => 'required|integer|exists:buyers,id',
-            'start_date' => 'nullable|date',
         ]);
 
         if ($validator->fails()) {
@@ -181,20 +181,14 @@ class VoucherController extends Controller
 
             $data = $validator->validated();
 
-            $startDate = \Carbon\Carbon::parse(
-                $data['start_date'] ?? now()
-            );
-
             $alreadyExists = $voucher->buyers()
                 ->where('buyer_id', $data['buyer_id'])
-                ->whereMonth('buyer_voucher.start_date', $startDate->month)
-                ->whereYear('buyer_voucher.start_date', $startDate->year)
                 ->exists();
 
             if ($alreadyExists) {
                 return new ResponseResource(
                     false,
-                    'Buyer sudah memiliki voucher ini pada bulan yang sama',
+                    'Buyer sudah memiliki voucher ini',
                     null
                 );
             }
@@ -202,8 +196,8 @@ class VoucherController extends Controller
             $voucher->buyers()->attach(
                 $data['buyer_id'],
                 [
-                    'start_date' => $data['start_date'] ?? now(),
                     'status' => true,
+                    'used' => 0,
                 ]
             );
 

@@ -108,32 +108,37 @@ class NewSaleController extends Controller
                     'vouchers.name',
                     'vouchers.amount',
                     'vouchers.max_usage',
-                    'vouchers.max_week'
+                    'vouchers.max_week',
+                    'vouchers.start_date'
                 )
                 ->get()
                 ->filter(function ($voucher) {
-                    $startDate = \Carbon\Carbon::parse($voucher->pivot->start_date);
+
+                    $startDate = Carbon::parse($voucher->start_date);
 
                     $expiredDate = $startDate->copy()->addWeeks($voucher->max_week);
 
-                    return $startDate->lte(now()) &&
-                        $expiredDate->gte(now());
+                    $maxUsedCount = (int) floor(
+                        $voucher->amount / $voucher->max_usage
+                    );
+
+                    return now()->lte($expiredDate)
+                        && ($voucher->pivot->used ?? 0) < $maxUsedCount;
                 })
                 ->values()
-                ->map(function ($voucher) use ($buyer) {
+                ->map(function ($voucher) {
 
-                    $startDate = Carbon::parse($voucher->pivot->start_date);
+                    $startDate = Carbon::parse($voucher->start_date);
 
                     $expiredDate = $startDate->copy()->addWeeks($voucher->max_week);
 
                     $sisaHari = now()->diffInDays($expiredDate, false);
 
-                    $totalUsed = SaleDocument::where(
-                        'buyer_id_document_sale',
-                        $buyer->id
-                    )
-                        ->where('voucher_id', $voucher->id)
-                        ->sum('voucher_rank_value');
+                    $used = $voucher->pivot->used ?? 0;
+
+                    $maxUsedCount = (int) floor(
+                        $voucher->amount / $voucher->max_usage
+                    );
 
                     return [
                         'id' => $voucher->id,
@@ -141,8 +146,19 @@ class NewSaleController extends Controller
                         'name' => $voucher->name,
                         'amount' => $voucher->amount,
                         'max_usage' => $voucher->max_usage,
-                        'used' => $totalUsed,
-                        'remaining' => max(0, $voucher->amount - $totalUsed),
+
+                        // jumlah pemakaian saat ini
+                        'used' => $used,
+
+                        // maksimal boleh dipakai
+                        'max_used_count' => $maxUsedCount,
+
+                        // sisa penggunaan
+                        'remaining_usage' => max(
+                            0,
+                            $maxUsedCount - $used
+                        ),
+
                         'tanggal_dapat_voucher' => $startDate->translatedFormat('d M Y'),
                         'tanggal_expired' => $expiredDate->translatedFormat('d M Y'),
                         'sisa_hari' => max(0, $sisaHari),
@@ -211,7 +227,9 @@ class NewSaleController extends Controller
                 );
             }
 
-            $buyer = Buyer::findOrFail($saleDocument->buyer_id_document_sale);
+            $buyer = Buyer::findOrFail(
+                $saleDocument->buyer_id_document_sale
+            );
 
             $voucher = $buyer->vouchers()
                 ->wherePivot('status', true)
@@ -220,7 +238,8 @@ class NewSaleController extends Controller
                     'vouchers.id',
                     'vouchers.amount',
                     'vouchers.max_usage',
-                    'vouchers.max_week'
+                    'vouchers.max_week',
+                    'vouchers.start_date'
                 )
                 ->first();
 
@@ -234,18 +253,34 @@ class NewSaleController extends Controller
                 );
             }
 
-            $startDate = Carbon::parse($voucher->pivot->start_date);
-            $expiredDate = $startDate->copy()->addWeeks($voucher->max_week);
+            $startDate = Carbon::parse($voucher->start_date);
 
-            if (
-                !$startDate->lte(now()) ||
-                !$expiredDate->gte(now())
-            ) {
+            $expiredDate = $startDate
+                ->copy()
+                ->addWeeks($voucher->max_week);
+
+            if (now()->gt($expiredDate)) {
                 DB::rollBack();
 
                 return new ResponseResource(
                     false,
-                    'Voucher sudah expired atau belum mulai berlaku',
+                    'Voucher sudah expired',
+                    null
+                );
+            }
+
+            $maxUsedCount = $voucher->max_usage > 0
+                ? (int) floor(
+                    $voucher->amount / $voucher->max_usage
+                )
+                : 0;
+
+            if (($voucher->pivot->used ?? 0) >= $maxUsedCount) {
+                DB::rollBack();
+
+                return new ResponseResource(
+                    false,
+                    'Kuota penggunaan voucher sudah habis',
                     null
                 );
             }
@@ -254,6 +289,15 @@ class NewSaleController extends Controller
                 'voucher_id' => $voucher->id,
                 'voucher_rank_value' => $voucher->max_usage,
             ]);
+
+            $currentUsed = $voucher->pivot->used ?? 0;
+
+            $buyer->vouchers()->updateExistingPivot(
+                $voucher->id,
+                [
+                    'used' => $currentUsed + 1,
+                ]
+            );
 
             DB::commit();
 
@@ -314,6 +358,33 @@ class NewSaleController extends Controller
                     'Tidak ada voucher yang digunakan',
                     null
                 );
+            }
+
+            $currentVoucherId = $saleDocument->voucher_id;
+            $buyerId = $saleDocument->buyer_id_document_sale;
+
+            if ($buyerId) {
+
+                $buyer = Buyer::find($buyerId);
+
+                if ($buyer) {
+
+                    $voucher = $buyer->vouchers()
+                        ->where('vouchers.id', $currentVoucherId)
+                        ->first();
+
+                    if ($voucher) {
+
+                        $currentUsed = $voucher->pivot->used ?? 0;
+
+                        $buyer->vouchers()->updateExistingPivot(
+                            $currentVoucherId,
+                            [
+                                'used' => max(0, $currentUsed - 1),
+                            ]
+                        );
+                    }
+                }
             }
 
             $saleDocument->update([

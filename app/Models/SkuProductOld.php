@@ -16,4 +16,9 @@ class SkuProductOld extends Model
     {
         return Carbon::parse($this->created_at)->diffInDays(Carbon::now()) . ' Hari';
     }
+
+    public function skuBatches()
+    {
+        return $this->hasMany(SkuBatch::class);
+    }
 }
