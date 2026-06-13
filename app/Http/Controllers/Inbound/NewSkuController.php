@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Inbound;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\ResponseResource;
 use App\Models\SkuBatch;
+use App\Models\SkuDocument;
 use App\Models\SkuProduct;
 use App\Models\SkuProductOld;
 use Illuminate\Http\Request;
@@ -229,7 +230,7 @@ class NewSkuController extends Controller
         }
     }
 
-    public function getBatchByProductOld($id)
+    public function getBatchByProductOld(Request $request, $id)
     {
         $productOld = SkuProductOld::find($id);
 
@@ -241,22 +242,144 @@ class NewSkuController extends Controller
             ))->response()->setStatusCode(404);
         }
 
-        $batches = $productOld->skuBatches()->with('createdBy')->get();
+        $q = $request->input('q');
+
+        $batches = $productOld->skuBatches()
+            ->with('createdBy')
+            ->when($q, function ($query) use ($q) {
+                $query->where(function ($subQuery) use ($q) {
+                    $subQuery->where('code', 'like', "%{$q}%")
+                        ->orWhereDate('created_at', $q);
+                });
+            })
+            ->latest()
+            ->paginate(5);
+
+        $batches->getCollection()->transform(function ($batch) {
+            return [
+                'code' => $batch->code,
+                'sku_product_old_id' => $batch->sku_product_old_id,
+                'actual_quantity_batch' => $batch->actual_quantity_batch,
+                'damaged_quantity_batch' => $batch->damaged_quantity_batch,
+                'type' => $batch->type,
+                'note' => $batch->note,
+                'created_by' => $batch->createdBy?->name,
+                'time' => $batch->created_at->format('Y-m-d H:i:s'),
+            ];
+        });
 
         return (new ResponseResource(
             'success',
             'List Batch untuk Product Old berhasil diambil',
-            $batches->map(function ($batch) {
-                return [
-                    'code' => $batch->code,
-                    'sku_product_old_id' => $batch->sku_product_old_id,
-                    'actual_quantity_batch' => $batch->actual_quantity_batch,
-                    'damaged_quantity_batch' => $batch->damaged_quantity_batch,
-                    'type' => $batch->type,
-                    'note' => $batch->note,
-                    'created_by' => $batch->createdBy?->name,
-                ];
-            })
+            $batches
         ))->response()->setStatusCode(200);
+    }
+
+    public function checkSebelumFinish($id)
+    {
+        try {
+            $dokumenSku = SkuDocument::find($id);
+
+            if (!$dokumenSku) {
+                return (new ResponseResource(
+                    'error',
+                    'Dokumen SKU tidak ditemukan',
+                    null
+                ))->response()->setStatusCode(404);
+            }
+
+            if ($dokumenSku->status_document === 'done') {
+                return (new ResponseResource(
+                    'error',
+                    'Dokumen SKU sudah selesai, tidak bisa diubah',
+                    null
+                ))->response()->setStatusCode(400);
+            }
+
+            $productOldsCount = SkuProductOld::where(
+                'code_document',
+                $dokumenSku->code_document
+            )->count();
+
+            $productSkuCount = SkuProduct::where(
+                'code_document',
+                $dokumenSku->code_document
+            )->count();
+
+            if ($productOldsCount !== $productSkuCount) {
+                return (new ResponseResource(
+                    'success',
+                    'Jumlah SKU Product Old dan SKU Product tidak sama, lanjut?',
+                    [
+                        'product_old_count' => $productOldsCount,
+                        'product_sku_count' => $productSkuCount,
+                    ]
+                ))->response()->setStatusCode(200);
+            }
+
+            return (new ResponseResource(
+                'success',
+                'Jumlah SKU Product Old dan SKU Product sama',
+                [
+                    'product_old_count' => $productOldsCount,
+                    'product_sku_count' => $productSkuCount,
+                ]
+            ))->response()->setStatusCode(200);
+        } catch (\Exception $e) {
+            return (new ResponseResource(
+                'error',
+                $e->getMessage(),
+                null
+            ))->response()->setStatusCode(500);
+        }
+    }
+
+    public function finishDokumenSku($id)
+    {
+        DB::beginTransaction();
+
+        try {
+            $dokumenSku = SkuDocument::find($id);
+
+            if (!$dokumenSku) {
+                DB::rollBack();
+
+                return (new ResponseResource(
+                    'error',
+                    'Dokumen SKU tidak ditemukan',
+                    null
+                ))->response()->setStatusCode(404);
+            }
+
+            if ($dokumenSku->status_document === 'done') {
+                DB::rollBack();
+
+                return (new ResponseResource(
+                    'error',
+                    'Dokumen SKU sudah selesai, tidak bisa diubah',
+                    null
+                ))->response()->setStatusCode(400);
+            }
+
+            $dokumenSku->update([
+                'status_document' => 'done',
+            ]);
+
+            DB::commit();
+
+            return (new ResponseResource(
+                'success',
+                'Dokumen SKU berhasil diselesaikan',
+                null
+            ))->response()->setStatusCode(200);
+        } catch (\Exception $e) {
+            DB::rollBack();
+
+            return (new ResponseResource(
+                'error',
+                $e->getMessage(),
+                null
+            ))->response()->setStatusCode(500);
+        }
     }
 }

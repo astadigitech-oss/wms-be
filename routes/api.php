@@ -263,6 +263,8 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader'])->group(f
     Route::post('sku/up-batch/{id}', [NewSkuController::class, 'melakukanBatch']);
     Route::post('sku/rollback-batch/{id}', [NewSkuController::class, 'melakukanRollback']);
     Route::get('sku/batch/{id}', [NewSkuController::class, 'getBatchByProductOld']);
+    Route::post('sku/cek/finish-sku/{id}', [NewSkuController::class, 'checkSebelumFinish']);
+    Route::post('sku/finish-sku/{id}', [NewSkuController::class, 'finishDokumenSku']);
 });
 
 // ========================================================================================================
