@@ -17,6 +17,7 @@ class Voucher extends Model
         'max_usage',
         'is_active',
         'max_week',
+        'start_date'
     ];
 
     protected static function booted()
@@ -36,7 +37,7 @@ class Voucher extends Model
     {
         return $this->belongsToMany(Buyer::class)
             ->withPivot([
-                'start_date',
+                'used',
                 'status'
             ])
             ->withTimestamps();
