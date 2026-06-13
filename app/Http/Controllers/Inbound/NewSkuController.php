@@ -230,7 +230,7 @@ class NewSkuController extends Controller
         }
     }
 
-    public function getBatchByProductOld($id)
+    public function getBatchByProductOld(Request $request, $id)
     {
         $productOld = SkuProductOld::find($id);
 
@@ -242,22 +242,36 @@ class NewSkuController extends Controller
             ))->response()->setStatusCode(404);
         }
 
-        $batches = $productOld->skuBatches()->with('createdBy')->get();
+        $q = $request->input('q');
+
+        $batches = $productOld->skuBatches()
+            ->with('createdBy')
+            ->when($q, function ($query) use ($q) {
+                $query->where(function ($subQuery) use ($q) {
+                    $subQuery->where('code', 'like', "%{$q}%")
+                        ->orWhereDate('created_at', $q);
+                });
+            })
+            ->latest()
+            ->paginate(5);
+
+        $batches->getCollection()->transform(function ($batch) {
+            return [
+                'code' => $batch->code,
+                'sku_product_old_id' => $batch->sku_product_old_id,
+                'actual_quantity_batch' => $batch->actual_quantity_batch,
+                'damaged_quantity_batch' => $batch->damaged_quantity_batch,
+                'type' => $batch->type,
+                'note' => $batch->note,
+                'created_by' => $batch->createdBy?->name,
+                'time' => $batch->created_at->format('Y-m-d H:i:s'),
+            ];
+        });
 
         return (new ResponseResource(
             'success',
             'List Batch untuk Product Old berhasil diambil',
-            $batches->map(function ($batch) {
-                return [
-                    'code' => $batch->code,
-                    'sku_product_old_id' => $batch->sku_product_old_id,
-                    'actual_quantity_batch' => $batch->actual_quantity_batch,
-                    'damaged_quantity_batch' => $batch->damaged_quantity_batch,
-                    'type' => $batch->type,
-                    'note' => $batch->note,
-                    'created_by' => $batch->createdBy?->name,
-                ];
-            })
+            $batches
         ))->response()->setStatusCode(200);
     }
 
