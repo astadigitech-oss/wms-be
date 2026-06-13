@@ -18,7 +18,7 @@ return new class extends Migration
             $table->integer('actual_quantity_batch')->default(0);
             $table->integer('damaged_quantity_batch')->default(0);
             $table->enum('type', ['entry', 'rollback'])->default('entry');
-            $table->text('note')->default('-');
+            $table->text('note')->nullable();
             $table->foreignId('created_by')->constrained('users')->cascadeOnDelete();
             $table->softDeletes();
             $table->timestamps();
