@@ -229,6 +229,7 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Kasir leader'])->group(
 Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader'])->group(function () {
     Route::post('bulking_tag_warna', [BulkController::class, 'processExcelFilesTagColor']);
     Route::post('masukin_tag_warna_ke_rak', [BulkController::class, 'assignColorRack']);
+    Route::post('cek-perbedaan-total', [BulkController::class, 'checkMissingBarcodes']);
 });
 
 // ========================================================================================================
