@@ -17,6 +17,7 @@ use App\Models\RiwayatCheck;
 use App\Http\Resources\ResponseResource;
 use App\Models\ColorRack;
 use App\Models\ColorRackProduct;
+use Maatwebsite\Excel\Facades\Excel;
 
 class BulkController extends Controller
 {
@@ -394,6 +395,66 @@ class BulkController extends Controller
             );
 
             return $response->response()->setStatusCode(500);
+        }
+    }
+
+    public function checkMissingBarcode(Request $request)
+    {
+        try {
+
+            $request->validate([
+                'code_document' => 'required|string',
+                'file' => 'required|file|mimes:xlsx,xls',
+            ]);
+
+            $dbBarcodes = New_product::where(
+                'code_document',
+                $request->code_document
+            )
+                ->pluck('old_barcode_product')
+                ->filter()
+                ->map(fn($item) => trim((string) $item))
+                ->values()
+                ->toArray();
+
+            $rows = Excel::toArray([], $request->file('file'));
+
+            $excelBarcodes = collect($rows[0] ?? [])
+                ->pluck(0) // kolom A
+                ->filter()
+                ->map(fn($item) => trim((string) $item))
+                ->values()
+                ->toArray();
+
+            // Jika baris pertama adalah header
+            if (
+                !empty($excelBarcodes) &&
+                strtolower($excelBarcodes[0]) === 'old_barcode_product'
+            ) {
+                array_shift($excelBarcodes);
+            }
+
+            $missingBarcodes = array_values(
+                array_diff($dbBarcodes, $excelBarcodes)
+            );
+
+            return new ResponseResource(
+                true,
+                'Berhasil cek barcode',
+                [
+                    'total_db' => count($dbBarcodes),
+                    'total_excel' => count($excelBarcodes),
+                    'total_missing' => count($missingBarcodes),
+                    'missing_barcodes' => $missingBarcodes,
+                ]
+            );
+        } catch (\Exception $e) {
+
+            return (new ResponseResource(
+                false,
+                $e->getMessage(),
+                null
+            ))->response()->setStatusCode(500);
         }
     }
 }
