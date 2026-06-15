@@ -21,14 +21,14 @@ class Document extends Model
     {
         return $this->belongsToMany(
             CogsChannel::class,
-            'cogs_reference', 
-            'document_id',    
-            'channel_id'      
-        )->withPivot('user_id', 'created_at'); 
+            'cogs_reference',
+            'document_id',
+            'channel_id'
+        )->withPivot('user_id', 'created_at');
     }
 
-    public function cogsReferences()
-    {
-        return $this->hasMany(CogsReference::class, 'document_id', 'id');
-    }
+    // public function cogsReferences()
+    // {
+    //     return $this->hasMany(CogsReference::class, 'document_id', 'id');
+    // }
 }
