@@ -33,6 +33,7 @@ use App\Http\Controllers\FilterStagingController;
 use App\Http\Controllers\Fixing\FixingController;
 use App\Http\Controllers\FormatBarcodeController;
 use App\Http\Controllers\GenerateController;
+use App\Http\Controllers\Inbound\AttachCogsController;
 use App\Http\Controllers\Inbound\BastApprovalController;
 use App\Http\Controllers\Inbound\BulkController;
 use App\Http\Controllers\Inbound\HalamanApprovalController;
@@ -267,6 +268,10 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader'])->group(f
     Route::get('sku/batch/{id}', [NewSkuController::class, 'getBatchByProductOld']);
     Route::post('sku/cek/finish-sku/{id}', [NewSkuController::class, 'checkSebelumFinish']);
     Route::post('sku/finish-sku/{id}', [NewSkuController::class, 'finishDokumenSku']);
+});
+
+Route::middleware(['auth:sanctum', 'check.role:Admin'])->group(function () {
+    Route::get('ambil-list-kategori', [AttachCogsController::class, 'getCategories']);
 });
 
 // ========================================================================================================

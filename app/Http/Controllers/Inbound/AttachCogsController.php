@@ -108,4 +108,32 @@ class AttachCogsController extends Controller
             );
         }
     }
+
+    public function getCategories()
+    {
+        try {
+            $newProductCategories = DB::table('new_products')
+                ->whereNotNull('new_category_product')
+                ->where('new_category_product', '!=', '')
+                ->distinct()
+                ->orderBy('new_category_product')
+                ->pluck('new_category_product');
+
+            $stagingProductCategories = DB::table('staging_products')
+                ->whereNotNull('new_category_product')
+                ->where('new_category_product', '!=', '')
+                ->distinct()
+                ->orderBy('new_category_product')
+                ->pluck('new_category_product');
+
+            return new ResponseResource(true, 'Success', [
+                'new_products' => $newProductCategories,
+                'staging_products' => $stagingProductCategories,
+            ]);
+        } catch (\Exception $e) {
+            return new ResponseResource(false, 'Failed to get categories', [
+                'message' => $e->getMessage()
+            ]);
+        }
+    }
 }
