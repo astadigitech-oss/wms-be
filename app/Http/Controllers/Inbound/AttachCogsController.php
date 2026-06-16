@@ -113,32 +113,47 @@ class AttachCogsController extends Controller
     {
         try {
             $newProductCategories = DB::table('new_products')
-                ->select(
-                    'new_category_product',
-                    DB::raw('COUNT(*) as total')
-                )
+                ->selectRaw("
+                new_category_product,
+                COUNT(*) as total,
+                ROUND(
+                    AVG(
+                        ((old_price_product - new_price_product)
+                        / NULLIF(old_price_product, 0)) * 100
+                    ),
+                    0
+                ) as avg_discount
+            ")
                 ->whereNotNull('new_category_product')
                 ->where('new_category_product', '!=', '')
                 ->groupBy('new_category_product')
                 ->orderBy('new_category_product')
                 ->get()
                 ->map(function ($item) {
-                    return "{$item->new_category_product} ({$item->total})";
+                    return "{$item->new_category_product} ({$item->total}) ({$item->avg_discount}%)";
                 });
 
             $stagingProductCategories = DB::table('staging_products')
-                ->select(
-                    'new_category_product',
-                    DB::raw('COUNT(*) as total')
-                )
+                ->selectRaw("
+                new_category_product,
+                COUNT(*) as total,
+                ROUND(
+                    AVG(
+                        ((old_price_product - new_price_product)
+                        / NULLIF(old_price_product, 0)) * 100
+                    ),
+                    0
+                ) as avg_discount
+            ")
                 ->whereNotNull('new_category_product')
                 ->where('new_category_product', '!=', '')
                 ->groupBy('new_category_product')
                 ->orderBy('new_category_product')
                 ->get()
                 ->map(function ($item) {
-                    return "{$item->new_category_product} ({$item->total})";
+                    return "{$item->new_category_product} ({$item->total}) ({$item->avg_discount}%)";
                 });
+
             return new ResponseResource(true, 'Success', [
                 'new_products' => $newProductCategories,
                 'staging_products' => $stagingProductCategories,
