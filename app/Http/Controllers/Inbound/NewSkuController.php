@@ -106,24 +106,24 @@ class NewSkuController extends Controller
                 return new ResponseResource(false, "Dokumen SKU tidak ditemukan", null);
             }
 
-            $cogsChannel = CogsChannel::where('id', $request['channel_id'])->first();
-            if (!$cogsChannel) {
-                DB::rollBack();
-                return new ResponseResource(false, "Channel tidak ditemukan", null);
+            if ($request['channel_id']) {
+                $cogsChannel = CogsChannel::where('id', $request['channel_id'])->first();
+                if (!$cogsChannel) {
+                    DB::rollBack();
+                    return new ResponseResource(false, "Channel tidak ditemukan", null);
+                }
+
+                $document->update([
+                    'cogs_type' => $cogsChannel->type,
+                    'cogs_amount' => $cogsChannel->amount,
+                ]);
+
+                CogsReference::create([
+                    'channel_id'  => $request['channel_id'],
+                    'code_document' => $code_document,
+                    'created_by' => $userId,
+                ]);
             }
-
-            $document->update([
-                'cogs_type' => $cogsChannel->type,
-                'cogs_amount' => $cogsChannel->amount,
-            ]);
-
-            CogsReference::create([
-                'channel_id'  => $request['channel_id'],
-                'type'        => 'sku',
-                'document_id' => $document->id,
-                'user_id'     => $userId,
-            ]);
-
             DB::commit();
 
             return new ResponseResource(true, "Data berhasil dimigrasi. Siap untuk proses scanning.", [

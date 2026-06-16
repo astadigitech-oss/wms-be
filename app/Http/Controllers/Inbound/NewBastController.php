@@ -106,24 +106,25 @@ class NewBastController extends Controller
             $totalPrice = ceil($totalPrice);
             $document = Document::where('code_document', $request['code_document'])->first();
 
-            $cogsChannel = CogsChannel::where('id', $request['channel_id'])->first();
-            if (!$cogsChannel) {
-                DB::rollBack();
-                return new ResponseResource(false, "Channel tidak ditemukan", null);
+            if ($request['channel_id']) {
+                $cogsChannel = CogsChannel::where('id', $request['channel_id'])->first();
+                if (!$cogsChannel) {
+                    DB::rollBack();
+                    return new ResponseResource(false, "Channel tidak ditemukan", null);
+                }
+
+                $document->update([
+                    'cogs_type' => $cogsChannel->type,
+                    'cogs_amount' => $cogsChannel->amount,
+                ]);
+
+                CogsReference::create([
+                    'channel_id'  => $request['channel_id'],
+                    'type'        => 'reguler',
+                    'document_id' => $document->id,
+                    'user_id'     => $userId,
+                ]);
             }
-
-            $document->update([
-                'cogs_type' => $cogsChannel->type,
-                'cogs_amount' => $cogsChannel->amount,
-            ]);
-
-            CogsReference::create([
-                'channel_id'  => $request['channel_id'],
-                'type'        => 'reguler',
-                'document_id' => $document->id,
-                'user_id'     => $userId,
-            ]);
-
             $riwayat_check = RiwayatCheck::create([
                 'user_id' => $userId,
                 'code_document' => $request['code_document'],
