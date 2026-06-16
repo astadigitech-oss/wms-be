@@ -4,16 +4,137 @@ namespace App\Http\Controllers\Inbound;
 
 use App\Http\Controllers\Controller;
 use App\Http\Resources\ResponseResource;
+use App\Models\CogsChannel;
+use App\Models\CogsReference;
+use App\Models\Generate;
 use App\Models\SkuBatch;
 use App\Models\SkuDocument;
 use App\Models\SkuProduct;
 use App\Models\SkuProductOld;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
 
 class NewSkuController extends Controller
 {
+    public function mapAndMergeHeaders(Request $request)
+    {
+        set_time_limit(3600);
+        ini_set('memory_limit', '2048M');
+        $userId = auth()->id();
+
+        DB::beginTransaction();
+        try {
+            $validator = Validator::make($request->all(), [
+                'headerMappings' => 'required|array',
+                'code_document' => 'required',
+                'channel_id' => 'nullable|string|exists:cogs_channel,id'
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json(['errors' => $validator->errors()], 422);
+            }
+
+            $headerMappings = $request->input('headerMappings');
+            $code_document = $request['code_document'];
+
+            $mergedData = [
+                'old_barcode_product' => [],
+                'old_name_product' => [],
+                'old_quantity_product' => [],
+                'old_price_product' => []
+            ];
+
+            $stagingData = Generate::all()->map(function ($item) {
+                return is_array($item->data) ? $item->data : json_decode($item->data, true);
+            });
+
+            foreach ($headerMappings as $dbColumn => $selectedHeaders) {
+                if (!array_key_exists($dbColumn, $mergedData)) continue;
+
+                foreach ($selectedHeaders as $excelHeader) {
+                    $stagingData->each(function ($row) use ($excelHeader, &$mergedData, $dbColumn) {
+                        if (isset($row[$excelHeader])) {
+                            $mergedData[$dbColumn][] = $row[$excelHeader];
+                        }
+                    });
+                }
+            }
+
+            $dataToInsert = [];
+
+            foreach ($mergedData['old_barcode_product'] as $index => $noResi) {
+                $nama = $mergedData['old_name_product'][$index] ?? null;
+
+                $qty = is_numeric($mergedData['old_quantity_product'][$index]) ? (int)$mergedData['old_quantity_product'][$index] : 0;
+
+                if ($nama && strlen($nama) > 2000) {
+                    Log::error("Nama produk terlalu panjang, lebih dari 2000 karakter: " . substr($nama, 0, 50) . "...");
+
+                    $nama = substr($nama, 0, 250);
+                }
+
+                $harga = isset($mergedData['old_price_product'][$index]) && is_numeric($mergedData['old_price_product'][$index])
+                    ? (float)$mergedData['old_price_product'][$index]
+                    : 0.0;
+
+                $dataToInsert[] = [
+                    'code_document' => $code_document,
+                    'old_barcode_product' => $noResi,
+                    'old_name_product' => $nama,
+                    'old_quantity_product' => $qty,
+                    'old_price_product' => $harga,
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ];
+            }
+
+            foreach (array_chunk($dataToInsert, 500) as $chunk) {
+                SkuProductOld::insert($chunk);
+            }
+
+            Generate::query()->delete();
+
+            if (function_exists('logUserAction')) {
+                logUserAction($request, $request->user(), "sku/import", "Import SKU generated batch " . $code_document);
+            }
+
+            $document = SkuDocument::where('code_document', $code_document)->first();
+            if (!$document) {
+                DB::rollBack();
+                return new ResponseResource(false, "Dokumen SKU tidak ditemukan", null);
+            }
+
+            $cogsChannel = CogsChannel::where('id', $request['channel_id'])->first();
+            if (!$cogsChannel) {
+                DB::rollBack();
+                return new ResponseResource(false, "Channel tidak ditemukan", null);
+            }
+
+            $document->update([
+                'cogs_type' => $cogsChannel->type,
+                'cogs_amount' => $cogsChannel->amount,
+            ]);
+
+            CogsReference::create([
+                'channel_id'  => $request['channel_id'],
+                'type'        => 'sku',
+                'document_id' => $document->id,
+                'user_id'     => $userId,
+            ]);
+
+            DB::commit();
+
+            return new ResponseResource(true, "Data berhasil dimigrasi. Siap untuk proses scanning.", [
+                'total_imported' => count($dataToInsert)
+            ]);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return response()->json(['error' => $e->getMessage()], 500);
+        }
+    }
+
     public function melakukanBatch(Request $request, $id)
     {
         $validator = Validator::make($request->all(), [

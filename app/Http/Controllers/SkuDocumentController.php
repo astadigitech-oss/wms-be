@@ -315,7 +315,7 @@ class SkuDocumentController extends Controller
             }
 
             $codeDocument = $document->code_document;
-            
+
             SkuProductOld::where('code_document', $codeDocument)->delete();
 
             SkuProduct::where('code_document', $codeDocument)->delete();
@@ -331,7 +331,6 @@ class SkuDocumentController extends Controller
             DB::commit();
 
             return new ResponseResource(true, "Dokumen dan seluruh data terkait berhasil dihapus", null);
-
         } catch (\Exception $e) {
             DB::rollBack();
             return (new ResponseResource(false, "Gagal menghapus dokumen", $e->getMessage()))
