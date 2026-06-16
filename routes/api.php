@@ -33,6 +33,7 @@ use App\Http\Controllers\FilterStagingController;
 use App\Http\Controllers\Fixing\FixingController;
 use App\Http\Controllers\FormatBarcodeController;
 use App\Http\Controllers\GenerateController;
+use App\Http\Controllers\Inbound\AttachCogsController;
 use App\Http\Controllers\Inbound\BastApprovalController;
 use App\Http\Controllers\Inbound\BulkController;
 use App\Http\Controllers\Inbound\HalamanApprovalController;
@@ -181,6 +182,7 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Crew,Captai
 });
 Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader'])->group(function () {
     Route::post('generate/merge-headers', [NewBastController::class, 'mapAndMergeHeaders']);
+    Route::post('sku/map-merge', [NewSkuController::class, 'mapAndMergeHeaders']);
 });
 
 // ========================================================================================================
@@ -266,6 +268,10 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader'])->group(f
     Route::get('sku/batch/{id}', [NewSkuController::class, 'getBatchByProductOld']);
     Route::post('sku/cek/finish-sku/{id}', [NewSkuController::class, 'checkSebelumFinish']);
     Route::post('sku/finish-sku/{id}', [NewSkuController::class, 'finishDokumenSku']);
+});
+
+Route::middleware(['auth:sanctum', 'check.role:Admin'])->group(function () {
+    Route::get('ambil-list-kategori', [AttachCogsController::class, 'getCategories']);
 });
 
 // ========================================================================================================
@@ -1015,7 +1021,7 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Admin Kasir
 // [WRITE / POST / ACTION - TANPA Audit]
 Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Admin Kasir,Crew,Reparasi,Kasir leader,Developer,Captain'])->group(function () {
     Route::post('sku/upload-excel', [SkuDocumentController::class, 'processExcelFiles']);
-    Route::post('sku/map-merge', [SkuDocumentController::class, 'mapAndMergeHeaders']);
+    // Route::post('sku/map-merge', [SkuDocumentController::class, 'mapAndMergeHeaders']);
     Route::post('sku/change-barcode-document', [SkuDocumentController::class, 'changeBarcodeDocument']);
     Route::delete('sku/remove-barcode-document', [SkuDocumentController::class, 'deleteCustomBarcode']);
     Route::post('sku-products/add-bundle/{id}', [SkuProductController::class, 'storeBundle']);
