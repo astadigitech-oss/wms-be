@@ -113,19 +113,32 @@ class AttachCogsController extends Controller
     {
         try {
             $newProductCategories = DB::table('new_products')
+                ->select(
+                    'new_category_product',
+                    DB::raw('COUNT(*) as total')
+                )
                 ->whereNotNull('new_category_product')
                 ->where('new_category_product', '!=', '')
-                ->distinct()
+                ->groupBy('new_category_product')
                 ->orderBy('new_category_product')
-                ->pluck('new_category_product');
+                ->get()
+                ->map(function ($item) {
+                    return "{$item->new_category_product} ({$item->total})";
+                });
 
             $stagingProductCategories = DB::table('staging_products')
+                ->select(
+                    'new_category_product',
+                    DB::raw('COUNT(*) as total')
+                )
                 ->whereNotNull('new_category_product')
                 ->where('new_category_product', '!=', '')
-                ->distinct()
+                ->groupBy('new_category_product')
                 ->orderBy('new_category_product')
-                ->pluck('new_category_product');
-
+                ->get()
+                ->map(function ($item) {
+                    return "{$item->new_category_product} ({$item->total})";
+                });
             return new ResponseResource(true, 'Success', [
                 'new_products' => $newProductCategories,
                 'staging_products' => $stagingProductCategories,
