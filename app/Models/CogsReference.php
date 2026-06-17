@@ -9,14 +9,12 @@ class CogsReference extends Model
 {
     use HasFactory;
 
-    protected $table = 'cogs_reference';
-
-    public $incrementing = false;
-    protected $primaryKey = ['channel_id', 'document_id'];
-
-    const UPDATED_AT = null;
-
-    protected $fillable = ['channel_id', 'document_id', 'user_id', 'type'];
+    protected $fillable = [
+        'cogs_channel_id',
+        'type',
+        'document_id',
+        'user_id',
+    ];
 
     public function channel()
     {
