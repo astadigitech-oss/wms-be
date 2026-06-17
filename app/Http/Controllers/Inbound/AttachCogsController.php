@@ -55,12 +55,12 @@ class AttachCogsController extends Controller
 
             if ($cogsReference) {
                 $cogsReference->update([
-                    'channel_id' => $request->channel_id,
+                    'cogs_channel_id' => $request->channel_id,
                     'user_id'    => $request->user()->id,
                 ]);
             } else {
                 $cogsReference = CogsReference::create([
-                    'channel_id'  => $request->channel_id,
+                    'cogs_channel_id'  => $request->channel_id,
                     'type'        => 'reguler',
                     'document_id' => $dokumen->id,
                     'user_id'     => $request->user()->id,
@@ -121,12 +121,12 @@ class AttachCogsController extends Controller
 
             if ($cogsReference) {
                 $cogsReference->update([
-                    'channel_id' => $request->channel_id,
+                    'cogs_channel_id' => $request->channel_id,
                     'user_id'    => $request->user()->id,
                 ]);
             } else {
                 $cogsReference = CogsReference::create([
-                    'channel_id'  => $request->channel_id,
+                    'cogs_channel_id'  => $request->channel_id,
                     'type'        => 'sku',
                     'document_id' => $dokumen->id,
                     'user_id'     => $request->user()->id,

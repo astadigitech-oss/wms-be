@@ -18,7 +18,7 @@ class CogsReference extends Model
 
     public function channel()
     {
-        return $this->belongsTo(CogsChannel::class, 'channel_id', 'id');
+        return $this->belongsTo(CogsChannel::class, 'cogs_channel_id', 'id');
     }
 
     public function user()
