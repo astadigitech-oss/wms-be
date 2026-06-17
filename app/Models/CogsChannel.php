@@ -11,6 +11,8 @@ class CogsChannel extends Model
 {
     use HasFactory, HasUuids, SoftDeletes;
 
+    protected $table = 'cogs_channels';
+
     protected $fillable = [
         'name',
         'supplier_id',
