@@ -12,7 +12,7 @@ class CogsReference extends Model
     protected $table = 'cogs_reference';
 
     public $incrementing = false;
-    protected $primaryKey = ['channel_id'];
+    protected $primaryKey = ['channel_id', 'document_id'];
 
     const UPDATED_AT = null;
 
@@ -22,11 +22,6 @@ class CogsReference extends Model
     {
         return $this->belongsTo(CogsChannel::class, 'channel_id', 'id');
     }
-
-    // public function document()
-    // {
-    //     return $this->belongsTo(Document::class, 'document_id', 'id');
-    // }
 
     public function user()
     {
