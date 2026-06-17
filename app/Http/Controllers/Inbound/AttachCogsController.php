@@ -201,4 +201,18 @@ class AttachCogsController extends Controller
             ]);
         }
     }
+
+    public function getCogsChannels()
+    {
+        try {
+            $cogsChannels = CogsChannel::select('id', 'name')
+                ->get();
+
+            return new ResponseResource(true, 'Success', $cogsChannels);
+        } catch (\Exception $e) {
+            return new ResponseResource(false, 'Failed to get COGS channels', [
+                'message' => $e->getMessage()
+            ]);
+        }
+    }
 }

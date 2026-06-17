@@ -277,6 +277,7 @@ Route::middleware(['auth:sanctum', 'check.role:Admin'])->group(function () {
 Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader'])->group(function () {
     Route::post('attach-cogs-reguler/{document_id}', [AttachCogsController::class, 'attachCogsKeDokumenReguler']);
     Route::post('attach-cogs-sku/{document_id}', [AttachCogsController::class, 'attachCogsKeDokumenSku']);
+    Route::get('channels', [AttachCogsController::class, 'getCogsChannels']);
 });
 
 // ========================================================================================================
