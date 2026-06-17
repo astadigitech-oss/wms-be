@@ -19,7 +19,7 @@ class AttachCogsController extends Controller
     public function attachCogsKeDokumenReguler(Request $request, $document_id)
     {
         $validator = Validator::make($request->all(), [
-            'channel_id' => 'required|string|exists:cogs_channel,id'
+            'channel_id' => 'required|string|exists:cogs_channels,id'
         ]);
 
         if ($validator->fails()) {
@@ -86,7 +86,7 @@ class AttachCogsController extends Controller
     public function attachCogsKeDokumenSku(Request $request, $document_id)
     {
         $validator = Validator::make($request->all(), [
-            'channel_id' => 'required|string|exists:cogs_channel,id'
+            'channel_id' => 'required|string|exists:cogs_channels,id'
         ]);
 
         if ($validator->fails()) {
