@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Inbound;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\ResponseResource;
 use App\Models\CogsChannel;
+use App\Models\CogsReference;
 use App\Models\Document;
 use App\Models\SkuDocument;
 use Illuminate\Http\Request;
@@ -45,6 +46,13 @@ class AttachCogsController extends Controller
             $dokumen->update([
                 'cogs_type'   => $cogsChannel->type,
                 'cogs_amount' => $cogsChannel->amount,
+            ]);
+
+            $cogsReference = CogsReference::create([
+                'channel_id'  => $request->channel_id,
+                'type'        => 'reguler',
+                'document_id' => $dokumen->id,
+                'user_id'     => $request->user()->id,
             ]);
 
             DB::commit();
@@ -93,6 +101,13 @@ class AttachCogsController extends Controller
             $dokumen->update([
                 'cogs_type'   => $cogsChannel->type,
                 'cogs_amount' => $cogsChannel->amount,
+            ]);
+
+            $cogsReference = CogsReference::create([
+                'channel_id'  => $request->channel_id,
+                'type'        => 'sku',
+                'document_id' => $dokumen->id,
+                'user_id'     => $request->user()->id,
             ]);
 
             DB::commit();
