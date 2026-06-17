@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Inbound;
 
 use App\Http\Controllers\Controller;
 use App\Http\Resources\ResponseResource;
+use App\Models\CogsChannel;
 use App\Models\CogsReference;
 use App\Models\Document;
 use App\Models\Generate;
@@ -27,7 +28,7 @@ class NewBastController extends Controller
             $validator = Validator::make($request->all(), [
                 'headerMappings' => 'required|array',
                 'code_document'  => 'required',
-                // 'channel_id'     => 'required|string|exists:cogs_channel,id'
+                'channel_id'     => 'nullable|string|exists:cogs_channel,id'
             ]);
 
             if ($validator->fails()) {
@@ -105,12 +106,25 @@ class NewBastController extends Controller
             $totalPrice = ceil($totalPrice);
             $document = Document::where('code_document', $request['code_document'])->first();
 
-            // CogsReference::create([
-            //     'channel_id'  => $request['channel_id'],
-            //     'document_id' => $document->id,
-            //     'user_id'     => $userId,
-            // ]);
+            if ($request['channel_id']) {
+                $cogsChannel = CogsChannel::where('id', $request['channel_id'])->first();
+                if (!$cogsChannel) {
+                    DB::rollBack();
+                    return new ResponseResource(false, "Channel tidak ditemukan", null);
+                }
 
+                $document->update([
+                    'cogs_type' => $cogsChannel->type,
+                    'cogs_amount' => $cogsChannel->amount,
+                ]);
+
+                CogsReference::create([
+                    'channel_id'  => $request['channel_id'],
+                    'type'        => 'reguler',
+                    'document_id' => $document->id,
+                    'user_id'     => $userId,
+                ]);
+            }
             $riwayat_check = RiwayatCheck::create([
                 'user_id' => $userId,
                 'code_document' => $request['code_document'],
