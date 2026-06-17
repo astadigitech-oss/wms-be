@@ -205,8 +205,7 @@ class AttachCogsController extends Controller
     public function getCogsChannels()
     {
         try {
-            $cogsChannels = CogsChannel::select('id', 'name')
-                ->get();
+            $cogsChannels = CogsChannel::all();
 
             return new ResponseResource(true, 'Success', $cogsChannels);
         } catch (\Exception $e) {
