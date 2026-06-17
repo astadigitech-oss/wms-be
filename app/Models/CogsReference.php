@@ -16,7 +16,7 @@ class CogsReference extends Model
 
     const UPDATED_AT = null;
 
-    protected $fillable = ['channel_id', 'document_id', 'user_id'];
+    protected $fillable = ['channel_id', 'document_id', 'user_id', 'type'];
 
     public function channel()
     {
