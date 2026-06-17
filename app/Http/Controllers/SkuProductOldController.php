@@ -41,7 +41,7 @@ class SkuProductOldController extends Controller
             ->first();
 
         if ($cogsReference) {
-            $cogsChannel = CogsChannel::where('id', $cogsReference->channel_id)->first();
+            $cogsChannel = CogsChannel::where('id', $cogsReference->cogs_channel_id)->first();
         } else {
             $cogsChannel = null;
         }
