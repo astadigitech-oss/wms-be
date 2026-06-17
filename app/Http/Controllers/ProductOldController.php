@@ -90,6 +90,7 @@ class ProductOldController extends Controller
             }
 
             return new ResponseResource(true, "Data Document products", [
+                'id' => $document->id ?? null,
                 'document_name' => $document->base_document ?? 'N/A',
                 'status' => $document->status_document ?? 'N/A',
                 'total_columns' => $document->total_column_in_document ?? 0,
