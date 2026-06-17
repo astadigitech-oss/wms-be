@@ -48,12 +48,24 @@ class AttachCogsController extends Controller
                 'cogs_amount' => $cogsChannel->amount,
             ]);
 
-            $cogsReference = CogsReference::create([
-                'channel_id'  => $request->channel_id,
-                'type'        => 'reguler',
-                'document_id' => $dokumen->id,
-                'user_id'     => $request->user()->id,
-            ]);
+
+            $cogsReference = CogsReference::where('document_id', $dokumen->id)
+                ->where('type', 'reguler')
+                ->first();
+
+            if ($cogsReference) {
+                $cogsReference->update([
+                    'channel_id' => $request->channel_id,
+                    'user_id'    => $request->user()->id,
+                ]);
+            } else {
+                $cogsReference = CogsReference::create([
+                    'channel_id'  => $request->channel_id,
+                    'type'        => 'reguler',
+                    'document_id' => $dokumen->id,
+                    'user_id'     => $request->user()->id,
+                ]);
+            }
 
             DB::commit();
 
@@ -103,13 +115,23 @@ class AttachCogsController extends Controller
                 'cogs_amount' => $cogsChannel->amount,
             ]);
 
-            $cogsReference = CogsReference::create([
-                'channel_id'  => $request->channel_id,
-                'type'        => 'sku',
-                'document_id' => $dokumen->id,
-                'user_id'     => $request->user()->id,
-            ]);
+            $cogsReference = CogsReference::where('document_id', $dokumen->id)
+                ->where('type', 'sku')
+                ->first();
 
+            if ($cogsReference) {
+                $cogsReference->update([
+                    'channel_id' => $request->channel_id,
+                    'user_id'    => $request->user()->id,
+                ]);
+            } else {
+                $cogsReference = CogsReference::create([
+                    'channel_id'  => $request->channel_id,
+                    'type'        => 'sku',
+                    'document_id' => $dokumen->id,
+                    'user_id'     => $request->user()->id,
+                ]);
+            }
             DB::commit();
 
             return new ResponseResource(true, "Success", null);
