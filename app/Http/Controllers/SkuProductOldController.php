@@ -37,7 +37,7 @@ class SkuProductOldController extends Controller
         $document = SkuDocument::where('code_document', $search)->first();
 
         $cogsReference = CogsReference::where('document_id', $document->id)
-            ->where('type', 'reguler')
+            ->where('type', 'sku')
             ->first();
 
         if ($cogsReference) {
