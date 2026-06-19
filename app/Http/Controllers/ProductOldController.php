@@ -11,6 +11,8 @@ use Illuminate\Http\Request;
 use App\Models\Product_Bundle;
 use App\Models\StagingProduct;
 use App\Http\Resources\ResponseResource;
+use App\Models\CogsChannel;
+use App\Models\CogsReference;
 use App\Models\SkuDocument;
 use Illuminate\Support\Facades\DB;
 
@@ -84,14 +86,26 @@ class ProductOldController extends Controller
 
         $document = Document::where('code_document', $search)->first();
 
+        $cogsReference = CogsReference::where('document_id', $document->id)
+            ->where('type', 'reguler')
+            ->first();
+
+        if ($cogsReference) {
+            $cogsChannel = CogsChannel::where('id', $cogsReference->cogs_channel_id)->first();
+        } else {
+            $cogsChannel = null;
+        }
+
         if ($document) {
             foreach ($code_documents as $code_document) {
                 $code_document->custom_barcode = $document->custom_barcode ?? null;
             }
 
             return new ResponseResource(true, "Data Document products", [
+                'id' => $document->id ?? null,
                 'document_name' => $document->base_document ?? 'N/A',
                 'status' => $document->status_document ?? 'N/A',
+                'cogs_channel' => $cogsChannel->name ?? 'N/A',
                 'total_columns' => $document->total_column_in_document ?? 0,
                 'custom_barcode' => $document->custom_barcode ?? null,
                 'code_document' => $document->code_document ?? 'N/A',

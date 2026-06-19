@@ -4,6 +4,8 @@ namespace App\Http\Controllers;
 
 use App\Exports\SkuProductOldExport;
 use App\Http\Resources\ResponseResource;
+use App\Models\CogsChannel;
+use App\Models\CogsReference;
 use App\Models\RiwayatCheck;
 use App\Models\SkuDocument;
 use App\Models\SkuProduct;
@@ -34,6 +36,16 @@ class SkuProductOldController extends Controller
 
         $document = SkuDocument::where('code_document', $search)->first();
 
+        $cogsReference = CogsReference::where('document_id', $document->id)
+            ->where('type', 'sku')
+            ->first();
+
+        if ($cogsReference) {
+            $cogsChannel = CogsChannel::where('id', $cogsReference->cogs_channel_id)->first();
+        } else {
+            $cogsChannel = null;
+        }
+
         if ($document) {
             foreach ($code_documents as $code_document) {
                 $code_document->custom_barcode = $document->custom_barcode ?? null;
@@ -43,6 +55,7 @@ class SkuProductOldController extends Controller
                 'id' => $document->id,
                 'document_name' => $document->base_document ?? 'N/A',
                 'status' => $document->status_document ?? 'N/A',
+                'cogs_channel' => $cogsChannel->name ?? 'N/A',
                 'total_columns' => $document->total_column_in_document ?? 0,
                 'custom_barcode' => $document->custom_barcode ?? null,
                 'code_document' => $document->code_document ?? 'N/A',

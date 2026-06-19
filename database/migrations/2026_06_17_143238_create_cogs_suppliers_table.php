@@ -11,11 +11,11 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('cogs_reference', function (Blueprint $table) {
-            $table->foreignId('cogs_id')->constrained('channels')->onDelete('cascade')->onUpdate('cascade');
-            $table->foreignId('document_id')->constrained('documents')->onDelete('cascade')->onUpdate('cascade');
+        Schema::create('cogs_suppliers', function (Blueprint $table) {
+            $table->uuid('id')->primary();
+            $table->string('name');
+            $table->softDeletes();
             $table->timestamps();
-            $table->primary(['cogs_id', 'document_id']);
         });
     }
 
@@ -24,6 +24,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('cogs_reference');
+        Schema::dropIfExists('cogs_suppliers');
     }
 };

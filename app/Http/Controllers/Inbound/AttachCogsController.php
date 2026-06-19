@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Inbound;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\ResponseResource;
 use App\Models\CogsChannel;
+use App\Models\CogsReference;
 use App\Models\Document;
 use App\Models\SkuDocument;
 use Illuminate\Http\Request;
@@ -18,7 +19,7 @@ class AttachCogsController extends Controller
     public function attachCogsKeDokumenReguler(Request $request, $document_id)
     {
         $validator = Validator::make($request->all(), [
-            'channel_id' => 'required|string|exists:cogs_channel,id'
+            'channel_id' => 'required|string|exists:cogs_channels,id'
         ]);
 
         if ($validator->fails()) {
@@ -47,6 +48,25 @@ class AttachCogsController extends Controller
                 'cogs_amount' => $cogsChannel->amount,
             ]);
 
+
+            $cogsReference = CogsReference::where('document_id', $dokumen->id)
+                ->where('type', 'reguler')
+                ->first();
+
+            if ($cogsReference) {
+                $cogsReference->update([
+                    'cogs_channel_id' => $request->channel_id,
+                    'user_id'    => $request->user()->id,
+                ]);
+            } else {
+                $cogsReference = CogsReference::create([
+                    'cogs_channel_id'  => $request->channel_id,
+                    'type'        => 'reguler',
+                    'document_id' => $dokumen->id,
+                    'user_id'     => $request->user()->id,
+                ]);
+            }
+
             DB::commit();
 
             return new ResponseResource(true, "Success", null);
@@ -66,7 +86,7 @@ class AttachCogsController extends Controller
     public function attachCogsKeDokumenSku(Request $request, $document_id)
     {
         $validator = Validator::make($request->all(), [
-            'channel_id' => 'required|string|exists:cogs_channel,id'
+            'channel_id' => 'required|string|exists:cogs_channels,id'
         ]);
 
         if ($validator->fails()) {
@@ -95,6 +115,23 @@ class AttachCogsController extends Controller
                 'cogs_amount' => $cogsChannel->amount,
             ]);
 
+            $cogsReference = CogsReference::where('document_id', $dokumen->id)
+                ->where('type', 'sku')
+                ->first();
+
+            if ($cogsReference) {
+                $cogsReference->update([
+                    'cogs_channel_id' => $request->channel_id,
+                    'user_id'    => $request->user()->id,
+                ]);
+            } else {
+                $cogsReference = CogsReference::create([
+                    'cogs_channel_id'  => $request->channel_id,
+                    'type'        => 'sku',
+                    'document_id' => $dokumen->id,
+                    'user_id'     => $request->user()->id,
+                ]);
+            }
             DB::commit();
 
             return new ResponseResource(true, "Success", null);
@@ -160,6 +197,19 @@ class AttachCogsController extends Controller
             ]);
         } catch (\Exception $e) {
             return new ResponseResource(false, 'Failed to get categories', [
+                'message' => $e->getMessage()
+            ]);
+        }
+    }
+
+    public function getCogsChannels()
+    {
+        try {
+            $cogsChannels = CogsChannel::all();
+
+            return new ResponseResource(true, 'Success', $cogsChannels);
+        } catch (\Exception $e) {
+            return new ResponseResource(false, 'Failed to get COGS channels', [
                 'message' => $e->getMessage()
             ]);
         }

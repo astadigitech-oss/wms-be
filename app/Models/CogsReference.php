@@ -9,24 +9,17 @@ class CogsReference extends Model
 {
     use HasFactory;
 
-    protected $table = 'cogs_reference';
-
-    public $incrementing = false;
-    protected $primaryKey = ['channel_id'];
-
-    const UPDATED_AT = null;
-
-    protected $fillable = ['channel_id', 'document_id', 'user_id'];
+    protected $fillable = [
+        'cogs_channel_id',
+        'type',
+        'document_id',
+        'user_id',
+    ];
 
     public function channel()
     {
-        return $this->belongsTo(CogsChannel::class, 'channel_id', 'id');
+        return $this->belongsTo(CogsChannel::class, 'cogs_channel_id', 'id');
     }
-
-    // public function document()
-    // {
-    //     return $this->belongsTo(Document::class, 'document_id', 'id');
-    // }
 
     public function user()
     {

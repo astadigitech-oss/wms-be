@@ -274,6 +274,12 @@ Route::middleware(['auth:sanctum', 'check.role:Admin'])->group(function () {
     Route::get('ambil-list-kategori', [AttachCogsController::class, 'getCategories']);
 });
 
+Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader'])->group(function () {
+    Route::post('attach-cogs-reguler/{document_id}', [AttachCogsController::class, 'attachCogsKeDokumenReguler']);
+    Route::post('attach-cogs-sku/{document_id}', [AttachCogsController::class, 'attachCogsKeDokumenSku']);
+    Route::get('channels', [AttachCogsController::class, 'getCogsChannels']);
+});
+
 // ========================================================================================================
 // 1. AUTH & PUBLIC ROUTES
 // ========================================================================================================
