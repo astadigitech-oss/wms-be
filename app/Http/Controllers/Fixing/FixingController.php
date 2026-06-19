@@ -42,4 +42,35 @@ class FixingController extends Controller
             ], 500);
         }
     }
+
+    public function getUnmappedSummary()
+    {
+        $count =
+            DB::table('new_products')
+            ->whereNull('new_tag_product')
+            ->whereNull('new_category_product')
+            ->count()
+            +
+            DB::table('staging_products')
+            ->whereNull('new_tag_product')
+            ->whereNull('new_category_product')
+            ->count();
+
+        $latestDate = collect([
+            DB::table('new_products')
+                ->whereNull('new_tag_product')
+                ->whereNull('new_category_product')
+                ->max('created_at'),
+
+            DB::table('staging_products')
+                ->whereNull('new_tag_product')
+                ->whereNull('new_category_product')
+                ->max('created_at'),
+        ])->filter()->max();
+
+        return response()->json([
+            'count' => $count,
+            'latest_created_at' => $latestDate,
+        ]);
+    }
 }
