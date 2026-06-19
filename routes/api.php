@@ -272,6 +272,7 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader'])->group(f
 
 Route::middleware(['auth:sanctum', 'check.role:Admin'])->group(function () {
     Route::get('ambil-list-kategori', [AttachCogsController::class, 'getCategories']);
+    Route::get('ambil-list-tidak-ada-kategori-dan-sticker', [AttachCogsController::class, 'getUnmappedSummary']);
 });
 
 Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader'])->group(function () {
@@ -542,7 +543,7 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Developer,C
 });
 
 // [READ ONLY - Termasuk Audit]
-Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Developer,Audit,Captain,Crew'])->group(function () {
+Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Developer,Audit,Captain,Crew,Kasir leader'])->group(function () {
     Route::get('bundle/filter_product', [ProductFilterController::class, 'index']);
     Route::get('bundle', [BundleController::class, 'index']);
     Route::get('bundle/{bundle}', [BundleController::class, 'show']);
@@ -552,7 +553,7 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Developer,A
 });
 
 // [WRITE / POST / ACTION - TANPA Audit]
-Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Developer,Captain,Crew'])->group(function () {
+Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Developer,Captain,Crew,Kasir leader'])->group(function () {
     Route::post('bundle/filter_product/{id}/add', [ProductFilterController::class, 'store']);
     Route::delete('bundle/filter_product/destroy/{id}', [ProductFilterController::class, 'destroy']);
     Route::put('bundle/{bundle}', [BundleController::class, 'update']);
