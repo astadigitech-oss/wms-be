@@ -40,6 +40,7 @@ use App\Http\Controllers\Inbound\BulkController;
 use App\Http\Controllers\Inbound\HalamanApprovalController;
 use App\Http\Controllers\Inbound\NewBastController;
 use App\Http\Controllers\Inbound\NewSkuController;
+use App\Http\Controllers\Inventory\NewSkuController as InventoryNewSkuController;
 use App\Http\Controllers\Inventory\Sku\SkuController;
 use App\Http\Controllers\LoyaltyRankController;
 use App\Http\Controllers\MigrateBulkyController;
@@ -275,6 +276,7 @@ Route::middleware(['auth:sanctum', 'check.role:Admin'])->group(function () {
     Route::get('ambil-list-kategori', [AttachCogsController::class, 'getCategories']);
     Route::get('ambil-list-tidak-ada-kategori-dan-sticker', [FixingController::class, 'getUnmappedSummary']);
     Route::get('ambil-data-buyer', [NewBuyerController::class, 'exportBuyer']);
+    Route::get('cek-harga-asli-sku', [InventoryNewSkuController::class, 'checkSkuPrice']);
 });
 
 Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader'])->group(function () {
