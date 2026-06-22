@@ -97,43 +97,134 @@ class NewSkuController extends Controller
 
     public function checkSkuAdjustment()
     {
-        $sql = "
+        $staging = DB::selectOne("
         SELECT
-            COUNT(*) total,
+            COUNT(*) as total_records,
+
             SUM(
                 CASE
                     WHEN ABS(
-                        (p.old_price_product / sku.price_product)
-                        - ROUND(p.old_price_product / sku.price_product)
+                        (sp.old_price_product / sku.price_product)
+                        - ROUND(sp.old_price_product / sku.price_product)
                     ) < 0.05
                     THEN 1
                     ELSE 0
                 END
-            ) auto_fix,
+            ) as auto_fix,
+
             SUM(
                 CASE
                     WHEN ABS(
-                        (p.old_price_product / sku.price_product)
-                        - ROUND(p.old_price_product / sku.price_product)
+                        (sp.old_price_product / sku.price_product)
+                        - ROUND(sp.old_price_product / sku.price_product)
                     ) >= 0.05
                     THEN 1
                     ELSE 0
                 END
-            ) need_review
-        FROM (
-            SELECT * FROM staging_products
-            WHERE code_document LIKE 'SKU%'
+            ) as need_review
 
-            UNION ALL
-
-            SELECT * FROM new_products
-            WHERE code_document LIKE 'SKU%'
-        ) p
+        FROM staging_products sp
         JOIN sku_products sku
-            ON sku.barcode_product = p.old_barcode_product
-        WHERE sku.price_product > 0
-    ";
+            ON sku.barcode_product = sp.old_barcode_product
 
-        return response()->json(DB::selectOne($sql));
+        WHERE
+            sp.code_document LIKE 'SKU%'
+            AND sku.price_product > 0
+    ");
+
+        $new = DB::selectOne("
+        SELECT
+            COUNT(*) as total_records,
+
+            SUM(
+                CASE
+                    WHEN ABS(
+                        (np.old_price_product / sku.price_product)
+                        - ROUND(np.old_price_product / sku.price_product)
+                    ) < 0.05
+                    THEN 1
+                    ELSE 0
+                END
+            ) as auto_fix,
+
+            SUM(
+                CASE
+                    WHEN ABS(
+                        (np.old_price_product / sku.price_product)
+                        - ROUND(np.old_price_product / sku.price_product)
+                    ) >= 0.05
+                    THEN 1
+                    ELSE 0
+                END
+            ) as need_review
+
+        FROM new_products np
+        JOIN sku_products sku
+            ON sku.barcode_product = np.old_barcode_product
+
+        WHERE
+            np.code_document LIKE 'SKU%'
+            AND sku.price_product > 0
+    ");
+
+        $sampleNeedReview = DB::select("
+        SELECT
+            'staging_products' as source,
+            sp.code_document,
+            sp.old_barcode_product,
+            sp.old_price_product,
+            sp.new_quantity_product,
+            sku.price_product,
+            ROUND(
+                sp.old_price_product / sku.price_product,
+                6
+            ) as calculated_qty
+
+        FROM staging_products sp
+        JOIN sku_products sku
+            ON sku.barcode_product = sp.old_barcode_product
+
+        WHERE
+            sp.code_document LIKE 'SKU%'
+            AND sku.price_product > 0
+            AND ABS(
+                (sp.old_price_product / sku.price_product)
+                - ROUND(sp.old_price_product / sku.price_product)
+            ) >= 0.05
+
+        LIMIT 5
+    ");
+
+        $totalRecords = $staging->total_records + $new->total_records;
+        $totalAutoFix = $staging->auto_fix + $new->auto_fix;
+        $totalNeedReview = $staging->need_review + $new->need_review;
+
+        return response()->json([
+            'success' => true,
+
+            'summary' => [
+                'total_records' => $totalRecords,
+                'auto_fix' => $totalAutoFix,
+                'need_review' => $totalNeedReview,
+                'auto_fix_percentage' => round(
+                    ($totalAutoFix / max(1, $totalRecords)) * 100,
+                    2
+                ),
+            ],
+
+            'staging_products' => [
+                'total_records' => (int) $staging->total_records,
+                'auto_fix' => (int) $staging->auto_fix,
+                'need_review' => (int) $staging->need_review,
+            ],
+
+            'new_products' => [
+                'total_records' => (int) $new->total_records,
+                'auto_fix' => (int) $new->auto_fix,
+                'need_review' => (int) $new->need_review,
+            ],
+
+            'sample_need_review' => $sampleNeedReview,
+        ]);
     }
 }
