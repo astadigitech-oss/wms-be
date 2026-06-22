@@ -2,9 +2,12 @@
 
 namespace App\Http\Controllers\Inventory;
 
+use App\Exports\Inventory\CekSkuExport;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Maatwebsite\Excel\Facades\Excel;
+use Illuminate\Support\Str;
 
 class NewSkuController extends Controller
 {
@@ -63,6 +66,32 @@ class NewSkuController extends Controller
                 'sesuai_qty' => $new->sesuai,
                 'tidak_sesuai_qty' => $new->tidak_sesuai,
             ],
+        ]);
+    }
+
+    public function exportProductValidation()
+    {
+        set_time_limit(0);
+        ini_set('max_execution_time', 0);
+        ini_set('memory_limit', '1024M');
+
+        $filename = 'product-validation-' .
+            now()->format('Ymd_His') . '-' .
+            Str::random(8) .
+            '.xlsx';
+
+        $path = 'exports/' . $filename;
+
+        Excel::store(
+            new CekSkuExport(),
+            $path,
+            'public'
+        );
+
+        return response()->json([
+            'success' => true,
+            'file_name' => $filename,
+            'download_url' => asset('storage/' . $path),
         ]);
     }
 }
