@@ -278,6 +278,7 @@ Route::middleware(['auth:sanctum', 'check.role:Admin'])->group(function () {
     Route::get('ambil-data-buyer', [NewBuyerController::class, 'exportBuyer']);
     Route::get('cek-harga-asli-sku', [InventoryNewSkuController::class, 'checkSkuPrice']);
     Route::get('export-sku-reguler', [InventoryNewSkuController::class, 'exportProductValidation']);
+    Route::get('cek-adjustment-qty-dan-actual-oldprice', [InventoryNewSkuController::class, 'checkSkuAdjustment']);
 });
 
 Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader'])->group(function () {
