@@ -94,4 +94,46 @@ class NewSkuController extends Controller
             'download_url' => asset('storage/' . $path),
         ]);
     }
+
+    public function checkSkuAdjustment()
+    {
+        $sql = "
+        SELECT
+            COUNT(*) total,
+            SUM(
+                CASE
+                    WHEN ABS(
+                        (p.old_price_product / sku.price_product)
+                        - ROUND(p.old_price_product / sku.price_product)
+                    ) < 0.05
+                    THEN 1
+                    ELSE 0
+                END
+            ) auto_fix,
+            SUM(
+                CASE
+                    WHEN ABS(
+                        (p.old_price_product / sku.price_product)
+                        - ROUND(p.old_price_product / sku.price_product)
+                    ) >= 0.05
+                    THEN 1
+                    ELSE 0
+                END
+            ) need_review
+        FROM (
+            SELECT * FROM staging_products
+            WHERE code_document LIKE 'SKU%'
+
+            UNION ALL
+
+            SELECT * FROM new_products
+            WHERE code_document LIKE 'SKU%'
+        ) p
+        JOIN sku_products sku
+            ON sku.barcode_product = p.old_barcode_product
+        WHERE sku.price_product > 0
+    ";
+
+        return response()->json(DB::selectOne($sql));
+    }
 }
