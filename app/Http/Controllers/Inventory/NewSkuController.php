@@ -17,18 +17,18 @@ class NewSkuController extends Controller
             COUNT(
                 CASE
                     WHEN sku.price_product > 0
-                    AND MOD(sp.old_price_product, sku.price_product) = 0
+                    AND (sp.old_price_product / sku.price_product) = sp.new_quantity_product
                     THEN 1
                 END
-            ) as divisible_count,
+            ) as sesuai,
 
             COUNT(
                 CASE
                     WHEN sku.price_product > 0
-                    AND MOD(sp.old_price_product, sku.price_product) <> 0
+                    AND (sp.old_price_product / sku.price_product) <> sp.new_quantity_product
                     THEN 1
                 END
-            ) as not_divisible_count
+            ) as tidak_sesuai
         ")
             ->first();
 
@@ -39,29 +39,29 @@ class NewSkuController extends Controller
             COUNT(
                 CASE
                     WHEN sku.price_product > 0
-                    AND MOD(np.old_price_product, sku.price_product) = 0
+                    AND (np.old_price_product / sku.price_product) = np.new_quantity_product
                     THEN 1
                 END
-            ) as divisible_count,
+            ) as sesuai,
 
             COUNT(
                 CASE
                     WHEN sku.price_product > 0
-                    AND MOD(np.old_price_product, sku.price_product) <> 0
+                    AND (np.old_price_product / sku.price_product) <> np.new_quantity_product
                     THEN 1
                 END
-            ) as not_divisible_count
+            ) as tidak_sesuai
         ")
             ->first();
 
         return response()->json([
             'staging_products' => [
-                'habis_dibagi' => $staging->divisible_count,
-                'tidak_habis_dibagi' => $staging->not_divisible_count,
+                'sesuai_qty' => $staging->sesuai,
+                'tidak_sesuai_qty' => $staging->tidak_sesuai,
             ],
             'new_products' => [
-                'habis_dibagi' => $new->divisible_count,
-                'tidak_habis_dibagi' => $new->not_divisible_count,
+                'sesuai_qty' => $new->sesuai,
+                'tidak_sesuai_qty' => $new->tidak_sesuai,
             ],
         ]);
     }
