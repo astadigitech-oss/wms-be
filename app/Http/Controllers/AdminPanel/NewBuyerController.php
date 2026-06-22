@@ -29,7 +29,7 @@ class NewBuyerController extends Controller
         return response()->json([
             'success' => true,
             'file_name' => $filename,
-            'download_url' => Storage::disk('public')->url($path),
+            'download_url' => \Illuminate\Support\Facades\Storage::disk('public')->url($path),
         ]);
     }
 }
