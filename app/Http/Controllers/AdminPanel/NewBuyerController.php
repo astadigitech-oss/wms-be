@@ -16,14 +16,20 @@ class NewBuyerController extends Controller
         ini_set('max_execution_time', 0);
         ini_set('memory_limit', '1024M');
 
-        $filename = 'buyer-report-' .
-            now()->format('Ymd_His') . '-' .
-            Str::random(8) .
-            '.xlsx';
+        $filename = 'buyer-report-' . now()->format('Ymd_His') . '-' . Str::random(8) . '.xlsx';
 
-        return Excel::download(
+        $path = 'exports/' . $filename;
+
+        Excel::store(
             new BuyerExport(),
-            $filename
+            $path,
+            'public'
         );
+
+        return response()->json([
+            'success' => true,
+            'file_name' => $filename,
+            'download_url' => Storage::disk('public')->url($path),
+        ]);
     }
 }
