@@ -277,6 +277,7 @@ Route::middleware(['auth:sanctum', 'check.role:Admin'])->group(function () {
     Route::get('ambil-list-tidak-ada-kategori-dan-sticker', [FixingController::class, 'getUnmappedSummary']);
     Route::get('ambil-data-buyer', [NewBuyerController::class, 'exportBuyer']);
     Route::get('cek-harga-asli-sku', [InventoryNewSkuController::class, 'checkSkuPrice']);
+    Route::get('export-sku-reguler', [InventoryNewSkuController::class, 'exportProductValidation']);
 });
 
 Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader'])->group(function () {
