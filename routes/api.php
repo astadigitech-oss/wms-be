@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\AbnormalDocumentController;
+use App\Http\Controllers\AdminPanel\NewBuyerController;
 use App\Http\Controllers\AdminPanel\VoucherController;
 use App\Http\Controllers\ApproveQueueController;
 use App\Http\Controllers\ArchiveStorageController;
@@ -273,6 +274,7 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader'])->group(f
 Route::middleware(['auth:sanctum', 'check.role:Admin'])->group(function () {
     Route::get('ambil-list-kategori', [AttachCogsController::class, 'getCategories']);
     Route::get('ambil-list-tidak-ada-kategori-dan-sticker', [FixingController::class, 'getUnmappedSummary']);
+    Route::get('ambil-data-buyer', [NewBuyerController::class, 'exportBuyer']);
 });
 
 Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader'])->group(function () {
