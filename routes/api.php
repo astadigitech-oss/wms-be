@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\AbnormalDocumentController;
+use App\Http\Controllers\AdminPanel\NewBuyerController;
 use App\Http\Controllers\AdminPanel\VoucherController;
 use App\Http\Controllers\ApproveQueueController;
 use App\Http\Controllers\ArchiveStorageController;
@@ -33,12 +34,15 @@ use App\Http\Controllers\FilterStagingController;
 use App\Http\Controllers\Fixing\FixingController;
 use App\Http\Controllers\FormatBarcodeController;
 use App\Http\Controllers\GenerateController;
+use App\Http\Controllers\HelperErp\AdjustQualityController;
+use App\Http\Controllers\HelperErp\CogsController;
 use App\Http\Controllers\Inbound\AttachCogsController;
 use App\Http\Controllers\Inbound\BastApprovalController;
 use App\Http\Controllers\Inbound\BulkController;
 use App\Http\Controllers\Inbound\HalamanApprovalController;
 use App\Http\Controllers\Inbound\NewBastController;
 use App\Http\Controllers\Inbound\NewSkuController;
+use App\Http\Controllers\Inventory\NewSkuController as InventoryNewSkuController;
 use App\Http\Controllers\Inventory\Sku\SkuController;
 use App\Http\Controllers\LoyaltyRankController;
 use App\Http\Controllers\MigrateBulkyController;
@@ -272,6 +276,18 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader'])->group(f
 
 Route::middleware(['auth:sanctum', 'check.role:Admin'])->group(function () {
     Route::get('ambil-list-kategori', [AttachCogsController::class, 'getCategories']);
+    Route::get('ambil-list-tidak-ada-kategori-dan-sticker', [FixingController::class, 'getUnmappedSummary']);
+    Route::get('ambil-data-buyer', [NewBuyerController::class, 'exportBuyer']);
+    Route::get('cek-harga-asli-sku', [InventoryNewSkuController::class, 'checkSkuPrice']);
+    Route::get('export-sku-reguler', [InventoryNewSkuController::class, 'exportProductValidation']);
+    Route::get('cek-adjustment-qty-dan-actual-oldprice', [InventoryNewSkuController::class, 'checkSkuAdjustment']);
+
+    // Helper ERP
+    Route::post('adjust-quality-staging', [AdjustQualityController::class, 'stagingAdjustQuality']);
+    Route::post('adjust-quality-display', [AdjustQualityController::class, 'displayAdjustQuality']);
+
+    // Helper ERP - COGS
+    Route::post('supplier-channel-import', [CogsController::class, 'importSupplierDanChannel']);
 });
 
 Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader'])->group(function () {
@@ -542,7 +558,7 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Developer,C
 });
 
 // [READ ONLY - Termasuk Audit]
-Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Developer,Audit,Captain,Crew'])->group(function () {
+Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Developer,Audit,Captain,Crew,Kasir leader'])->group(function () {
     Route::get('bundle/filter_product', [ProductFilterController::class, 'index']);
     Route::get('bundle', [BundleController::class, 'index']);
     Route::get('bundle/{bundle}', [BundleController::class, 'show']);
@@ -552,7 +568,7 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Developer,A
 });
 
 // [WRITE / POST / ACTION - TANPA Audit]
-Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Developer,Captain,Crew'])->group(function () {
+Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Developer,Captain,Crew,Kasir leader'])->group(function () {
     Route::post('bundle/filter_product/{id}/add', [ProductFilterController::class, 'store']);
     Route::delete('bundle/filter_product/destroy/{id}', [ProductFilterController::class, 'destroy']);
     Route::put('bundle/{bundle}', [BundleController::class, 'update']);
