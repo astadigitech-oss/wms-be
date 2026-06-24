@@ -34,6 +34,8 @@ use App\Http\Controllers\FilterStagingController;
 use App\Http\Controllers\Fixing\FixingController;
 use App\Http\Controllers\FormatBarcodeController;
 use App\Http\Controllers\GenerateController;
+use App\Http\Controllers\HelperErp\AdjustQualityController;
+use App\Http\Controllers\HelperErp\CogsController;
 use App\Http\Controllers\Inbound\AttachCogsController;
 use App\Http\Controllers\Inbound\BastApprovalController;
 use App\Http\Controllers\Inbound\BulkController;
@@ -279,6 +281,13 @@ Route::middleware(['auth:sanctum', 'check.role:Admin'])->group(function () {
     Route::get('cek-harga-asli-sku', [InventoryNewSkuController::class, 'checkSkuPrice']);
     Route::get('export-sku-reguler', [InventoryNewSkuController::class, 'exportProductValidation']);
     Route::get('cek-adjustment-qty-dan-actual-oldprice', [InventoryNewSkuController::class, 'checkSkuAdjustment']);
+
+    // Helper ERP
+    Route::post('adjust-quality-staging', [AdjustQualityController::class, 'stagingAdjustQuality']);
+    Route::post('adjust-quality-display', [AdjustQualityController::class, 'displayAdjustQuality']);
+
+    // Helper ERP - COGS
+    Route::post('supplier-channel-import', [CogsController::class, 'importSupplierDanChannel']);
 });
 
 Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader'])->group(function () {
