@@ -147,9 +147,7 @@ Route::middleware([
     // =====================================================================
 
     // Semua role bisa lihat
-    Route::get('bag', [BagController::class, 'index']);
-    Route::get('bag/{idBag}', [BagController::class, 'listProdukBag']);
-    Route::get('bag/{idBag}/info', [BagController::class, 'infoDetailBag']);
+
 
     // =====================================================================
     // BAG - SPV / ADMIN / TL
@@ -170,7 +168,9 @@ Route::middleware([
 Route::middleware([
     'check.role:Admin,Captain,TeamLeader,Crew,Reparasi'
 ])->group(function () {
-
+    Route::get('bag', [BagController::class, 'index']);
+    Route::get('bag/{idBag}', [BagController::class, 'listProdukBag']);
+    Route::get('bag/{idBag}/info', [BagController::class, 'infoDetailBag']);
     Route::post('bag', [BagController::class, 'buatBag']);
     Route::post('bag/add-product/{idBag}', [BagController::class, 'tambahProdukKeBag']);
     Route::post('bag/remove-product/{idProduct}', [BagController::class, 'takeOutBarangbulky']);
