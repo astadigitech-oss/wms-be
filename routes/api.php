@@ -128,7 +128,7 @@ Route::middleware([
 
     // SPV / Admin / TL only
     Route::middleware([
-        'check.role:Admin,Spv,Team leader,TeamLeader'
+        'check.role:Admin,Spv,Team leader,TeamLeader,Reparasi'
     ])->group(function () {
         Route::get('cargo/export', [ExportOutboundController::class, 'exportB2BBaru']);
 
