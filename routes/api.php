@@ -154,7 +154,7 @@ Route::middleware([
     // =====================================================================
 
     Route::middleware([
-        'check.role:Admin,Spv,Team leader,TeamLeader'
+        'check.role:Admin,Spv,Team leader,TeamLeader,Reparasi'
     ])->group(function () {
 
         Route::post('bag/{idBag}/toggle-status', [BagController::class, 'toggleStatusBag']);
