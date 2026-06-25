@@ -78,7 +78,7 @@ class AdjustQualityController extends Controller
                 ->select('id', 'new_quality')
                 ->where('is_adjusted_quality', false)
                 ->orderByDesc('id')
-                ->limit(10000)
+                ->limit(50000)
                 ->get();
 
             if ($products->isEmpty()) {

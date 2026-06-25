@@ -147,9 +147,7 @@ Route::middleware([
     // =====================================================================
 
     // Semua role bisa lihat
-    Route::get('bag', [BagController::class, 'index']);
-    Route::get('bag/{idBag}', [BagController::class, 'listProdukBag']);
-    Route::get('bag/{idBag}/info', [BagController::class, 'infoDetailBag']);
+
 
     // =====================================================================
     // BAG - SPV / ADMIN / TL
@@ -161,20 +159,24 @@ Route::middleware([
 
         Route::post('bag/{idBag}/toggle-status', [BagController::class, 'toggleStatusBag']);
     });
-
-    // =====================================================================
-    // BAG - CREW / CAPTAIN
-    // =====================================================================
-
-    Route::middleware([
-        'check.role:Admin,Captain,TeamLeader,Crew,Reparasi'
-    ])->group(function () {
-
-        Route::post('bag', [BagController::class, 'buatBag']);
-        Route::post('bag/add-product/{idBag}', [BagController::class, 'tambahProdukKeBag']);
-        Route::post('bag/remove-product/{idProduct}', [BagController::class, 'takeOutBarangbulky']);
-    });
 });
+
+// =====================================================================
+// BAG - CREW / CAPTAIN
+// =====================================================================
+
+Route::middleware([
+    'auth:sanctum',
+    'check.role:Admin,Captain,TeamLeader,Crew,Reparasi'
+])->group(function () {
+    Route::get('bag', [BagController::class, 'index']);
+    Route::get('bag/{idBag}', [BagController::class, 'listProdukBag']);
+    Route::get('bag/{idBag}/info', [BagController::class, 'infoDetailBag']);
+    Route::post('bag', [BagController::class, 'buatBag']);
+    Route::post('bag/add-product/{idBag}', [BagController::class, 'tambahProdukKeBag']);
+    Route::post('bag/remove-product/{idProduct}', [BagController::class, 'takeOutBarangbulky']);
+});
+
 // ========================================================================================================
 // 0. Fixing Helper - Edit Waktu Scan
 // ========================================================================================================
