@@ -166,6 +166,7 @@ Route::middleware([
 // =====================================================================
 
 Route::middleware([
+    'auth:sanctum',
     'check.role:Admin,Captain,TeamLeader,Crew,Reparasi'
 ])->group(function () {
     Route::get('bag', [BagController::class, 'index']);
