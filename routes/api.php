@@ -111,7 +111,7 @@ use Illuminate\Support\Facades\Route;
 
 Route::middleware([
     'auth:sanctum',
-    'check.role:Admin,Spv,Team leader,Captain,TeamLeader,Crew'
+    'check.role:Admin,Spv,Team leader,Captain,TeamLeader,Crew,Reparasi'
 ])->group(function () {
 
     // =====================================================================
