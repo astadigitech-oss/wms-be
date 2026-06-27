@@ -34,6 +34,8 @@ use App\Http\Controllers\FilterStagingController;
 use App\Http\Controllers\Fixing\FixingController;
 use App\Http\Controllers\FormatBarcodeController;
 use App\Http\Controllers\GenerateController;
+use App\Http\Controllers\HelperErp\AdjustQualityController;
+use App\Http\Controllers\HelperErp\CogsController;
 use App\Http\Controllers\Inbound\AttachCogsController;
 use App\Http\Controllers\Inbound\BastApprovalController;
 use App\Http\Controllers\Inbound\BulkController;
@@ -109,7 +111,7 @@ use Illuminate\Support\Facades\Route;
 
 Route::middleware([
     'auth:sanctum',
-    'check.role:Admin,Spv,Team leader,Captain,TeamLeader,Crew'
+    'check.role:Admin,Spv,Team leader,Captain,TeamLeader,Crew,Reparasi'
 ])->group(function () {
 
     // =====================================================================
@@ -126,7 +128,7 @@ Route::middleware([
 
     // SPV / Admin / TL only
     Route::middleware([
-        'check.role:Admin,Spv,Team leader,TeamLeader'
+        'check.role:Admin,Spv,Team leader,TeamLeader,Reparasi'
     ])->group(function () {
         Route::get('cargo/export', [ExportOutboundController::class, 'exportB2BBaru']);
 
@@ -145,34 +147,36 @@ Route::middleware([
     // =====================================================================
 
     // Semua role bisa lihat
-    Route::get('bag', [BagController::class, 'index']);
-    Route::get('bag/{idBag}', [BagController::class, 'listProdukBag']);
-    Route::get('bag/{idBag}/info', [BagController::class, 'infoDetailBag']);
+
 
     // =====================================================================
     // BAG - SPV / ADMIN / TL
     // =====================================================================
 
     Route::middleware([
-        'check.role:Admin,Spv,Team leader,TeamLeader'
+        'check.role:Admin,Spv,Team leader,TeamLeader,Reparasi'
     ])->group(function () {
 
         Route::post('bag/{idBag}/toggle-status', [BagController::class, 'toggleStatusBag']);
     });
-
-    // =====================================================================
-    // BAG - CREW / CAPTAIN
-    // =====================================================================
-
-    Route::middleware([
-        'check.role:Admin,Captain,TeamLeader,Crew,Reparasi'
-    ])->group(function () {
-
-        Route::post('bag', [BagController::class, 'buatBag']);
-        Route::post('bag/add-product/{idBag}', [BagController::class, 'tambahProdukKeBag']);
-        Route::post('bag/remove-product/{idProduct}', [BagController::class, 'takeOutBarangbulky']);
-    });
 });
+
+// =====================================================================
+// BAG - CREW / CAPTAIN
+// =====================================================================
+
+Route::middleware([
+    'auth:sanctum',
+    'check.role:Admin,Captain,TeamLeader,Crew,Reparasi'
+])->group(function () {
+    Route::get('bag', [BagController::class, 'index']);
+    Route::get('bag/{idBag}', [BagController::class, 'listProdukBag']);
+    Route::get('bag/{idBag}/info', [BagController::class, 'infoDetailBag']);
+    Route::post('bag', [BagController::class, 'buatBag']);
+    Route::post('bag/add-product/{idBag}', [BagController::class, 'tambahProdukKeBag']);
+    Route::post('bag/remove-product/{idProduct}', [BagController::class, 'takeOutBarangbulky']);
+});
+
 // ========================================================================================================
 // 0. Fixing Helper - Edit Waktu Scan
 // ========================================================================================================
@@ -279,6 +283,13 @@ Route::middleware(['auth:sanctum', 'check.role:Admin'])->group(function () {
     Route::get('cek-harga-asli-sku', [InventoryNewSkuController::class, 'checkSkuPrice']);
     Route::get('export-sku-reguler', [InventoryNewSkuController::class, 'exportProductValidation']);
     Route::get('cek-adjustment-qty-dan-actual-oldprice', [InventoryNewSkuController::class, 'checkSkuAdjustment']);
+
+    // Helper ERP
+    Route::post('adjust-quality-staging', [AdjustQualityController::class, 'stagingAdjustQuality']);
+    Route::post('adjust-quality-display', [AdjustQualityController::class, 'displayAdjustQuality']);
+
+    // Helper ERP - COGS
+    Route::post('supplier-channel-import', [CogsController::class, 'importSupplierDanChannel']);
 });
 
 Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader'])->group(function () {
