@@ -108,7 +108,7 @@ class SaleController extends Controller
             $minTransaction = $buyerAvail->vouchers()->min('min_transaction');
         }
 
-        dd($minTransaction);
+        // dd($minTransaction);
 
         $data = [
             'buyer_id_document_sale' => $buyerIdDocumentSale,
