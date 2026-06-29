@@ -54,6 +54,7 @@ class VoucherController extends Controller
             'max_usage' => 'required|integer',
             'max_week' => 'required|integer',
             'start_date' => 'nullable|date',
+            'min_transaction' => 'nullable|numeric',
         ]);
 
         if ($validator->fails()) {
@@ -102,6 +103,7 @@ class VoucherController extends Controller
             'max_usage' => 'required|integer',
             'is_active' => 'required|boolean',
             'max_week' => 'required|integer',
+            'min_transaction' => 'nullable|numeric',
         ]);
 
         if ($validator->fails()) {
@@ -148,7 +150,7 @@ class VoucherController extends Controller
 
             return new ResponseResource(
                 false,
-                'Gagal membuat voucher',
+                'Gagal mengupdate voucher',
                 null
             );
         }
@@ -222,7 +224,7 @@ class VoucherController extends Controller
         }
     }
 
-    public function detailVoucer($id)
+    public function detailVoucher($id)
     {
         try {
             $voucher = Voucher::findOrFail($id)
