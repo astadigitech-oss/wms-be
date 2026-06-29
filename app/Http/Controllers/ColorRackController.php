@@ -26,8 +26,7 @@ class ColorRackController extends Controller
     public function index(Request $request)
     {
         $query = ColorRack::with('colorRackProducts.newProduct')
-            ->withCount('colorRackProducts')
-            ->where('status', 'display');
+            ->withCount('colorRackProducts');
 
         if ($request->has('q') && $request->q != '') {
             $q = $request->q;
@@ -43,7 +42,17 @@ class ColorRackController extends Controller
             });
         }
 
-        $racks = $query->latest()->paginate(10);
+        $racks = $query
+            ->orderByRaw("
+                CASE status
+                    WHEN 'display' THEN 1
+                    WHEN 'process' THEN 2
+                    WHEN 'migrate' THEN 3
+                    ELSE 4
+                END
+            ")
+            ->latest()
+            ->paginate(10);
 
         $racks->getCollection()->transform(function ($rack) {
             return [
