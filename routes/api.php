@@ -36,6 +36,7 @@ use App\Http\Controllers\FormatBarcodeController;
 use App\Http\Controllers\GenerateController;
 use App\Http\Controllers\HelperErp\AdjustQualityController;
 use App\Http\Controllers\HelperErp\CogsController;
+use App\Http\Controllers\HelperErp\HelperWmsController;
 use App\Http\Controllers\Inbound\AttachCogsController;
 use App\Http\Controllers\Inbound\BastApprovalController;
 use App\Http\Controllers\Inbound\BulkController;
@@ -266,6 +267,8 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Kasir leader,Admin Kasir'])
 Route::middleware(['auth:sanctum', 'check.role:Admin'])->group(function () {
     Route::post('/search-product', [FindProductController::class, 'findProduct']);
     Route::post('/update-harga-excel', [FindProductController::class, 'updateHargaExcel']);
+    Route::post('helper-331L', [HelperWmsController::class, 'migrateStickerAbnormal']);
+    Route::post('helper-331L-delete', [HelperWmsController::class, 'deleteMigratedStickerAbnormal']);
 });
 
 Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader'])->group(function () {
