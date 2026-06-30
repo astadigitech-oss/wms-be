@@ -100,6 +100,16 @@ class SaleController extends Controller
             }
         }
 
+        $buyerAvail = Buyer::find($buyerIdDocumentSale);
+
+        $minTransaction = null;
+
+        if ($buyerAvail) {
+            $minTransaction = $buyerAvail->vouchers()->min('min_transaction');
+        }
+
+        // dd($minTransaction);
+
         $data = [
             'buyer_id_document_sale' => $buyerIdDocumentSale,
             'code_document_sale' => $codeDocumentSale,
@@ -115,8 +125,9 @@ class SaleController extends Controller
             'current_transaction' => $currentTransaction,
             'monthly_point' => (int) $monthlyPoint,
             'monthly_rank_position' => $monthlyRank > 0 ? $monthlyRank : '-',
-            'voucher_rank_available' => $totalSale >= 5000000,
+            'voucher_rank_available' => $totalSale >= $minTransaction ? true : false,
             'voucher_rank_value' => $saleDocument?->voucher_rank_value ?? 0,
+            'min_transaction' => $minTransaction,
         ];
 
         $data += $sale->toArray();
