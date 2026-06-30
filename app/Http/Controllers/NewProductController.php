@@ -1455,27 +1455,45 @@ class NewProductController extends Controller
             $inputData['weight'] = $product->weight;
 
             if ($inputData['old_price_product'] < 100000) {
-
+                // Wajib tidak punya kategori
                 $inputData['new_category_product'] = null;
 
+                // Cari color tag berdasarkan harga
                 $colortag = Color_tag::where('min_price_color', '<=', $inputData['old_price_product'])
                     ->where('max_price_color', '>=', $inputData['old_price_product'])
                     ->select('fixed_price_color', 'name_color')
                     ->first();
 
-                if ($colortag) {
-                    $inputData['new_price_product'] = $colortag->fixed_price_color;
-                    $inputData['display_price'] = $colortag->fixed_price_color;
-                    $inputData['new_tag_product'] = $colortag->name_color;
+                if (!$colortag) {
+                    return (new ResponseResource(false, "Color tag tidak ditemukan.", null))
+                        ->response()->setStatusCode(422);
                 }
+
+                // Wajib memiliki tag
+                $inputData['new_tag_product'] = $colortag->name_color;
+                $inputData['new_price_product'] = $colortag->fixed_price_color;
+                $inputData['display_price'] = $colortag->fixed_price_color;
             }
 
-            if ($source === 'staging') {
-                $product->update($inputData);
-            } else {
-                StagingProduct::create($inputData);
+            if ($inputData['old_price_product'] < 100000) {
 
+                // Selalu masuk New_product
+                New_product::updateOrCreate(
+                    ['new_barcode_product' => $inputData['new_barcode_product']],
+                    $inputData
+                );
+
+                // Hapus dari source asal
                 $product->delete();
+            } else {
+
+                // Ikuti alur yang sudah ada
+                if ($source === 'staging') {
+                    $product->update($inputData);
+                } else {
+                    StagingProduct::create($inputData);
+                    $product->delete();
+                }
             }
 
             return new ResponseResource(true, "Berhasil di repair dan masuk ke staging", $inputData);
