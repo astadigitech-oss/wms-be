@@ -1454,28 +1454,53 @@ class NewProductController extends Controller
             $inputData['actual_old_price_product'] = $product->actual_old_price_product;
             $inputData['weight'] = $product->weight;
 
+            // ===============================
+            // PRIORITAS 1 : HARGA < 100.000
+            // ===============================
             if ($inputData['old_price_product'] < 100000) {
 
+                // Wajib kategori null
                 $inputData['new_category_product'] = null;
 
+                // Ambil color tag
                 $colortag = Color_tag::where('min_price_color', '<=', $inputData['old_price_product'])
                     ->where('max_price_color', '>=', $inputData['old_price_product'])
                     ->select('fixed_price_color', 'name_color')
                     ->first();
 
-                if ($colortag) {
-                    $inputData['new_price_product'] = $colortag->fixed_price_color;
-                    $inputData['display_price'] = $colortag->fixed_price_color;
-                    $inputData['new_tag_product'] = $colortag->name_color;
+                if (!$colortag) {
+                    return (new ResponseResource(false, "Color tag tidak ditemukan.", null))
+                        ->response()->setStatusCode(422);
                 }
-            }
 
-            if ($source === 'staging') {
-                $product->update($inputData);
+                $inputData['new_tag_product'] = $colortag->name_color;
+                $inputData['new_price_product'] = $colortag->fixed_price_color;
+                $inputData['display_price'] = $colortag->fixed_price_color;
+
+                // Sesuaikan source
+                if ($source === 'staging') {
+                    // Pindahkan dari staging ke new_product
+                    New_product::create($inputData);
+                    $product->delete();
+                } else {
+                    // Sudah di new_product, cukup update
+                    $product->update($inputData);
+                }
             } else {
-                StagingProduct::create($inputData);
 
-                $product->delete();
+                // ===============================
+                // PRIORITAS 2 : HARGA >= 100.000
+                // ===============================
+
+                $inputData['new_tag_product'] = null;
+
+                // Ikuti flow yang sudah ada
+                if ($source === 'staging') {
+                    $product->update($inputData);
+                } else {
+                    StagingProduct::create($inputData);
+                    $product->delete();
+                }
             }
 
             return new ResponseResource(true, "Berhasil di repair dan masuk ke staging", $inputData);

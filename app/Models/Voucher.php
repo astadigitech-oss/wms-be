@@ -17,7 +17,8 @@ class Voucher extends Model
         'max_usage',
         'is_active',
         'max_week',
-        'start_date'
+        'start_date',
+        'min_transaction'
     ];
 
     protected static function booted()
