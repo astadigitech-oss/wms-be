@@ -1,7 +1,7 @@
 ##############################################
-# 1) COMPOSER BUILD STAGE (PHP 8.3)
+# 1) COMPOSER BUILD STAGE (PHP 8.1)
 ##############################################
-FROM php:8.3-cli AS composer_build
+FROM php:8.1-cli AS composer_build
 
 RUN apt-get update && apt-get install -y \
     git unzip libicu-dev libpng-dev libjpeg-dev libfreetype-dev libzip-dev \
@@ -21,7 +21,7 @@ RUN composer install --no-dev --no-interaction --prefer-dist --optimize-autoload
 ##############################################
 # 2) FRANKENPHP RUNTIME STAGE
 ##############################################
-FROM dunglas/frankenphp:1-php8.3 AS runtime
+FROM dunglas/frankenphp:1-php8.1 AS runtime
 
 WORKDIR /app
 
