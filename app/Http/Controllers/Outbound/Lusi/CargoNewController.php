@@ -50,6 +50,7 @@ class CargoNewController extends Controller
 
                 $existingNames = BulkyDocument::where(function ($query) use ($baseName) {
                     $query->where('name_document', $baseName)
+                        ->orWhere('name_document', 'LIKE', $baseName . ' %')
                         ->orWhere('name_document', 'LIKE', $baseName . ' (%)');
                 })
                 ->lockForUpdate()
@@ -57,12 +58,13 @@ class CargoNewController extends Controller
 
                 $nextNumber = 1;
                 foreach ($existingNames as $name) {
-                    if (preg_match('/^' . preg_quote($baseName, '/') . '(?: \((\d+)\))?$/i', $name, $matches)) {
-                        $nextNumber = max($nextNumber, isset($matches[1]) ? intval($matches[1]) + 1 : 2);
+                    if (preg_match('/^' . preg_quote($baseName, '/') . '(?: \((\d+)\)| (\d+))?$/i', $name, $matches)) {
+                        $matchedNumber = $matches[1] ?? $matches[2] ?? null;
+                        $nextNumber = max($nextNumber, $matchedNumber !== null ? intval($matchedNumber) + 1 : 2);
                     }
                 }
 
-                $finalName = $baseName . ' (' . $nextNumber . ')';
+                $finalName = $baseName . ' ' . $nextNumber;
 
                 if (BulkyDocument::where('name_document', $finalName)->exists()) {
                     DB::rollBack();
@@ -108,6 +110,7 @@ class CargoNewController extends Controller
 
             $existingNames = BulkyDocument::where(function ($query) use ($baseName) {
                 $query->where('name_document', $baseName)
+                    ->orWhere('name_document', 'LIKE', $baseName . ' %')
                     ->orWhere('name_document', 'LIKE', $baseName . ' (%)');
             })
             ->lockForUpdate()
@@ -115,12 +118,13 @@ class CargoNewController extends Controller
 
             $nextNumber = 1;
             foreach ($existingNames as $name) {
-                if (preg_match('/^' . preg_quote($baseName, '/') . '(?: \((\d+)\))?$/i', $name, $matches)) {
-                    $nextNumber = max($nextNumber, isset($matches[1]) ? intval($matches[1]) + 1 : 2);
+                if (preg_match('/^' . preg_quote($baseName, '/') . '(?: \((\d+)\)| (\d+))?$/i', $name, $matches)) {
+                    $matchedNumber = $matches[1] ?? $matches[2] ?? null;
+                    $nextNumber = max($nextNumber, $matchedNumber !== null ? intval($matchedNumber) + 1 : 2);
                 }
             }
 
-            $finalName = $baseName . ' (' . $nextNumber . ')';
+            $finalName = $baseName . ' ' . $nextNumber;
 
             $categoryPayload = [
                 'category_bulky' => null,
