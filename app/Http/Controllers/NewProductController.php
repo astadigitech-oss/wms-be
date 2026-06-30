@@ -1454,11 +1454,15 @@ class NewProductController extends Controller
             $inputData['actual_old_price_product'] = $product->actual_old_price_product;
             $inputData['weight'] = $product->weight;
 
+            // ===============================
+            // PRIORITAS 1 : HARGA < 100.000
+            // ===============================
             if ($inputData['old_price_product'] < 100000) {
-                // Wajib tidak punya kategori
+
+                // Wajib kategori null
                 $inputData['new_category_product'] = null;
 
-                // Cari color tag berdasarkan harga
+                // Ambil color tag
                 $colortag = Color_tag::where('min_price_color', '<=', $inputData['old_price_product'])
                     ->where('max_price_color', '>=', $inputData['old_price_product'])
                     ->select('fixed_price_color', 'name_color')
@@ -1469,25 +1473,28 @@ class NewProductController extends Controller
                         ->response()->setStatusCode(422);
                 }
 
-                // Wajib memiliki tag
                 $inputData['new_tag_product'] = $colortag->name_color;
                 $inputData['new_price_product'] = $colortag->fixed_price_color;
                 $inputData['display_price'] = $colortag->fixed_price_color;
-            }
 
-            if ($inputData['old_price_product'] < 100000) {
-
-                // Selalu masuk New_product
-                New_product::updateOrCreate(
-                    ['new_barcode_product' => $inputData['new_barcode_product']],
-                    $inputData
-                );
-
-                // Hapus dari source asal
-                $product->delete();
+                // Sesuaikan source
+                if ($source === 'staging') {
+                    // Pindahkan dari staging ke new_product
+                    New_product::create($inputData);
+                    $product->delete();
+                } else {
+                    // Sudah di new_product, cukup update
+                    $product->update($inputData);
+                }
             } else {
 
-                // Ikuti alur yang sudah ada
+                // ===============================
+                // PRIORITAS 2 : HARGA >= 100.000
+                // ===============================
+
+                $inputData['new_tag_product'] = null;
+
+                // Ikuti flow yang sudah ada
                 if ($source === 'staging') {
                     $product->update($inputData);
                 } else {
