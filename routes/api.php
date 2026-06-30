@@ -56,6 +56,7 @@ use App\Http\Controllers\NonDocumentController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\Outbound\BagController;
 use App\Http\Controllers\Outbound\ExportOutboundController;
+use App\Http\Controllers\Outbound\Lusi\CargoNewController;
 use App\Http\Controllers\Outbound\NewSaleController;
 use App\Http\Controllers\Outbound\SaleController as OutboundSaleController;
 use App\Http\Controllers\PaletBrandController;
@@ -701,7 +702,8 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Admin Kasir,Kasir leade
     Route::resource('bulky-sales', BulkySaleController::class)->except(['index', 'show']);
     Route::delete('bulky-documents/{bulkyDocument}', [BulkyDocumentController::class, 'destroy']);
     Route::post('bulky-sale-finish', [BulkyDocumentController::class, 'bulkySaleFinish']);
-    Route::post('create-b2b', [BulkyDocumentController::class, 'createBulkyDocument']);
+    // Route::post('create-b2b', [BulkyDocumentController::class, 'createBulkyDocument']);
+    Route::post('create-b2b', [CargoNewController::class, 'createBulkyDocumentNew']);
     Route::post('export-b2b', [BulkyDocumentController::class, 'export']);
     Route::resource('vehicle-types', VehicleTypeController::class)->except(['index', 'show']);
     Route::post('bulky-documents/{id}/ready-online', [BulkyDocumentController::class, 'setOnlineReady']);

@@ -5,11 +5,21 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
-class  BulkyDocument extends Model
+use App\Models\Buyer;
+use App\Models\Category;
+use App\Models\User;
+use App\Models\BulkySale;
+use App\Models\BagProducts;
+
+class BulkyDocument extends Model
 {
     use HasFactory;
 
     protected $guarded = ['id'];
+
+    protected $casts = [
+        'category_bulky_id' => 'string',
+    ];
 
     public const SALE_NOT = 'not sale';
     public const SALE_READY = 'ready';
@@ -47,11 +57,18 @@ class  BulkyDocument extends Model
         return $this->hasMany(BagProducts::class, 'bulky_document_id');
     }
 
-    public function buyer(){
+    public function buyer()
+    {
         return $this->belongsTo(Buyer::class, 'buyer_id');
     }
 
-    public function user(){
+    public function categoryBulky()
+    {
+        return $this->belongsTo(Category::class, 'category_bulky_id');
+    }
+
+    public function user()
+    {
         return $this->belongsTo(User::class, 'user_id');
     }
 }
