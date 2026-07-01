@@ -18,14 +18,17 @@ RUN composer install --no-dev --no-interaction --prefer-dist --optimize-autoload
 
 
 ##############################################
-# 3) FRANKENPHP RUNTIME
+# 2) FRANKENPHP RUNTIME
 ##############################################
-FROM dunglas/frankenphp:1.2.5-php8.3-bookworm AS runtime
+FROM dunglas/frankenphp:1.2.5-php8.3-bookworm
 
 WORKDIR /app
 
-ENV TZ=Asia/Jakarta
+ENV TZ=Asia/Jakarta \
+    APP_ENV=production \
+    APP_DEBUG=false
 
+# Install PHP extensions
 RUN install-php-extensions \
     pdo_mysql \
     intl \
@@ -39,11 +42,22 @@ RUN install-php-extensions \
     posix \
     redis
 
+# Copy hanya yang dibutuhkan
 COPY . .
 COPY --from=composer_build /app/vendor ./vendor
 
+# Generate key (hanya jika belum ada)
+RUN if [ ! -f .env ]; then cp .env.example .env; fi \
+ && php artisan key:generate --force
+
+# Cache untuk performa
+RUN php artisan config:cache \
+ && php artisan route:cache \
+ && php artisan view:cache
+
+# Storage link (tidak error kalau sudah ada)
 RUN php artisan storage:link || true
 
 EXPOSE 8000
 
-CMD ["php", "artisan", "octane:frankenphp", "--host=0.0.0.0", "--port=8000", "--workers=2"]
+CMD ["php", "artisan", "octane:start", "--server=frankenphp", "--host=0.0.0.0", "--port=8000", "--workers=auto"]
