@@ -104,6 +104,10 @@ class GenerateController extends Controller
                 $rowData[] = $cell->getValue() ?? '';
             }
 
+            if ($this->isRowEmpty($rowData)) {
+                continue;
+            }
+
             $rowData = array_slice(array_pad($rowData, count($header), ''), 0, count($header));
             $dataToInsert[] = ['data' => json_encode(array_combine($header, $rowData))];
 
@@ -120,6 +124,24 @@ class GenerateController extends Controller
             $rowCount += count($dataToInsert);
         }
         return $rowCount;
+    }
+
+    private function isRowEmpty(array $rowData): bool
+    {
+        foreach ($rowData as $value) {
+            if (is_string($value)) {
+                if (trim($value) !== '') {
+                    return false;
+                }
+                continue;
+            }
+
+            if ($value !== null && $value !== '') {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private function insertChunk($data)
