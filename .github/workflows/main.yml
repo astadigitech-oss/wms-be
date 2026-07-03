@@ -1,0 +1,28 @@
+name: Deploy Laravel
+
+on:
+  push:
+    branches: [ "main" ]
+
+jobs:
+  laravel-tests:
+
+    runs-on: ubuntu-latest
+
+    steps:       
+    - name: Deploy using ssh
+      uses: appleboy/ssh-action@master
+      with:
+        host: ${{ secrets.HOST }}
+        username: ${{ secrets.USERNAME }}
+        passphrase: ${{ secrets.PASSWORD }}
+        key: ${{ secrets.SSH_PRIVATE_KEY }}
+        port: 65002
+        script: |
+          cd public_html/apiliquid8.digitalindustryagency.com/BackEnd-Liquid8
+          git pull origin main
+          composer install -q --no-ansi --no-interaction --no-scripts --no-progress --prefer-dist
+          php -r "file_exists('.env') || copy('.env.example', '.env');"
+          php artisan key:generate
+          php artisan migrate:fresh --seed
+

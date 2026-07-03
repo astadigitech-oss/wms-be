@@ -1,0 +1,522 @@
+<?php
+
+namespace App\Http\Controllers;
+
+use App\Exports\MigrateDetailExport;
+use App\Http\Resources\ResponseResource;
+use App\Models\ColorRack;
+use App\Models\ColorRackProduct;
+use App\Models\Destination;
+use App\Models\Migrate;
+use App\Models\MigrateDocument;
+use App\Models\New_product;
+use App\Models\OlseraProductMapping;
+use App\Services\Olsera\OlseraService;
+use App\Services\Pos\PosService;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Validator;
+use Maatwebsite\Excel\Facades\Excel;
+use PhpOffice\PhpSpreadsheet\Spreadsheet;
+use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
+
+class MigrateDocumentController extends Controller
+{
+
+    public function index()
+    {
+        $querySearch = request()->q;
+
+        $migrateDocuments = MigrateDocument::with('migrates.colorRack.colorRackProducts')
+            ->where('status_document_migrate', 'selesai')
+            ->when($querySearch, function ($query) use ($querySearch) {
+                $query->where(function ($subQuery) use ($querySearch) {
+                    $subQuery->where('code_document_migrate', 'like', '%' . $querySearch . '%')
+                        ->orWhere('created_at', 'like', '%' . $querySearch . '%');
+                });
+            })
+            ->latest()
+            ->paginate(15);
+
+        $migrateDocuments->getCollection()->transform(function ($document) {
+            $totalProdukDokumen = 0;
+
+            if ($document->migrates) {
+                foreach ($document->migrates as $migrate) {
+                    if ($migrate->colorRack) {
+                        $validProductCount = $migrate->colorRack->colorRackProducts->filter(function ($cp) {
+                            return $cp->new_product_id !== null || $cp->bundle_id !== null;
+                        })->count();
+
+                        $totalProdukDokumen += $validProductCount;
+                    }
+                }
+            }
+
+            $document->total_product_document_migrate = $totalProdukDokumen;
+
+            $document->makeHidden(['migrates']);
+
+            return $document;
+        });
+
+        $resource = new ResponseResource(true, "list dokumen migrate", $migrateDocuments);
+
+        return $resource->response();
+    }
+
+    /**
+     * Store a newly created resource in storage.
+     */
+    public function store(Request $request)
+    {
+        $validator = Validator::make(
+            $request->all(),
+            [
+                'code_document_migrate' => 'required|unique:migrate_documents',
+                'destiny_document_migrate' => 'required',
+                'total_product_document_migrate' => 'required|numeric',
+            ]
+        );
+
+        if ($validator->fails()) {
+            $resource = new ResponseResource(false, "Input tidak valid!", $validator->errors());
+            return $resource->response()->setStatusCode(422);
+        }
+
+        try {
+            $migrateDocument = MigrateDocument::create($request->all());
+            $resource = new ResponseResource(true, "Data berhasil ditambahkan!", $migrateDocument);
+        } catch (\Exception $e) {
+            $resource = new ResponseResource(false, "Data gagal ditambahkan!", $e->getMessage());
+        }
+
+        return $resource->response();
+    }
+
+    /**
+     * Display the specified resource.
+     */
+    public function show(MigrateDocument $migrateDocument)
+    {
+        $migrateDocument->load('migrates.colorRack.colorRackProducts');
+
+        $totalProdukDokumen = 0;
+
+        $migrateDocument->migrates->transform(function ($migrate) use (&$totalProdukDokumen) {
+            if ($migrate->colorRack) {
+
+                $validProductCount = $migrate->colorRack->colorRackProducts->filter(function ($cp) {
+                    return $cp->new_product_id !== null || $cp->bundle_id !== null;
+                })->count();
+
+                $migrate->product_total = $validProductCount;
+
+                // Akumulasi ke total keseluruhan dokumen
+                $totalProdukDokumen += $validProductCount;
+
+                $migrate->colorRack->makeHidden('colorRackProducts');
+            } else {
+                $migrate->product_total = 0;
+            }
+
+            return $migrate;
+        });
+
+        $migrateDocument->total_product_document_migrate = $totalProdukDokumen;
+
+        $resource = new ResponseResource(true, "Data document migrate", $migrateDocument);
+
+        return $resource->response();
+    }
+
+    /**
+     * Update the specified resource in storage.
+     */
+    public function update(Request $request, MigrateDocument $migrateDocument)
+    {
+        //
+    }
+
+    /**
+     * Remove the specified resource from storage.
+     */
+    public function destroy(MigrateDocument $migrateDocument)
+    {
+        try {
+            $migrateDocument->delete();
+            $resource = new ResponseResource(true, "Data berhasil di hapus!", $migrateDocument);
+        } catch (\Exception $e) {
+            $resource = new ResponseResource(false, "Data gagal di hapus!", [$e->getMessage()]);
+        }
+        return $resource->response();
+    }
+
+    // public function MigrateDocumentFinish(Request $request)
+    // {
+    //     DB::beginTransaction();
+
+    //     $user = auth()->user();
+    //     $userId = $user->id;
+
+    //     $successCount = 0;
+    //     $processedDocuments = [];
+
+    //     try {
+    //         $migrateDocuments = MigrateDocument::with('migrates')
+    //             ->where('user_id', $userId)
+    //             ->where('status_document_migrate', 'proses')
+    //             ->get();
+
+    //         if ($migrateDocuments->isEmpty()) {
+    //             return (new ResponseResource(false, 'Tidak ada dokumen yang perlu diproses.', null))
+    //                 ->response()
+    //                 ->setStatusCode(404);
+    //         }
+
+    //         foreach ($migrateDocuments as $migrateDocument) {
+    //             $destination = Destination::where('shop_name', $migrateDocument->destiny_document_migrate)->first();
+
+    //             if ($destination && $destination->is_olsera_integrated) {
+
+    //                 $olseraService = new OlseraService($destination);
+    //                 $stockInData = [
+    //                     'date' => now()->format('Y-m-d'),
+    //                     'type' => 'I',
+    //                     'note' => 'Migrasi WMS: ' . $migrateDocument->code_document_migrate,
+    //                 ];
+
+    //                 $resCreate = $olseraService->createStockInOut($stockInData);
+
+    //                 if (!$resCreate['success']) {
+    //                     throw new \Exception("Gagal membuat Header Stock In di Olsera ({$destination->shop_name}): " . $resCreate['message']);
+    //                 }
+
+    //                 $olseraPk = $resCreate['data']['id'] ?? $resCreate['data']['pk'] ?? $resCreate['data']['data']['id'] ?? null;
+
+    //                 if (!$olseraPk) {
+    //                     throw new \Exception("Gagal mendapatkan ID Transaksi (PK) dari respon Olsera.");
+    //                 }
+
+    //                 $groupedByColor = $migrateDocument->migrates->groupBy('product_color');
+
+    //                 $olseraCart = [];
+
+    //                 foreach ($groupedByColor as $wmsIdentifier => $items) {
+    //                     $totalQty = $items->sum('product_total');
+
+    //                     $mapping = OlseraProductMapping::where('wms_identifier', strtolower($wmsIdentifier))
+    //                         ->where('destination_id', $destination->id)
+    //                         ->first();
+
+    //                     if (!$mapping) {
+    //                         throw new \Exception("Mapping tidak ditemukan untuk Tag '{$wmsIdentifier}' di Toko '{$destination->shop_name}'. Harap update master mapping.");
+    //                     }
+
+    //                     $olseraId = $mapping->olsera_id;
+
+    //                     if (!isset($olseraCart[$olseraId])) {
+    //                         $olseraCart[$olseraId] = [
+    //                             'qty' => 0,
+    //                             'wms_colors' => []
+    //                         ];
+    //                     }
+
+    //                     $olseraCart[$olseraId]['qty'] += $totalQty;
+    //                     $olseraCart[$olseraId]['wms_colors'][] = $wmsIdentifier;
+    //                 }
+
+    //                 foreach ($olseraCart as $olseraId => $data) {
+    //                     $addItemData = [
+    //                         'pk' => $olseraPk,
+    //                         'product_ids' => $olseraId,
+    //                         'qty' => $data['qty'],
+    //                         'type' => 'I',
+    //                     ];
+
+    //                     $resAdd = $olseraService->addItemStockInOut($addItemData);
+
+    //                     if (!$resAdd['success']) {
+    //                         $combinedColors = implode(', ', $data['wms_colors']);
+    //                         throw new \Exception("Gagal menambah grup item {$combinedColors} (ID Olsera: {$olseraId}): " . $resAdd['message']);
+    //                     }
+    //                 }
+
+    //                 $updateStatusData = [
+    //                     'pk' => $olseraPk,
+    //                     'status' => 'P'
+    //                 ];
+
+    //                 $resStatus = $olseraService->updateStatusStockInOut($updateStatusData);
+
+    //                 if (!$resStatus['success']) {
+    //                     throw new \Exception("Gagal mem-posting (Publish) dokumen Stock In: " . $resStatus['message']);
+    //                 }
+
+    //                 $migrateDocument->update([
+    //                     'olsera_purchase_id' => $olseraPk,
+    //                     'olsera_response_log' => json_encode($resCreate['data'])
+    //                 ]);
+
+    //                 Log::info("Sukses Stock In (Published): {$olseraPk} ke {$destination->shop_name}");
+
+    //                 $pesanLog = "Memproses Migrasi Dokumen {$migrateDocument->code_document_migrate} ke {$destination->shop_name} (Olsera ID: {$olseraPk})";
+    //                 logUserAction($request, $user, 'Migrate Document', $pesanLog);
+    //             } else {
+    //                 $pesanLog = "Memproses Migrasi Dokumen {$migrateDocument->code_document_migrate} ke {$migrateDocument->destiny_document_migrate} (Internal)";
+    //                 logUserAction($request, $user, 'Migrate Document', $pesanLog);
+    //             }
+
+    //             $relatedMigrates = $migrateDocument->migrates;
+
+    //             foreach ($relatedMigrates as $m) {
+    //                 $productTotal = $m->product_total;
+
+    //                 New_product::where('new_tag_product', $m->product_color)
+    //                     ->whereIn('new_status_product', ['display', 'expired', 'slow_moving'])
+    //                     ->whereNull('is_so')
+    //                     // ->where('is_so', 'done')
+    //                     ->whereNull('new_category_product')
+    //                     ->whereJsonContains('new_quality->lolos', 'lolos')
+    //                     ->where(function ($q) {
+    //                         $q->whereNull('type')
+    //                             ->orWhereIn('type', ['type1', 'type2']);
+    //                     })
+    //                     ->orderBy('created_at', 'asc')
+    //                     ->limit($productTotal)
+    //                     ->update(['new_status_product' => 'migrate']);
+    //             }
+
+    //             Migrate::where('code_document_migrate', $migrateDocument->code_document_migrate)
+    //                 ->update(['status_migrate' => 'selesai']);
+
+    //             $migrateDocument->update([
+    //                 'total_product_document_migrate' => $relatedMigrates->sum('product_total'),
+    //                 'status_document_migrate' => 'selesai'
+    //             ]);
+
+    //             $successCount++;
+    //             $processedDocuments[] = $migrateDocument;
+    //         }
+
+    //         DB::commit();
+
+    //         $pesanSummary = "Berhasil menyelesaikan {$successCount} proses migrasi barang keluar.";
+    //         logUserAction($request, $user, 'Migrate Document Finish', $pesanSummary);
+
+    //         return new ResponseResource(true, "Berhasil memproses {$successCount} dokumen migrasi.", $processedDocuments);
+    //     } catch (\Exception $e) {
+    //         DB::rollBack();
+    //         Log::error("Migrate Finish Error: " . $e->getMessage());
+
+    //         logUserAction($request, $user, 'Migrate Document Error', "Gagal memproses migrasi: " . $e->getMessage());
+
+    //         return (new ResponseResource(false, 'Gagal memproses migrasi: ' . $e->getMessage(), []))
+    //             ->response()
+    //             ->setStatusCode(500);
+    //     }
+    // }
+
+    public function MigrateDocumentFinish(Request $request)
+    {
+        $user = auth()->user();
+        $userId = $user->id;
+
+        $migrateDocuments = MigrateDocument::with('migrates')
+            ->where('user_id', $userId)
+            ->where('status_document_migrate', 'proses')
+            ->get();
+
+        if ($migrateDocuments->isEmpty()) {
+            return (new ResponseResource(false, 'Tidak ada dokumen yang perlu diproses.', null))->response()->setStatusCode(404);
+        }
+
+        $shopNames = $migrateDocuments->pluck('destiny_document_migrate')->unique();
+        $destinations = Destination::whereIn('shop_name', $shopNames)->get()->keyBy('shop_name');
+
+        $allRackIds = $migrateDocuments->flatMap->migrates->pluck('color_rack_id')->filter()->unique();
+
+        $allRackProducts = ColorRackProduct::with(['newProduct', 'bundle'])
+            ->whereIn('color_rack_id', $allRackIds)
+            ->get()
+            ->groupBy('color_rack_id');
+
+        $bundleIdsToUpdate = [];
+        $productIdsToUpdate = [];
+        $rackIdsToUpdate = [];
+        $apiPayloads = [];
+
+        DB::beginTransaction();
+        try {
+            foreach ($migrateDocuments as $migrateDocument) {
+                $shopName = $migrateDocument->destiny_document_migrate;
+                $destination = $destinations->get($shopName);
+
+                if (!$destination || empty($destination->pos_token)) {
+                    throw new \Exception("Toko tujuan '{$shopName}' tidak ditemukan atau belum memiliki POS Token.");
+                }
+
+                $allProductsToSend = collect();
+
+                foreach ($migrateDocument->migrates as $migrateItem) {
+                    if (!$migrateItem->color_rack_id) continue;
+
+                    $rackIdsToUpdate[] = $migrateItem->color_rack_id;
+                    $rackProducts = $allRackProducts->get($migrateItem->color_rack_id, collect());
+
+                    foreach ($rackProducts as $item) {
+                        if ($item->bundle_id && $item->bundle) {
+                            $bundleIdsToUpdate[] = $item->bundle_id;
+                            $allProductsToSend->push([
+                                "code_document"    => $item->bundle->code_document_bundle ?? "-",
+                                "old_barcode"      => $item->bundle->old_barcode_bundle,
+                                "old_price"        => (float) $item->bundle->total_price_bundle,
+                                "actual_price"     => (float) $item->bundle->total_price_bundle,
+                                "barcode"          => $item->bundle->barcode_bundle,
+                                "name"             => "[BUNDLE] " . $item->bundle->name_bundle,
+                                "price"            => (float) $item->bundle->total_price_custom_bundle,
+                                "quantity"         => 1,
+                                "status"           => "active",
+                                "tag_color"        => $item->bundle->name_color ?? "bundle",
+                                "is_so"            => $item->bundle->is_so,
+                                "is_extra_product" => false,
+                                "user_so"          => $item->bundle->user_so
+                            ]);
+                        } elseif ($item->new_product_id && $item->newProduct) {
+                            $productIdsToUpdate[] = $item->new_product_id;
+                            $product = $item->newProduct;
+                            $allProductsToSend->push([
+                                "code_document"    => $product->code_document ?? "-",
+                                "old_barcode"      => $product->old_barcode_product,
+                                "old_price"        => (float) ($product->old_price_product),
+                                "actual_price"     => (float) ($product->actual_old_price_product),
+                                "barcode"          => $product->new_barcode_product,
+                                "name"             => $product->new_name_product,
+                                "price"            => (float) ($product->new_price_product),
+                                "quantity"         => $product->new_quantity_product ?? 1,
+                                "status"           => "active",
+                                "tag_color"        => $product->new_tag_product ?? "color",
+                                "is_so"            => $product->is_so,
+                                "is_extra_product" => (bool) $product->is_extra,
+                                "user_so"          => $product->user_so
+                            ]);
+                        }
+                    }
+                }
+
+                $apiPayloads[] = [
+                    'document' => $migrateDocument,
+                    'token'    => $destination->pos_token,
+                    'products' => $allProductsToSend
+                ];
+
+                $migrateDocument->update([
+                    'total_product_document_migrate' => $allProductsToSend->count(),
+                    'status_document_migrate'        => 'selesai'
+                ]);
+
+                Migrate::where('code_document_migrate', $migrateDocument->code_document_migrate)
+                    ->update(['status_migrate' => 'selesai']);
+            }
+
+            if (!empty($bundleIdsToUpdate)) {
+                \App\Models\Bundle::whereIn('id', array_unique($bundleIdsToUpdate))->update(['product_status' => 'migrate']);
+            }
+            if (!empty($productIdsToUpdate)) {
+                \App\Models\New_product::whereIn('id', array_unique($productIdsToUpdate))->update(['new_status_product' => 'migrate']);
+            }
+            if (!empty($rackIdsToUpdate)) {
+                \App\Models\ColorRack::whereIn('id', array_unique($rackIdsToUpdate))->update(['status' => 'migrate']);
+            }
+
+            $posService = new PosService();
+            $successCount = 0;
+            $processedDocuments = [];
+
+            foreach ($apiPayloads as $payload) {
+                $doc = $payload['document'];
+                $products = $payload['products'];
+
+                if ($products->isEmpty()) {
+                    $successCount++;
+                    $processedDocuments[] = $doc;
+                    continue;
+                }
+
+                try {
+                    $posService->sendBatchProducts(
+                        $doc->code_document_migrate,
+                        $payload['token'],
+                        array_values($products->toArray())
+                    );
+
+                    $successCount++;
+                    $processedDocuments[] = $doc;
+
+                    $pesanLog = "Berhasil mengirim {$products->count()} Item sekaligus ke POS untuk Dokumen {$doc->code_document_migrate}.";
+                    Log::info($pesanLog);
+                    logUserAction($request, $user, 'Migrate Document Finish', $pesanLog);
+                } catch (\Exception $e) {
+                    throw new \Exception("POS API Error pada dokumen {$doc->code_document_migrate}: " . $e->getMessage());
+                }
+            }
+
+            DB::commit();
+
+            $pesanSummary = "Berhasil memproses {$successCount} dari " . count($apiPayloads) . " dokumen migrasi.";
+            logUserAction($request, $user, 'Migrate Document Summary', $pesanSummary);
+
+            return new ResponseResource(true, $pesanSummary, $processedDocuments);
+        } catch (\Exception $e) {
+            DB::rollBack();
+
+            Log::error("Migrate Gagal Diselesaikan: " . $e->getMessage());
+
+            return (new ResponseResource(false, 'Gagal menyelesaikan migrasi: ' . $e->getMessage(), []))
+                ->response()->setStatusCode(500);
+        }
+    }
+
+    public function exportMigrateDetail($id)
+    {
+        set_time_limit(300);
+        ini_set('memory_limit', '512M');
+
+        $migrate = MigrateDocument::with([
+            'migrates.colorRack.colorRackProducts.newProduct',
+            'migrates.colorRack.colorRackProducts.bundle'
+        ])->where('id', $id)->first();
+
+        if (!$migrate) {
+            return new ResponseResource(false, "Dokumen tidak ditemukan", null);
+        }
+
+        try {
+            $fileName = 'Migrate_' . $migrate->code_document_migrate . '_' . time() . '.xlsx';
+            $publicPath = 'exports/migrates';
+            $filePath = $publicPath . '/' . $fileName;
+
+            if (!Storage::disk('public_direct')->exists($publicPath)) {
+                Storage::disk('public_direct')->makeDirectory($publicPath);
+            }
+
+            if (Storage::disk('public_direct')->exists($filePath)) {
+                Storage::disk('public_direct')->delete($filePath);
+            }
+
+            Excel::store(
+                new MigrateDetailExport($migrate),
+                $filePath,
+                'public_direct'
+            );
+
+            $downloadUrl = url($filePath) . '?t=' . time();
+
+            return new ResponseResource(true, "Berhasil mengunduh dokumen detail migrasi", $downloadUrl);
+        } catch (\Exception $e) {
+            return new ResponseResource(false, "Gagal mengunduh file: " . $e->getMessage(), []);
+        }
+    }
+}

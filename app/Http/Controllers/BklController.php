@@ -1,0 +1,1139 @@
+<?php
+
+namespace App\Http\Controllers;
+
+use App\Http\Resources\ResponseResource;
+use App\Models\BklDocument;
+use App\Models\BklItem;
+use App\Models\BklProduct;
+use App\Models\BklScannedProduct;
+use App\Models\Bundle;
+use App\Models\ColorRackProduct;
+use App\Models\Destination;
+use App\Models\Migrate;
+use App\Models\MigrateDocument;
+use App\Models\New_product;
+use App\Models\Product_Bundle;
+use App\Services\Olsera\OlseraService;
+use App\Services\Pos\PosService;
+use Illuminate\Http\Exceptions\HttpResponseException;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Str;
+
+class BklController extends Controller
+{
+    public function store()
+    {
+        try {
+            $userId = auth()->id();
+
+            $bklDocument = BklDocument::create([
+                'code_document_bkl' => 'BKL-' . date('YmdHis') . rand(10, 99),
+                'destination_id'    => null,
+                'status'            => 'process',
+                'user_id'           => $userId
+            ]);
+
+            return new ResponseResource(true, "Dokumen BKL berhasil dibuat. Silakan scan produk.", $bklDocument);
+        } catch (\Exception $e) {
+            return response()->json(['status' => false, 'message' => 'Gagal membuat dokumen: ' . $e->getMessage()], 500);
+        }
+    }
+    /**
+     * Menampilkan antrean semua retur dari semua toko (Status Draft)
+     */
+    public function listOlseraOutgoing(Request $request)
+    {
+        try {
+            $destinations = \App\Models\Destination::where('is_olsera_integrated', true)->get();
+            $allDraftDocuments = collect();
+
+            $searchQuery = $request->input('q');
+            $page = \Illuminate\Pagination\LengthAwarePaginator::resolveCurrentPage() ?: 1;
+            $perPage = 10;
+
+            foreach ($destinations as $destination) {
+                try {
+                    $olseraService = new \App\Services\Olsera\OlseraService($destination);
+
+                    $response = $olseraService->getOutgoingStockList([
+                        'limit' => 100,
+                        'per_page' => 100
+                    ]);
+
+                    if ($response['success']) {
+                        $items = $response['data']['data'] ?? [];
+
+                        $drafts = collect($items)->filter(function ($item) {
+                            return isset($item['status']) && in_array($item['status'], ['D', 'Draft', 'draft']);
+                        })->map(function ($item) use ($destination) {
+                            $item['destination_id'] = $destination->id;
+                            $item['shop_name'] = $destination->shop_name;
+                            return $item;
+                        });
+
+                        $allDraftDocuments = $allDraftDocuments->merge($drafts);
+                    }
+                } catch (\Exception $e) {
+                    \Illuminate\Support\Facades\Log::error("Error fetch Olsera Outgoing {$destination->shop_name}: " . $e->getMessage());
+                }
+            }
+
+            if (!empty($searchQuery)) {
+                $searchQuery = strtolower($searchQuery);
+
+                $allDraftDocuments = $allDraftDocuments->filter(function ($item) use ($searchQuery) {
+                    $shopName = strtolower($item['shop_name'] ?? '');
+                    $noDoc = strtolower($item['no'] ?? '');
+
+                    return str_contains($shopName, $searchQuery) || str_contains($noDoc, $searchQuery);
+                });
+            }
+
+            $sortedDocuments = $allDraftDocuments->sortByDesc('date')->values();
+
+            $totalData = $sortedDocuments->count();
+            $offset = ($page - 1) * $perPage;
+            $itemsForCurrentPage = $sortedDocuments->slice($offset, $perPage)->values();
+
+            $paginatedDocuments = new \Illuminate\Pagination\LengthAwarePaginator(
+                $itemsForCurrentPage,
+                $totalData,
+                $perPage,
+                $page,
+                ['path' => \Illuminate\Pagination\LengthAwarePaginator::resolveCurrentPath()]
+            );
+
+            return new \App\Http\Resources\ResponseResource(true, "List Antrean Retur Olsera", $paginatedDocuments);
+        } catch (\Exception $e) {
+            return response()->json(['status' => false, 'message' => 'Server Error: ' . $e->getMessage()], 500);
+        }
+    }
+
+
+    public function detailOlseraOutgoing(Request $request, $id)
+    {
+        try {
+            $request->validate(['destination_id' => 'required|exists:destinations,id']);
+
+            $destination = Destination::find($request->destination_id);
+
+            if (!$destination) {
+                return response()->json(['status' => false, 'message' => 'Toko tidak ditemukan atau sudah terhapus.'], 404);
+            }
+
+            $olseraService = new OlseraService($destination);
+            $response = $olseraService->getStockInOutDetail(['id' => $id]);
+
+            if (!$response['success']) {
+                return (new ResponseResource(false, 'Gagal menarik detail Olsera: ' . $response['message'], null))
+                    ->response()->setStatusCode(500);
+            }
+
+            $olseraData = $response['data'];
+            $items = $olseraData['data']['items'] ?? [];
+
+            $total24K = 0;
+            $total12K = 0;
+
+            foreach ($items as $item) {
+                $name = strtoupper($item['product_name']);
+                $qty = (int) $item['qty'];
+
+                if (str_contains($name, '24')) {
+                    $total24K += $qty;
+                } elseif (str_contains($name, '12')) {
+                    $total12K += $qty;
+                }
+            }
+
+            $olseraData['data']['destination_id'] = $destination->id;
+
+            $olseraData['data']['summary_expected_qty'] = [
+                'total_qty_24K' => $total24K,
+                'total_qty_12K' => $total12K,
+                'total_qty' => $total24K + $total12K
+            ];
+
+            return new ResponseResource(true, "Detail Retur Olsera", $olseraData);
+        } catch (\Exception $e) {
+            return response()->json(['status' => false, 'message' => 'Server Error: ' . $e->getMessage()], 500);
+        }
+    }
+
+    public function processOlseraOutgoing(Request $request)
+    {
+        DB::beginTransaction();
+        try {
+            $user = auth()->user();
+
+            $validator = Validator::make($request->all(), [
+                'destination_id' => 'required|exists:destinations,id',
+                'olsera_document_id' => 'required',
+                'olsera_document_code' => 'required|string',
+                'damage_qty' => 'nullable|integer|min:0',
+                'colors' => 'nullable|array',
+                'colors.*.color_tag_id' => 'required_with:colors|exists:color_tags,id',
+                'colors.*.qty' => 'required_with:colors|integer|min:1',
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json(['status' => false, 'message' => $validator->errors()], 422);
+            }
+
+            $destination = Destination::find($request->destination_id);
+            $olseraService = new OlseraService($destination);
+
+            $detailResponse = $olseraService->getStockInOutDetail(['id' => $request->olsera_document_id]);
+            if (!$detailResponse['success']) throw new \Exception("Gagal mengambil detail dokumen dari Olsera.");
+
+            $olseraData = $detailResponse['data']['data'] ?? [];
+            if (isset($olseraData['status']) && $olseraData['status'] === 'P') {
+                throw new \InvalidArgumentException("Validasi Gagal: Dokumen Olsera ini sudah berstatus Posted (P).");
+            }
+
+            $olseraQty = ['24' => 0, '12' => 0];
+            $olseraProductNames = ['24' => 'BKL 24K', '12' => 'BKL 12K'];
+
+            foreach ($olseraData['items'] ?? [] as $oItem) {
+                $oName = strtoupper($oItem['product_name']);
+                if (str_contains($oName, '24')) {
+                    $olseraQty['24'] += $oItem['qty'];
+                    $olseraProductNames['24'] = $oItem['product_name'];
+                } elseif (str_contains($oName, '12')) {
+                    $olseraQty['12'] += $oItem['qty'];
+                    $olseraProductNames['12'] = $oItem['product_name'];
+                }
+            }
+
+            $validColors24 = ['merah', 'biru', 'big'];
+            $validColors12 = ['kuning', 'hijau', 'small'];
+
+            $inputColorQty = ['24' => 0, '12' => 0];
+            $mappedColors = ['24' => [], '12' => []];
+
+            if ($request->has('colors')) {
+                foreach ($request->colors as $colorData) {
+                    $colorRow = DB::table('color_tags')->where('id', $colorData['color_tag_id'])->first();
+                    if (!$colorRow) throw new \InvalidArgumentException("Validasi Gagal: ID Warna tidak ditemukan.");
+
+                    $colorName = strtolower(trim($colorRow->name_color));
+                    $qty = $colorData['qty'];
+
+                    if (in_array($colorName, $validColors24)) {
+                        $inputColorQty['24'] += $qty;
+                        $mappedColors['24'][] = ['tag' => $colorName, 'qty' => $qty];
+                    } elseif (in_array($colorName, $validColors12)) {
+                        $inputColorQty['12'] += $qty;
+                        $mappedColors['12'][] = ['tag' => $colorName, 'qty' => $qty];
+                    } else {
+                        throw new \InvalidArgumentException("Validasi Gagal: Warna '{$colorName}' tidak dikenal dalam Kasta WMS (24K/12K).");
+                    }
+                }
+            }
+
+            $unaccounted = [
+                '24' => $olseraQty['24'] - $inputColorQty['24'],
+                '12' => $olseraQty['12'] - $inputColorQty['12']
+            ];
+
+            if ($unaccounted['24'] < 0 || $unaccounted['12'] < 0) {
+                throw new \InvalidArgumentException("Validasi Gagal: Jumlah QC Warna melebihi data stok Olsera.");
+            }
+
+            $totalUnaccounted = $unaccounted['24'] + $unaccounted['12'];
+            $userSubmittedDamage = $request->damage_qty ?? 0;
+
+            if ($userSubmittedDamage > $totalUnaccounted) {
+                throw new \InvalidArgumentException("Validasi Gagal: Jumlah Damaged ({$userSubmittedDamage}) melebihi sisa barang yang belum di-QC ({$totalUnaccounted}).");
+            }
+
+            $totalLost = $totalUnaccounted - $userSubmittedDamage;
+
+            $allocatedDamage = ['24' => 0, '12' => 0];
+            $remainingDamage = $userSubmittedDamage;
+
+            foreach (['24', '12'] as $cat) {
+                $needed = $unaccounted[$cat];
+                if ($needed > 0) {
+                    $take = min($needed, $remainingDamage);
+                    $allocatedDamage[$cat] = $take;
+                    $remainingDamage -= $take;
+                }
+            }
+
+            $updateResponse = $olseraService->updateStatusStockInOut([
+                'pk' => $request->olsera_document_id,
+                'status' => 'P'
+            ]);
+
+            if (!$updateResponse['success']) throw new \Exception("Gagal Publish Olsera: " . $updateResponse['message']);
+
+            $document = BklDocument::firstOrCreate(
+                ['code_document_bkl' => $request->olsera_document_code],
+                ['status' => 'done', 'user_id' => $user->id]
+            );
+
+            // Catat History Colors
+            if ($request->has('colors')) {
+                foreach ($request->colors as $colorData) {
+                    BklItem::create([
+                        'bkl_document_id' => $document->id,
+                        'type' => 'in',
+                        'qty' => $colorData['qty'],
+                        'color_tag_id' => $colorData['color_tag_id'],
+                        'is_damaged' => null,
+                        'is_lost' => null
+                    ]);
+                }
+            }
+
+            // Catat History Damaged
+            if ($userSubmittedDamage > 0) {
+                BklItem::create([
+                    'bkl_document_id' => $document->id,
+                    'type' => 'in',
+                    'qty' => $userSubmittedDamage,
+                    'color_tag_id' => null,
+                    'is_damaged' => true,
+                    'is_lost' => null
+                ]);
+            }
+
+            // Catat History Lost (Selisih Barang)
+            if ($totalLost > 0) {
+                BklItem::create([
+                    'bkl_document_id' => $document->id,
+                    'type' => 'in',
+                    'qty' => $totalLost,
+                    'color_tag_id' => null,
+                    'is_damaged' => null,
+                    'is_lost' => true
+                ]);
+            }
+
+            $dateIn = now()->format('Y-m-d');
+
+            foreach (['24', '12'] as $cat) {
+                if ($olseraQty[$cat] == 0) continue;
+
+                $productName = $olseraProductNames[$cat];
+                $priceValue = ($cat === '24') ? 24000 : 12000;
+
+                foreach ($mappedColors[$cat] as $c) {
+                    $colorTagCapitalized = ucfirst($c['tag']);
+                    for ($i = 0; $i < $c['qty']; $i++) {
+                        BklProduct::create([
+                            'code_document' => $request->olsera_document_code,
+                            'old_barcode_product' => 'BKL-' . strtoupper(Str::random(10)),
+                            'new_barcode_product' => 'BKL-' . strtoupper(Str::random(10)),
+                            'new_name_product' => $productName,
+                            'new_quantity_product' => 1,
+                            'new_status_product' => 'display',
+                            'new_quality' => ['lolos' => 'lolos', 'damaged' => null, 'abnormal' => null],
+                            'new_tag_product' => $colorTagCapitalized,
+                            'new_date_in_product' => $dateIn,
+                            'new_price_product' => $priceValue,
+                            'old_price_product' => $priceValue,
+                            'display_price' => $priceValue,
+                            'actual_old_price_product' => $priceValue
+                        ]);
+                    }
+                }
+
+                for ($i = 0; $i < $allocatedDamage[$cat]; $i++) {
+                    BklProduct::create([
+                        'code_document' => $request->olsera_document_code,
+                        'old_barcode_product' => 'BKL-' . strtoupper(Str::random(10)),
+                        'new_barcode_product' => 'BKL-' . strtoupper(Str::random(10)),
+                        'new_name_product' => $productName,
+                        'new_quantity_product' => 1,
+                        'new_status_product' => 'display',
+                        'new_quality' => ['lolos' => null, 'damaged' => 'damaged', 'abnormal' => null],
+                        'new_tag_product' => null,
+                        'new_date_in_product' => $dateIn,
+                        'new_price_product' => $priceValue,
+                        'old_price_product' => $priceValue,
+                        'display_price' => $priceValue,
+                        'actual_old_price_product' => $priceValue
+                    ]);
+                }
+            }
+
+            if (function_exists('logUserAction')) logUserAction($request, $user, 'QC BKL', "Proses QC Olsera Outgoing: {$request->olsera_document_code}");
+
+            DB::commit();
+            return new ResponseResource(true, "QC Selesai! History tercatat & Produk BKL Auto-Mapping berhasil dibuat.", $document->load('items'));
+        } catch (\InvalidArgumentException $e) {
+            DB::rollBack();
+            return (new ResponseResource(false, $e->getMessage(), null))->response()->setStatusCode(422);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error("Proses QC BKL Error (Sistem): " . $e->getMessage());
+            return (new ResponseResource(false, 'Terjadi kesalahan sistem: ' . $e->getMessage(), null))->response()->setStatusCode(500);
+        }
+    }
+
+    public function listBklDocument(Request $request)
+    {
+        $querySearch = $request->q;
+
+        $documents = BklDocument::with([
+            'destination',
+            'scannedProducts.newProduct',
+            'scannedProducts.bundle'
+        ])
+            ->when($querySearch, function ($query) use ($querySearch) {
+                $query->where('code_document_bkl', 'like', '%' . $querySearch . '%');
+            })
+            ->where(function ($query) {
+                $query->where('status', '!=', 'done')
+                    ->orWhere(function ($q) {
+                        $q->where('status', 'done')
+                            ->whereHas('scannedProducts', function ($subQuery) {
+                                $subQuery->whereHas('newProduct', function ($q2) {
+                                    $q2->whereIn('new_status_product', ['display', 'expired', 'slow_moving']);
+                                })->orWhereHas('bundle', function ($q3) {
+                                    $q3->where('product_status', 'not sale');
+                                });
+                            });
+                    });
+            })
+            ->latest()
+            ->paginate(10);
+
+        $documents->getCollection()->transform(function ($document) {
+            $filteredProducts = $document->scannedProducts->filter(function ($scan) use ($document) {
+
+                if ($document->status !== 'done') {
+                    return true;
+                }
+
+                if ($scan->new_product_id && $scan->newProduct) {
+                    return in_array($scan->newProduct->new_status_product, ['display', 'expired', 'slow_moving']);
+                } elseif ($scan->bundle_id && $scan->bundle) {
+                    return in_array($scan->bundle->product_status, ['not sale']);
+                }
+                return false;
+            });
+
+            $totalQty = $filteredProducts->count();
+
+            $totalPrice = $filteredProducts->sum(function ($scan) {
+                if ($scan->new_product_id && $scan->newProduct) {
+                    return $scan->newProduct->new_price_eq ?? $scan->newProduct->new_price_product ?? 0;
+                } elseif ($scan->bundle_id && $scan->bundle) {
+                    return $scan->bundle->total_price_custom_bundle ?? 0;
+                }
+                return 0;
+            });
+
+            $document->total_display_qty = $totalQty;
+            $document->total_display_price = (float) $totalPrice;
+            $document->destination_name = $document->destination ? $document->destination->shop_name : 'Toko Tidak Dikenal';
+
+            $document->makeHidden(['scannedProducts', 'destination']);
+
+            return $document;
+        });
+
+        $qtyProduct = DB::table('bkl_scanned_products')
+            ->join('bkl_documents', 'bkl_scanned_products.bkl_document_id', '=', 'bkl_documents.id')
+            ->join('new_products', 'bkl_scanned_products.new_product_id', '=', 'new_products.id')
+            ->where('bkl_documents.status', 'done')
+            ->whereIn('new_products.new_status_product', ['display', 'expired', 'slow_moving'])
+            ->distinct()
+            ->count('bkl_scanned_products.barcode');
+
+        $qtyBundle = DB::table('bkl_scanned_products')
+            ->join('bkl_documents', 'bkl_scanned_products.bkl_document_id', '=', 'bkl_documents.id')
+            ->join('bundles', 'bkl_scanned_products.bundle_id', '=', 'bundles.id')
+            ->where('bkl_documents.status', 'done')
+            ->where('bundles.product_status', 'not sale')
+            ->distinct()
+            ->count('bkl_scanned_products.barcode');
+
+        $grandTotalQty = $qtyProduct + $qtyBundle;
+
+        $grandTotalPriceProduct = DB::table(function ($query) {
+            $query->select('bkl_scanned_products.barcode', DB::raw('MAX(COALESCE(new_products.new_price_product, 0)) as price'))
+                ->from('bkl_scanned_products')
+                ->join('bkl_documents', 'bkl_scanned_products.bkl_document_id', '=', 'bkl_documents.id')
+                ->join('new_products', 'bkl_scanned_products.new_product_id', '=', 'new_products.id')
+                ->where('bkl_documents.status', 'done')
+                ->whereIn('new_products.new_status_product', ['display', 'expired', 'slow_moving'])
+                ->groupBy('bkl_scanned_products.barcode');
+        }, 'unique_products')->sum('price');
+
+        $grandTotalPriceBundle = DB::table(function ($query) {
+            $query->select('bkl_scanned_products.barcode', DB::raw('MAX(bundles.total_price_custom_bundle) as price'))
+                ->from('bkl_scanned_products')
+                ->join('bkl_documents', 'bkl_scanned_products.bkl_document_id', '=', 'bkl_documents.id')
+                ->join('bundles', 'bkl_scanned_products.bundle_id', '=', 'bundles.id')
+                ->where('bkl_documents.status', 'done')
+                ->where('bundles.product_status', 'not sale')
+                ->groupBy('bkl_scanned_products.barcode');
+        }, 'unique_bundles')->sum('price');
+
+        $grandTotalPrice = $grandTotalPriceProduct + $grandTotalPriceBundle;
+
+        $responseData = [
+            'summary' => [
+                'grand_total_qty'   => $grandTotalQty,
+                'grand_total_price' => (float) $grandTotalPrice
+            ],
+            'documents' => $documents
+        ];
+
+        return new ResponseResource(true, "Riwayat BKL Documents beserta summary berhasil ditarik", $responseData);
+    }
+
+    public function detailBklDocument($id)
+    {
+        $document = BklDocument::with([
+            'destination',
+            'scannedProducts.newProduct',
+            'scannedProducts.bundle'
+        ])->find($id);
+
+        if (!$document) {
+            return (new ResponseResource(false, "Dokumen BKL tidak ditemukan", null))
+                ->response()->setStatusCode(404);
+        }
+
+        $filteredProducts = $document->scannedProducts->filter(function ($scan) use ($document) {
+
+            if ($document->status !== 'done') {
+                return true;
+            }
+
+            if ($scan->new_product_id && $scan->newProduct) {
+                return in_array($scan->newProduct->new_status_product, ['display', 'expired', 'slow_moving']);
+            } elseif ($scan->bundle_id && $scan->bundle) {
+                return in_array($scan->bundle->product_status, ['not sale']);
+            }
+            return false;
+        })->values();
+
+        $filteredProducts->transform(function ($scan) {
+            $type = '-';
+            $itemName = '-';
+            $itemPrice = 0;
+            $status = '-';
+            $tag = '-';
+
+            if ($scan->new_product_id && $scan->newProduct) {
+                $type = 'Produk';
+                $itemName = $scan->newProduct->new_name_product;
+                $itemPrice = $scan->newProduct->new_price_eq ?? $scan->newProduct->new_price_product ?? 0;
+                $status = $scan->newProduct->new_status_product;
+                $tag = $scan->newProduct->new_tag_product;
+            } elseif ($scan->bundle_id && $scan->bundle) {
+                $type = 'Bundle';
+                $itemName = '[BUNDLE] ' . $scan->bundle->name_bundle;
+                $itemPrice = $scan->bundle->total_price_custom_bundle;
+                $status = $scan->bundle->product_status;
+                $tag = $scan->bundle->name_color;
+            }
+
+            return [
+                'id'              => $scan->id,
+                'barcode'         => $scan->barcode,
+                'type'            => $type,
+                'item_name'       => $itemName,
+                'item_price'      => (float) $itemPrice,
+                'status'          => $status,
+                'new_tag_product' => $tag,
+                'scanned_at'      => $scan->created_at->format('Y-m-d H:i:s')
+            ];
+        });
+
+        $document->setRelation('scannedProducts', $filteredProducts);
+
+        $document->total_qty = $filteredProducts->count();
+        $document->total_price = $filteredProducts->sum('item_price');
+
+        $document->destination_name = $document->destination ? $document->destination->shop_name : 'Toko Tidak Dikenal';
+
+        $document->makeHidden('destination');
+
+        return new ResponseResource(true, "Detail History BKL Document", $document);
+    }
+
+    public function listBklProduct(Request $request)
+    {
+        $querySearch = $request->input('q');
+        $page = $request->input('page', 1);
+        $perPage = 50;
+
+        try {
+            $baseQuery = BklProduct::whereNotNull('new_tag_product')
+                ->whereNull('new_category_product')
+                ->whereNull('is_so')
+                ->whereJsonContains('new_quality->lolos', 'lolos')
+                ->where(function ($q) {
+                    $q->where('new_status_product', 'display')
+                        ->orWhere('new_status_product', 'expired');
+                })
+                ->where(function ($q) {
+                    $q->whereNull('type')->orWhere('type', 'type1');
+                })
+                ->when($querySearch, function ($q) use ($querySearch) {
+                    $q->where(function ($subQuery) use ($querySearch) {
+                        $subQuery->where('new_tag_product', 'LIKE', '%' . $querySearch . '%')
+                            ->orWhere('new_barcode_product', 'LIKE', '%' . $querySearch . '%')
+                            ->orWhere('old_barcode_product', 'LIKE', '%' . $querySearch . '%')
+                            ->orWhere('new_name_product', 'LIKE', '%' . $querySearch . '%');
+                    });
+                });
+
+            $allTags = (clone $baseQuery)
+                ->select(
+                    'new_tag_product as tag_name',
+                    DB::raw('COUNT(*) as total_data'),
+                    DB::raw('SUM(new_price_product) as total_price')
+                )
+                ->groupBy('new_tag_product')
+                ->get();
+
+            $tagSku = $allTags->filter(function ($item) {
+                return stripos($item->tag_name, 'Big') !== false || stripos($item->tag_name, 'Small') !== false;
+            })->values();
+
+            $tagColor = $allTags->reject(function ($item) {
+                return stripos($item->tag_name, 'Big') !== false || stripos($item->tag_name, 'Small') !== false;
+            })->values();
+
+            $totalPriceAll = $allTags->sum('total_price');
+
+            $productsQuery = (clone $baseQuery)
+                ->select(
+                    'id',
+                    'old_barcode_product',
+                    'new_name_product',
+                    'new_date_in_product',
+                    'new_status_product',
+                    'new_tag_product',
+                    'new_price_product'
+                )
+                ->latest();
+
+            $paginated = $productsQuery->paginate($perPage, ['*'], 'page', $page);
+
+            $items = $paginated->getCollection();
+
+            $dataSku = $items->filter(function ($item) {
+                return stripos($item->new_tag_product, 'Big') !== false || stripos($item->new_tag_product, 'Small') !== false;
+            })->values();
+
+            $dataColor = $items->reject(function ($item) {
+                return stripos($item->new_tag_product, 'Big') !== false || stripos($item->new_tag_product, 'Small') !== false;
+            })->values();
+
+            return new ResponseResource(true, "list product separated by category", [
+                "total_data" => $paginated->total(),
+                "total_price" => $totalPriceAll,
+
+                "tag_sku" => $tagSku,
+                "tag_color" => $tagColor,
+
+                "data_sku" => $dataSku,
+                "data_color" => $dataColor,
+
+                "pagination" => [
+                    "current_page" => $paginated->currentPage(),
+                    "last_page" => $paginated->lastPage(),
+                    "per_page" => $paginated->perPage(),
+                    "total" => $paginated->total(),
+                    "next_page_url" => $paginated->nextPageUrl(),
+                    "prev_page_url" => $paginated->previousPageUrl(),
+                ]
+            ]);
+        } catch (\Exception $e) {
+            return (new ResponseResource(false, "data tidak ada", $e->getMessage()))
+                ->response()
+                ->setStatusCode(500);
+        }
+    }
+
+    public function removeScannedProduct($id)
+    {
+        DB::beginTransaction();
+        try {
+            $scannedItem = BklScannedProduct::with('bklDocument')->find($id);
+
+            if (!$scannedItem) {
+                return (new ResponseResource(false, "Item tidak ditemukan di daftar scan.", null))->response()->setStatusCode(404);
+            }
+
+            $bklDocument = $scannedItem->bklDocument;
+
+            if ($bklDocument->status === 'done') {
+                return (new ResponseResource(false, "Gagal! Dokumen sudah di-submit, item tidak bisa dihapus lagi.", null))->response()->setStatusCode(422);
+            }
+
+            // Eksekusi Hapus
+            $scannedItem->delete();
+
+            $remainingItems = BklScannedProduct::where('bkl_document_id', $bklDocument->id)->count();
+
+            if ($remainingItems === 0) {
+                $bklDocument->update(['destination_id' => null]);
+            }
+
+            DB::commit();
+
+            $bklDocument->load('destination', 'scannedProducts.newProduct', 'scannedProducts.bundle');
+
+            return new ResponseResource(true, "Item berhasil dihapus dari daftar scan.", $bklDocument);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return response()->json(['status' => false, 'message' => 'Server Error: ' . $e->getMessage()], 500);
+        }
+    }
+
+    public function stockStatistics()
+    {
+        try {
+            $productQuery = DB::table('new_products')
+                ->select(
+                    'new_tag_product as color',
+                    'new_price_product as price'
+                )
+                ->whereNotNull('new_tag_product')
+                ->whereNull('new_category_product')
+                ->where('is_pending', false)
+                ->whereNull('is_so')
+                ->whereJsonContains('new_quality->lolos', 'lolos')
+                ->whereIn('new_status_product', ['display', 'expired', 'slow_moving'])
+                ->where(function ($q) {
+                    $q->whereNull('type')
+                        ->orWhereIn('type', ['type1', 'type2']);
+                });
+
+            $bundleQuery = DB::table('bundles')
+                ->select(
+                    'name_color as color',
+                    'total_price_custom_bundle as price'
+                )
+                ->whereNotNull('name_color')
+                ->whereNull('category')
+                ->whereIn('product_status', ['not sale'])
+                ->where(function ($q) {
+                    $q->whereNull('type')
+                        ->orWhereIn('type', ['type1', 'type2']);
+                });
+
+            $unionQuery = $productQuery->unionAll($bundleQuery);
+
+            $statisticsRaw = DB::query()->fromSub($unionQuery, 'combined_data')
+                ->select(
+                    'color',
+                    DB::raw('COUNT(*) as qty'),
+                    DB::raw('SUM(price) as total_value')
+                )
+                ->groupBy('color')
+                ->get();
+
+            $newProducts = [];
+            $grandTotalNewQty = 0;
+            $grandTotalNewValue = 0;
+
+            foreach ($statisticsRaw as $row) {
+                $colorRaw = $row->color ?: 'Unknown';
+                $colorKey = ucfirst(strtolower($colorRaw));
+
+                if (isset($newProducts[$colorKey])) {
+                    $newProducts[$colorKey]['qty'] += (int) $row->qty;
+                    $newProducts[$colorKey]['total_value'] += (float) $row->total_value;
+                } else {
+                    $newProducts[$colorKey] = [
+                        'qty'         => (int) $row->qty,
+                        'total_value' => (float) $row->total_value
+                    ];
+                }
+
+                $grandTotalNewQty += (int) $row->qty;
+                $grandTotalNewValue += (float) $row->total_value;
+            }
+
+            // $bklProductsRaw = DB::table('bkl_products')
+            //     ->whereNotNull('new_tag_product')
+            //     ->whereNull('new_category_product')
+            //     ->whereNull('is_so')
+            //     ->whereJsonContains('new_quality->lolos', 'lolos')
+            //     ->whereIn('new_status_product', ['display', 'expired', 'slow_moving'])
+            //     ->where(function ($q) {
+            //         $q->whereNull('type')
+            //             ->orWhereIn('type', ['type1', 'type2']);
+            //     })
+            //     ->select(
+            //         DB::raw('LOWER(new_tag_product) as color'),
+            //         DB::raw('count(*) as qty'),
+            //         DB::raw('SUM(new_price_product) as total_value')
+            //     )
+            //     ->groupBy('color')
+            //     ->get();
+
+            // $bklProducts = [];
+            // $grandTotalBklQty = 0;
+            // $grandTotalBklValue = 0;
+
+            // foreach ($bklProductsRaw as $row) {
+            //     $bklProducts[$row->color] = [
+            //         'qty' => $row->qty,
+            //         'total_value' => (float) $row->total_value
+            //     ];
+            //     $grandTotalBklQty += $row->qty;
+            //     $grandTotalBklValue += (float) $row->total_value;
+            // }
+
+            // $olseraStock = [
+            //     '24K' => ['qty' => 0, 'total_value' => 0],
+            //     '12K' => ['qty' => 0, 'total_value' => 0],
+            //     'Lainnya' => ['qty' => 0, 'total_value' => 0],
+            // ];
+            // $grandTotalOlseraQty = 0;
+            // $grandTotalOlseraValue = 0;
+
+            // $destinations = Destination::where('is_olsera_integrated', true)->get();
+
+            // foreach ($destinations as $destination) {
+            //     try {
+            //         $olseraService = new OlseraService($destination);
+            //         $response = $olseraService->getProductList();
+
+            //         if ($response['success']) {
+            //             $items = $response['data']['data'] ?? [];
+
+            //             foreach ($items as $item) {
+            //                 $name = strtoupper($item['name']);
+            //                 $qty = (int) $item['stock_qty'];
+            //                 $price = (float) ($item['sell_price'] ?? 0);
+            //                 $totalValue = $qty * $price;
+
+            //                 if (str_contains($name, '24')) {
+            //                     $olseraStock['24K']['qty'] += $qty;
+            //                     $olseraStock['24K']['total_value'] += $totalValue;
+            //                 } elseif (str_contains($name, '12')) {
+            //                     $olseraStock['12K']['qty'] += $qty;
+            //                     $olseraStock['12K']['total_value'] += $totalValue;
+            //                 } else {
+            //                     $olseraStock['Lainnya']['qty'] += $qty;
+            //                     $olseraStock['Lainnya']['total_value'] += $totalValue;
+            //                 }
+
+            //                 $grandTotalOlseraQty += $qty;
+            //                 $grandTotalOlseraValue += $totalValue;
+            //             }
+            //         }
+            //     } catch (\Exception $e) {
+            //         Log::error("Gagal menarik data produk dari {$destination->shop_name}: " . $e->getMessage());
+            //     }
+            // }
+
+            return new ResponseResource(true, "Data Statistik Stok dan Valuasi Berhasil Ditarik", [
+                'product_sticker' => [
+                    'grand_total_qty' => $grandTotalNewQty,
+                    'grand_total_value' => $grandTotalNewValue,
+                    'details_per_color' => $newProducts
+                ],
+                // 'bkl_products' => [
+                //     'grand_total_qty' => $grandTotalBklQty,
+                //     'grand_total_value' => $grandTotalBklValue,
+                //     'details_per_color' => $bklProducts
+                // ],
+                // 'olsera_stock' => [
+                //     'grand_total_qty' => $grandTotalOlseraQty,
+                //     'grand_total_value' => $grandTotalOlseraValue,
+                //     'details_per_category' => $olseraStock
+                // ]
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'status' => false,
+                'message' => 'Server Error: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    public function scanProduct(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'barcode'         => 'required|string',
+            'bkl_document_id' => 'required|exists:bkl_documents,id'
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['status' => false, 'message' => $validator->errors()], 422);
+        }
+
+        DB::beginTransaction();
+        try {
+            $barcode = $request->barcode;
+            $bklDocument = BklDocument::find($request->bkl_document_id);
+
+            if ($bklDocument->status === 'done') {
+                return (new ResponseResource(false, "Dokumen ini sudah selesai (done), tidak bisa menambah produk lagi.", null))->response()->setStatusCode(422);
+            }
+
+            $bundle = null;
+            $product = null;
+            $tracedDestinationId = null;
+            $type = null;
+
+            // Cari Bundle dari Barcode Utama Bundle-nya
+            $potentialBundles = Bundle::where(function ($q) use ($barcode) {
+                $q->where('barcode_bundle', $barcode)
+                    ->orWhere('old_barcode_bundle', $barcode);
+            })
+                ->whereNotIn('id', function ($q) use ($bklDocument) {
+                    $q->select('bundle_id')
+                        ->from('bkl_scanned_products')
+                        ->where('bkl_document_id', $bklDocument->id)
+                        ->whereNotNull('bundle_id');
+                })
+                ->where('product_status', 'migrate')
+                ->orderBy('created_at', 'asc')
+                ->get();
+
+            // Cari Bundle dari Barcode (New/Old) milik produk di dalamnya
+            $productBundles = Product_Bundle::where(function ($q) use ($barcode) {
+                $q->where('old_barcode_product', $barcode)
+                    ->orWhere('new_barcode_product', $barcode);
+            })->get();
+
+            if ($productBundles->isNotEmpty()) {
+                // Ambil semua bundle_id dari produk-produk yang cocok
+                $bundleIds = $productBundles->pluck('bundle_id')->unique()->toArray();
+
+                // Cari bundle induknya dengan syarat status migrate & belum discan
+                $indirectBundles = Bundle::whereIn('id', $bundleIds)
+                    ->whereNotIn('id', function ($q) use ($bklDocument) {
+                        $q->select('bundle_id')
+                            ->from('bkl_scanned_products')
+                            ->where('bkl_document_id', $bklDocument->id)
+                            ->whereNotNull('bundle_id');
+                    })
+                    ->where('product_status', 'migrate')
+                    ->orderBy('created_at', 'asc')
+                    ->get();
+
+                // Gabungkan dengan pencarian utama dan hilangkan duplikat
+                $potentialBundles = $potentialBundles->merge($indirectBundles)->unique('id');
+            }
+
+            // Cari bundle yang 'destination_id'-nya cocok dengan dokumen BKL ini
+            if ($potentialBundles->isNotEmpty()) {
+                $type = 'bundle';
+
+                foreach ($potentialBundles as $b) {
+                    $destId = $this->traceProductDestination($b->id, 'bundle');
+
+                    // Jika dokumen sudah punya tujuan, cocokan tujuannya!
+                    if ($bklDocument->destination_id) {
+                        if ($destId == $bklDocument->destination_id) {
+                            $bundle = $b;
+                            $tracedDestinationId = $destId;
+                            break; // Ditemukan yang cocok, hentikan pencarian
+                        }
+                    } else {
+                        // Jika dokumen belum punya tujuan, ambil yang pertama kali memiliki tujuan valid
+                        if ($destId) {
+                            $bundle = $b;
+                            $tracedDestinationId = $destId;
+                            break;
+                        }
+                    }
+                }
+            }
+
+            $potentialProducts = collect();
+
+            if (!$bundle) {
+                $potentialProducts = New_product::where(function ($q) use ($barcode) {
+                    $q->where('old_barcode_product', $barcode)
+                        ->orWhere('new_barcode_product', $barcode);
+                })
+                    ->whereNotIn('id', function ($q) use ($bklDocument) {
+                        $q->select('new_product_id')
+                            ->from('bkl_scanned_products')
+                            ->where('bkl_document_id', $bklDocument->id)
+                            ->whereNotNull('new_product_id');
+                    })
+                    ->where('new_status_product', 'migrate')
+                    ->whereNotNull('new_tag_product')
+                    ->whereNull('new_category_product')
+                    ->where(function ($q) {
+                        $q->whereNull('new_category_product')
+                            ->orWhere('new_category_product', '');
+                    })
+                    ->where(function ($query) {
+                        $query->whereRaw("JSON_UNQUOTE(JSON_EXTRACT(new_quality, '$.lolos')) = 'lolos'")
+                            ->orWhereRaw("JSON_UNQUOTE(JSON_EXTRACT(JSON_UNQUOTE(new_quality), '$.lolos')) = 'lolos'");
+                    })
+                    ->orderBy('created_at', 'asc')
+                    ->get();
+
+                if ($potentialProducts->isNotEmpty()) {
+                    $type = 'product';
+
+                    foreach ($potentialProducts as $p) {
+                        $destId = $this->traceProductDestination($p->id, 'product');
+
+                        if ($bklDocument->destination_id) {
+                            if ($destId == $bklDocument->destination_id) {
+                                $product = $p;
+                                $tracedDestinationId = $destId;
+                                break;
+                            }
+                        } else {
+                            if ($destId) {
+                                $product = $p;
+                                $tracedDestinationId = $destId;
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+
+            if (!$bundle && !$product) {
+                // Jika sistem menemukan produk/bundle, tapi tidak ada satupun yang tujuannya ke toko ini
+                if (($potentialBundles ?? collect())->isNotEmpty() || ($potentialProducts ?? collect())->isNotEmpty()) {
+                    $tokoDokumen = $bklDocument->destination->shop_name ?? 'Unknown';
+                    return (new ResponseResource(false, "Barang ditemukan, namun tidak ada satupun yang ditujukan untuk Toko {$tokoDokumen}. Silakan periksa kembali.", null))->response()->setStatusCode(422);
+                }
+
+                // Cek ekstensi fallback (Barang tidak valid, beda status, atau sudah di-scan semua)
+                $anyBundle = Bundle::where('barcode_bundle', $barcode)->orWhere('old_barcode_bundle', $barcode)->first();
+                if (!$anyBundle) {
+                    // Fallback juga bisa mengecek old barcode relasi bundle
+                    $pbCheck = Product_Bundle::where('new_barcode_product', $barcode)->orWhere('old_barcode_product', $barcode)->first();
+                    if ($pbCheck) {
+                        $anyBundle = Bundle::where('id', $pbCheck->bundle_id)->first();
+                    }
+                }
+
+                $anyProduct = New_product::where('old_barcode_product', $barcode)->orWhere('new_barcode_product', $barcode)->first();
+                $foundItem = $anyBundle ?? $anyProduct;
+
+                if (!$foundItem) {
+                    return (new ResponseResource(false, "Barcode tidak ditemukan di sistem!", null))->response()->setStatusCode(404);
+                }
+
+                $statusItem = $anyBundle ? $anyBundle->product_status : $anyProduct->new_status_product;
+                if ($statusItem !== 'migrate') {
+                    return (new ResponseResource(false, "Gagal! Semua produk dengan barcode '{$barcode}' telah berhasil di-scan atau statusnya bukan migrate.", null))->response()->setStatusCode(422);
+                }
+
+                return (new ResponseResource(false, "Item ini sudah masuk daftar scan pada dokumen ini.", null))->response()->setStatusCode(409);
+            }
+
+            // Tetap simpan unique id/barcode spesifik dari parent barang yang terpilih
+            $uniqueBarcodeToSave = $bundle ? $bundle->barcode_bundle : $product->new_barcode_product;
+
+            if (!$tracedDestinationId) {
+                return (new ResponseResource(false, "Gagal melacak tujuan migrasi produk ini.", null))->response()->setStatusCode(422);
+            }
+
+            // Jika dokumen belum punya tujuan, set tujuannya berdasarkan barang pintar yang terpilih di atas
+            if (is_null($bklDocument->destination_id)) {
+                $bklDocument->update(['destination_id' => $tracedDestinationId]);
+            }
+
+            // Simpan hasil scan
+            BklScannedProduct::create([
+                'bkl_document_id' => $bklDocument->id,
+                'new_product_id'  => $type === 'product' ? $product->id : null,
+                'bundle_id'       => $type === 'bundle' ? $bundle->id : null,
+                'barcode'         => $uniqueBarcodeToSave,
+            ]);
+
+            DB::commit();
+
+            $bklDocument->load('destination', 'scannedProducts.newProduct', 'scannedProducts.bundle');
+            return new ResponseResource(true, "Berhasil scan item.", $bklDocument);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return response()->json(['status' => false, 'message' => 'Server Error: ' . $e->getMessage()], 500);
+        }
+    }
+
+    public function submitBklDocument($id)
+    {
+        DB::beginTransaction();
+        try {
+            $bklDocument = BklDocument::with('scannedProducts')->find($id);
+
+            if (!$bklDocument || $bklDocument->status === 'done') {
+                return (new ResponseResource(false, "Dokumen tidak ditemukan atau sudah disubmit!", null))->response()->setStatusCode(400);
+            }
+
+            if ($bklDocument->scannedProducts->isEmpty()) {
+                return (new ResponseResource(false, "Gagal submit! Tidak ada item yang di-scan.", null))->response()->setStatusCode(422);
+            }
+
+            $productIds = $bklDocument->scannedProducts->whereNotNull('new_product_id')->pluck('new_product_id')->toArray();
+            $bundleIds = $bklDocument->scannedProducts->whereNotNull('bundle_id')->pluck('bundle_id')->toArray();
+
+            $barcodes = $bklDocument->scannedProducts->pluck('barcode')->toArray();
+
+            $posService = new PosService();
+            $posService->deleteBklProducts($barcodes);
+
+            if (!empty($productIds)) {
+                New_product::whereIn('id', $productIds)->update(['new_status_product' => 'display']);
+                ColorRackProduct::whereIn('new_product_id', $productIds)->delete();
+            }
+
+            if (!empty($bundleIds)) {
+                Bundle::whereIn('id', $bundleIds)->update(['product_status' => 'not sale']);
+                ColorRackProduct::whereIn('bundle_id', $bundleIds)->delete();
+            }
+
+            $bklDocument->update(['status' => 'done']);
+
+            DB::commit();
+            return new ResponseResource(true, "Dokumen BKL di-submit! Stok kembali ke display, dihapus dari POS.", $bklDocument);
+        } catch (HttpResponseException $e) {
+            DB::rollBack();
+
+            return $e->getResponse();
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return response()->json(['status' => false, 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    private function traceProductDestination($itemId, $type)
+    {
+        if ($type === 'product') {
+            $rackProduct = ColorRackProduct::where('new_product_id', $itemId)->latest()->first();
+        } else {
+            $rackProduct = ColorRackProduct::where('bundle_id', $itemId)->latest()->first();
+        }
+
+        if ($rackProduct && $rackProduct->color_rack_id) {
+            $migrate = Migrate::where('color_rack_id', $rackProduct->color_rack_id)->latest()->first();
+
+            if ($migrate) {
+                $migrateDoc = MigrateDocument::where('code_document_migrate', $migrate->code_document_migrate)->first();
+
+                if ($migrateDoc) {
+                    if (is_numeric($migrateDoc->destiny_document_migrate)) {
+                        return (int) $migrateDoc->destiny_document_migrate;
+                    } else {
+                        $destination = Destination::where('shop_name', $migrateDoc->destiny_document_migrate)->first();
+                        return $destination ? $destination->id : null;
+                    }
+                }
+            }
+        }
+
+        return null;
+    }
+}
