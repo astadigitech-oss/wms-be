@@ -43,7 +43,7 @@ class AppServiceProvider extends ServiceProvider
         // Alternatif: Catat detail query spesifik yang lewat dari 3 detik
         DB::listen(function ($query) {
             if ($query->time > 3000) { // waktu dalam milidetik (3000ms = 3 detik)
-                Log::warning("Slow Query Terdeteksi: SQL -> {$query->sql} | Bindings -> " . json_serialize($query->bindings) . " | Waktu -> {$query->time}ms");
+                Log::warning("Slow Query Terdeteksi: SQL -> {$query->sql} | Bindings -> " . json_encode($query->bindings) . " | Waktu -> {$query->time}ms");
             }
         });
     }
