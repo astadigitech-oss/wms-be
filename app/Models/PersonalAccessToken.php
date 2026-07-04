@@ -17,13 +17,11 @@ class PersonalAccessToken extends SanctumPersonalAccessToken
 
             $cacheKey = 'sanctum_token_throttle:' . $this->id;
 
-            // Jika dalam 5 menit terakhir sudah pernah di-update, skip update ke MySQL
-            if (Cache::has($cacheKey)) {
-                return true;
+            // Cache::add HANYA akan menghasilkan true jika key BELUM ADA di cache (Operasi Atomik)
+            // Jika key SUDAH ADA, dia langsung return false.
+            if (! Cache::add($cacheKey, true, now()->addMinutes(5))) {
+                return true; // Skip update ke MySQL jika gagal menambah cache
             }
-
-            // Jika belum, pasang gembok cache selama 5 menit, lalu biarkan query simpan ke MySQL jalan
-            Cache::put($cacheKey, true, now()->addMinutes(5));
         }
 
         return parent::save($options);
