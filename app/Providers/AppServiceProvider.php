@@ -33,7 +33,7 @@ class AppServiceProvider extends ServiceProvider
             URL::forceScheme('https');
         }
 
-        // Sanctum::usePersonalAccessTokenModel(PersonalAccessToken::class);
+        Sanctum::usePersonalAccessTokenModel(PersonalAccessToken::class);
 
         // Perangkap Query Lambat: Catat ke log jika query > 5 detik
         DB::whenQueryingForLongerThan(CarbonInterval::seconds(5), function ($connection) {
