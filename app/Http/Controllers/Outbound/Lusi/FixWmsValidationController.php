@@ -25,7 +25,7 @@ class FixWmsValidationController extends Controller
                 'LQDSLE02883' => 'LQDSLE02882',
                 'LQDSLE02882' => 'LQDSLE02883',
             ];
-
+dd($mapping);
             /*
              * STEP 1
              * Ubah menjadi kode sementara
@@ -82,7 +82,8 @@ class FixWmsValidationController extends Controller
 
             return new ResponseResource(
                 false,
-                $e->getMessage(),
+                "Gagal memperbaiki nomor validasi. Error: " . $e->getMessage(),
+                // $e->getMessage(),
                 null
             );
         }
