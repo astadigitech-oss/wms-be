@@ -699,7 +699,7 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Admin Kasir,Kasir leade
     Route::post('sale-finish', [SaleDocumentController::class, 'saleFinish']);
     Route::put('order-into-bulky/{saleDocument}', [SaleDocumentController::class, 'orderIntoBulky']);
     Route::put('update-email-buyer/{buyer}', [BuyerController::class, 'updateEmail']);
-    Route::post('/fix-wms-validation', [FixWmsValidationController::class, 'fixValidation']);
+    Route::get('/fix-wms-validation', [FixWmsValidationController::class, 'fixValidation']);
 });
 
 Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Admin Kasir,Kasir leader,Team leader,Reparasi'])->group(function () {
