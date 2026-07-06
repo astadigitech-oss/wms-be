@@ -14,8 +14,9 @@ class FixWmsValidationController extends Controller
         DB::beginTransaction();
 
         try {
-
-            $mapping = [
+            /**
+             * Mapping nomor yang salah ke nomor yang benar
+             */            $mapping = [
                 'LQDSLE02881' => 'LQDSLE02876',
                 'LQDSLE02876' => 'LQDSLE02877',
                 'LQDSLE02877' => 'LQDSLE02878',
@@ -35,7 +36,7 @@ class FixWmsValidationController extends Controller
                 DB::table('sale_documents')
                     ->where('code_document_sale', $old)
                     ->update([
-                        'code_document_sale' => 'TMP_'.$old
+                        'code_document_sale' => 'TMP_' . $old
                     ]);
             }
 
@@ -46,7 +47,7 @@ class FixWmsValidationController extends Controller
             foreach ($mapping as $old => $new) {
 
                 DB::table('sale_documents')
-                    ->where('code_document_sale', 'TMP_'.$old)
+                    ->where('code_document_sale', 'TMP_' . $old)
                     ->update([
                         'code_document_sale' => $new
                     ]);
@@ -59,7 +60,6 @@ class FixWmsValidationController extends Controller
                 'Berhasil memperbaiki nomor validasi.',
                 null
             );
-
         } catch (\Exception $e) {
 
             DB::rollBack();
