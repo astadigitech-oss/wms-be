@@ -58,6 +58,7 @@ use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\Outbound\BagController;
 use App\Http\Controllers\Outbound\ExportOutboundController;
 use App\Http\Controllers\Outbound\Lusi\CargoNewController;
+use App\Http\Controllers\Outbound\Lusi\FixWmsValidationController;
 use App\Http\Controllers\Outbound\NewSaleController;
 use App\Http\Controllers\Outbound\SaleController as OutboundSaleController;
 use App\Http\Controllers\PaletBrandController;
@@ -698,6 +699,7 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Admin Kasir,Kasir leade
     Route::post('sale-finish', [SaleDocumentController::class, 'saleFinish']);
     Route::put('order-into-bulky/{saleDocument}', [SaleDocumentController::class, 'orderIntoBulky']);
     Route::put('update-email-buyer/{buyer}', [BuyerController::class, 'updateEmail']);
+    Route::post('outbound/lusi/fix-validation', [FixWmsValidationController::class, 'fixValidation']);
 });
 
 Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Admin Kasir,Kasir leader,Team leader,Reparasi'])->group(function () {
