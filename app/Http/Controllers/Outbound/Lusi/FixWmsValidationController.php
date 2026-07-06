@@ -14,9 +14,8 @@ class FixWmsValidationController extends Controller
         DB::beginTransaction();
 
         try {
-            /**
-             * Mapping nomor yang salah ke nomor yang benar
-             */            $mapping = [
+
+            $mapping = [
                 'LQDSLE02881' => 'LQDSLE02876',
                 'LQDSLE02876' => 'LQDSLE02877',
                 'LQDSLE02877' => 'LQDSLE02878',
@@ -27,27 +26,43 @@ class FixWmsValidationController extends Controller
                 'LQDSLE02882' => 'LQDSLE02883',
             ];
 
-            /**
+            /*
              * STEP 1
-             * Ubah menjadi kode sementara agar tidak bentrok
+             * Ubah menjadi kode sementara
              */
             foreach ($mapping as $old => $new) {
 
+                // sale_documents
                 DB::table('sale_documents')
                     ->where('code_document_sale', $old)
                     ->update([
-                        'code_document_sale' => 'TMP_' . $old
+                        'code_document_sale' => 'TMP_'.$old
+                    ]);
+
+                // sales
+                DB::table('sales')
+                    ->where('code_document_sale', $old)
+                    ->update([
+                        'code_document_sale' => 'TMP_'.$old
                     ]);
             }
 
-            /**
+            /*
              * STEP 2
-             * Ubah menjadi nomor yang benar
+             * Ubah menjadi kode yang benar
              */
             foreach ($mapping as $old => $new) {
 
+                // sale_documents
                 DB::table('sale_documents')
-                    ->where('code_document_sale', 'TMP_' . $old)
+                    ->where('code_document_sale', 'TMP_'.$old)
+                    ->update([
+                        'code_document_sale' => $new
+                    ]);
+
+                // sales
+                DB::table('sales')
+                    ->where('code_document_sale', 'TMP_'.$old)
                     ->update([
                         'code_document_sale' => $new
                     ]);
@@ -60,6 +75,7 @@ class FixWmsValidationController extends Controller
                 'Berhasil memperbaiki nomor validasi.',
                 null
             );
+
         } catch (\Exception $e) {
 
             DB::rollBack();
