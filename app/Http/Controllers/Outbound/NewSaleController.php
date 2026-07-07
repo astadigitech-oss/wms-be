@@ -774,7 +774,7 @@ class NewSaleController extends Controller
         }
     }
 
-    public function listApprovalVoucher()
+    public function listApprovalVoucher(Request $request)
     {
         try {
 
@@ -784,28 +784,34 @@ class NewSaleController extends Controller
                 'approver:id,name',
                 'buyer',
             ])
+                ->when($request->filled('q'), function ($query) use ($request) {
+                    $query->whereHas('requester', function ($q) use ($request) {
+                        $q->where('name', 'like', '%' . $request->q . '%');
+                    });
+                })
                 ->latest('date_request')
-                ->get()
-                ->map(function ($approval) {
+                ->paginate(10);
 
-                    $pivot = $approval->buyer
-                        ->vouchers()
-                        ->where('voucher_id', $approval->voucher_id)
-                        ->first()?->pivot;
+            $approvals->getCollection()->transform(function ($approval) {
 
-                    return [
-                        'id' => $approval->id,
-                        'voucher_name' => $approval->voucher->name,
-                        'requested_by' => $approval->requester->name,
-                        'approved_by' => $approval->approver?->name,
-                        'nominal' => $approval->voucher->max_usage,
-                        'buyer_name' => $approval->buyer->name_buyer,
-                        'usage' => $pivot?->used ?? 0,
-                        'status' => $approval->status,
-                        'date_request' => $approval->date_request,
-                        'date_approved' => $approval->date_approved,
-                    ];
-                });
+                $pivot = $approval->buyer
+                    ->vouchers()
+                    ->where('voucher_id', $approval->voucher_id)
+                    ->first()?->pivot;
+
+                return [
+                    'id' => $approval->id,
+                    'voucher_name' => $approval->voucher->name,
+                    'requested_by' => $approval->requester->name,
+                    'approved_by' => $approval->approver?->name,
+                    'nominal' => $approval->voucher->max_usage,
+                    'buyer_name' => $approval->buyer->name_buyer,
+                    'usage' => $pivot?->used ?? 0,
+                    'status' => $approval->status,
+                    'date_request' => $approval->date_request,
+                    'date_approved' => $approval->date_approved,
+                ];
+            });
 
             return new ResponseResource(
                 true,
