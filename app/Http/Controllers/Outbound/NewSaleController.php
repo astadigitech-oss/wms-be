@@ -799,7 +799,7 @@ class NewSaleController extends Controller
                         'requested_by' => $approval->requester->name,
                         'approved_by' => $approval->approver?->name,
                         'nominal' => $approval->voucher->max_usage,
-                        'buyer_name' => $approval->buyer->name,
+                        'buyer_name' => $approval->buyer->name_buyer,
                         'usage' => $pivot?->used ?? 0,
                         'status' => $approval->status,
                         'date_request' => $approval->date_request,
