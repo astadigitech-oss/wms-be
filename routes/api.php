@@ -176,7 +176,7 @@ Route::middleware([
     Route::post('bag', [BagController::class, 'buatBag']);
     Route::post('bag/add-product/{idBag}', [BagController::class, 'tambahProdukKeBag']);
     Route::post('bag/remove-product/{idProduct}', [BagController::class, 'takeOutBarangbulky']);
-    Route::post('bag/{idBag}/import-produk/', [BagController::class, 'importProduct']);
+    Route::post('bag/{idBag}/import-produk/', [BagController::class, 'importProdukKeBag']);
 });
 
 // ========================================================================================================
