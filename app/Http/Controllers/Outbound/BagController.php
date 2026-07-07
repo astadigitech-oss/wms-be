@@ -15,6 +15,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
+use Maatwebsite\Excel\Facades\Excel;
 
 class BagController extends Controller
 {
@@ -952,5 +953,258 @@ class BagController extends Controller
                 $e->getMessage()
             ))->response()->setStatusCode(500);
         }
+    }
+    public function importProdukKeBag(Request $request, $idBag)
+    {
+        $user = auth()->user();
+
+        // 1. Validasi File
+        $request->validate([
+            'file' => 'required|mimes:xlsx,xls,csv'
+        ]);
+
+        // 2. Cek Bag
+        $bagProduct = BagProducts::where('id', $idBag)
+            ->where('user_id', $user->id)
+            ->where('status', 'process')
+            ->first();
+
+        if (!$bagProduct) {
+            return response()->json(['status' => false, 'message' => "Tidak bisa akses bag atau bag tidak ditemukan!"], 403);
+        }
+
+        // 3. Cek Cargo (Optional Bulky Document)
+        $bulkyDocument = null;
+        if ($bagProduct->bulky_document_id) {
+            $bulkyDocument = BulkyDocument::find($bagProduct->bulky_document_id);
+            if (!$bulkyDocument) {
+                return response()->json(['status' => false, 'message' => "Cargo tidak ditemukan!"], 404);
+            }
+        }
+
+        // 4. Parsing Excel & Ambil Barcode Unik
+        $rows = Excel::toArray([], $request->file('file'));
+        $sheet = $rows[0];
+        $barcodes = [];
+
+        foreach ($sheet as $index => $row) {
+            if ($index === 0) continue; // Skip header
+            if (!empty($row[0])) {
+                $barcodes[] = trim($row[0]);
+            }
+        }
+        $barcodes = array_unique($barcodes);
+
+        if (empty($barcodes)) {
+            return response()->json(['status' => false, 'message' => "File Excel kosong atau tidak ada barcode."], 422);
+        }
+
+        // 5. Ambil Data Pengecekan secara Massal ke Memori
+        $existingBulkySales = BulkySale::whereIn('barcode_bulky_sale', $barcodes)
+            ->pluck('barcode_bulky_sale')
+            ->toArray();
+
+        $newProducts = New_product::whereIn('new_barcode_product', $barcodes)->get()->keyBy('new_barcode_product');
+        $stagingProducts = StagingProduct::whereIn('new_barcode_product', $barcodes)->get()->keyBy('new_barcode_product');
+        $bklProducts = BklProduct::whereIn('new_barcode_product', $barcodes)->get()->keyBy('new_barcode_product');
+        $bundleProducts = Bundle::with('product_bundles')->whereIn('barcode_bundle', $barcodes)->get()->keyBy('barcode_bundle');
+
+        // Persiapan variabel penampung laporan
+        $insertedCount = 0;
+        $errors = [];
+        $dataToInsert = [];
+        $productsToUpdateNewStatus = [];
+        $productsToUpdateBundleStatus = [];
+
+        $bagCategoryWords = array_filter(explode(' ', trim(preg_replace('/[^a-z]+/i', ' ', strtolower($bagProduct->category_bag)))));
+        $discount = $bulkyDocument?->discount_bulky ?? 0;
+
+        // 6. Validasi Logika Bisnis di Memori PHP (Bukan Query dalam Loop)
+        foreach ($barcodes as $barcode) {
+            // Cek Duplikat
+            if (in_array($barcode, $existingBulkySales)) {
+                $errors[] = ["barcode" => $barcode, "reason" => "Barcode sudah pernah diinputkan!"];
+                continue;
+            }
+
+            // Cari di tabel mana produk berada
+            $modelObj = null;
+            $foundType = null;
+
+            if (isset($newProducts[$barcode])) {
+                $modelObj = $newProducts[$barcode];
+                $foundType = 'new_product';
+            } elseif (isset($stagingProducts[$barcode])) {
+                $modelObj = $stagingProducts[$barcode];
+                $foundType = 'staging_product';
+            } elseif (isset($bklProducts[$barcode])) {
+                $modelObj = $bklProducts[$barcode];
+                $foundType = 'bkl_product';
+            } elseif (isset($bundleProducts[$barcode])) {
+                $modelObj = $bundleProducts[$barcode];
+                $foundType = 'bundle_product';
+            }
+
+            if (!$modelObj) {
+                $errors[] = ["barcode" => $barcode, "reason" => "Barcode tidak ditemukan di sistem!"];
+                continue;
+            }
+
+            // Cek Status Terjual (Sale)
+            $status = ($foundType === 'bundle_product') ? $modelObj->product_status : $modelObj->new_status_product;
+            if ($status === 'sale') {
+                $errors[] = ["barcode" => $barcode, "reason" => "Barcode sudah terjual!"];
+                continue;
+            }
+
+            // Normalisasi Data Struktur Produk
+            if ($foundType === 'bundle_product') {
+                $firstDoc = $modelObj->product_bundles->first();
+                $productNormalized = [
+                    'barcode' => $modelObj->barcode_bundle,
+                    'category' => $modelObj->category,
+                    'name' => $modelObj->name_bundle,
+                    'old_price' => $modelObj->total_price_bundle ?? 0,
+                    'status' => $modelObj->product_status,
+                    'qty' => $modelObj->total_product_bundle ?? null,
+                    'code_document' => $firstDoc?->code_document,
+                    'old_barcode_product' => $firstDoc?->old_barcode_product,
+                    'new_date_in_product' => $firstDoc?->date_in_product,
+                    'display_price' => $firstDoc?->display_price ?? 0,
+                    'created_at' => $modelObj->created_at,
+                    'actual_old_price_product' => $modelObj->product_bundles->sum('actual_old_price_product') ?? 0,
+                    'weight' => null,
+                ];
+            } else {
+                $productNormalized = [
+                    'barcode' => $modelObj->new_barcode_product,
+                    'category' => $modelObj->new_category_product,
+                    'name' => $modelObj->new_name_product,
+                    'old_price' => $modelObj->old_price_product ?? 0,
+                    'status' => $modelObj->new_status_product,
+                    'qty' => $modelObj->new_quantity_product ?? null,
+                    'code_document' => $modelObj->code_document,
+                    'old_barcode_product' => $modelObj->old_barcode_product,
+                    'new_date_in_product' => $modelObj->new_date_in_product,
+                    'display_price' => $modelObj->display_price ?? 0,
+                    'created_at' => $modelObj->created_at,
+                    'actual_old_price_product' => $modelObj->actual_old_price_product ?? $modelObj->old_price_product,
+                    'weight' => $modelObj->weight,
+                ];
+            }
+
+            // Validasi Kategori
+            $productCategoryWords = array_filter(explode(' ', trim(preg_replace('/[^a-z]+/i', ' ', strtolower($productNormalized['category'] ?? '')))));
+            if (empty(array_intersect($productCategoryWords, $bagCategoryWords))) {
+                $errors[] = ["barcode" => $barcode, "reason" => "Kategori produk ({$productNormalized['category']}) tidak cocok dengan karung!"];
+                continue;
+            }
+
+            // Hitung Diskon
+            $afterPriceBulkySale = $productNormalized['old_price'] - ($productNormalized['old_price'] * $discount / 100);
+
+            // Kumpulkan data untuk bulk insert
+            $dataToInsert[] = [
+                'bulky_document_id' => $bulkyDocument?->id,
+                'bag_product_id' => $bagProduct->id,
+                'barcode_bulky_sale' => $productNormalized['barcode'],
+                'product_category_bulky_sale' => $productNormalized['category'],
+                'name_product_bulky_sale' => $productNormalized['name'],
+                'old_price_bulky_sale' => $productNormalized['old_price'],
+                'status_product_before' => $productNormalized['status'],
+                'after_price_bulky_sale' => $afterPriceBulkySale,
+                'qty' => $productNormalized['qty'],
+                'code_document' => $productNormalized['code_document'],
+                'old_barcode_product' => $productNormalized['old_barcode_product'],
+                'new_date_in_product' => $productNormalized['new_date_in_product'],
+                'display_price' => $productNormalized['display_price'],
+                'actual_created_at' => $productNormalized['created_at'],
+                'actual_old_price_product' => $productNormalized['actual_old_price_product'],
+                'weight' => $productNormalized['weight'],
+                'created_at' => now(),
+                'updated_at' => now()
+            ];
+
+            // Kelompokkan ID untuk update status massal
+            if ($foundType === 'bundle_product') {
+                $productsToUpdateBundleStatus[] = $modelObj->id;
+            } else {
+                $productsToUpdateNewStatus[get_class($modelObj)][] = $modelObj->id;
+            }
+
+            $insertedCount++;
+        }
+
+        // 7. Eksekusi Tulis Database dengan Transaction & Try Catch
+        if (count($dataToInsert) > 0) {
+
+            // Memulai Database Transaction
+            DB::beginTransaction();
+
+            try {
+                // Bulk Insert ke tabel BulkySale
+                BulkySale::insert($dataToInsert);
+
+                // Bulk Update status produk non-bundle ke 'sale'
+                foreach ($productsToUpdateNewStatus as $modelClass => $ids) {
+                    $modelClass::whereIn('id', $ids)->update([
+                        'new_status_product' => 'sale',
+                        'date_out' => now(),
+                        'type_out' => 'cargo',
+                    ]);
+                }
+
+                // Bulk Update status produk bundle ke 'sale'
+                if (!empty($productsToUpdateBundleStatus)) {
+                    Bundle::whereIn('id', $productsToUpdateBundleStatus)->update([
+                        'product_status' => 'sale'
+                    ]);
+                }
+
+                // Update Total Produk di Bag saat ini
+                $bagProduct->update([
+                    'total_product' => $bagProduct->bulkySales()->count(),
+                ]);
+
+                // Update Bulky Document jika terikat cargo
+                if ($bulkyDocument) {
+                    $allBagIds = BagProducts::where('bulky_document_id', $bulkyDocument->id)->pluck('id');
+                    $allBulkySales = BulkySale::whereIn('bag_product_id', $allBagIds);
+
+                    $bulkyDocument->update([
+                        'total_product_bulky' => $allBulkySales->count(),
+                        'total_old_price_bulky' => $allBulkySales->sum('old_price_bulky_sale'),
+                        'after_price_bulky' => $allBulkySales->sum('after_price_bulky_sale'),
+                    ]);
+                }
+
+                // KOmmit data jika semua query di atas sukses tanpa error
+                DB::commit();
+            } catch (\Exception $e) {
+                // Jika ada satu query yang gagal, batalkan semua perubahan di atas
+                DB::rollBack();
+
+                // Catat error ke file log
+                Log::error('IMPORT PRODUK BAG ERROR: ' . $e->getMessage());
+
+                return response()->json([
+                    'status' => false,
+                    'message' => "Gagal menyimpan data import database!",
+                    'error' => $e->getMessage()
+                ], 500);
+            }
+        }
+
+        // 8. Berikan Response hasil Akhir
+        return response()->json([
+            'status' => true,
+            'message' => "Proses import selesai.",
+            'summary' => [
+                'total_excel_barcodes' => count($barcodes),
+                'success_imported' => $insertedCount,
+                'failed_imported' => count($errors)
+            ],
+            'errors' => $errors
+        ]);
     }
 }

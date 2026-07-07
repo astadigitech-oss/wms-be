@@ -881,6 +881,11 @@ class SaleDocumentController extends Controller
         $codeDocument = $request->input('code_document_sale');
 
         $saleDocument = SaleDocument::with('buyer:id,point_buyer')->where('code_document_sale', $codeDocument)->first();
+        $saleDocument->voucher =
+            (int) ($saleDocument->voucher ?? 0) +
+            (int) ($saleDocument->voucher_rank_value ?? 0);
+
+        unset($saleDocument->voucher_rank_value);
 
         if (!$saleDocument) {
             return response()->json(['data' => null, 'message' => 'Dokumen penjualan tidak ditemukan'], 404);
