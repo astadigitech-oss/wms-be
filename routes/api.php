@@ -260,6 +260,13 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Kasir leader,Admin Kasir'])
     Route::get('list-voucher-buyer/{id}', [NewSaleController::class, 'listVoucherBuyer']);
     Route::post('pakai-voucher', [NewSaleController::class, 'pakaiVoucher']);
     Route::post('lepas-voucher', [NewSaleController::class, 'lepasVoucher']);
+    Route::get('check-pending-voucher', [NewSaleController::class, 'checkPendingApproval']);
+});
+
+Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Kasir leader'])->group(function () {
+    Route::post('vouchers/{id}/approve', [NewSaleController::class, 'approveVoucher']);
+    Route::post('vouchers/{id}/reject', [NewSaleController::class, 'rejectVoucher']);
+    Route::get('list-voucher-approval', [NewSaleController::class, 'listApprovalVoucher']);
 });
 
 // ========================================================================================================
