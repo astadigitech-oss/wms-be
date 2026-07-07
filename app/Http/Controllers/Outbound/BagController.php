@@ -15,6 +15,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
+use Maatwebsite\Excel\Facades\Excel;
 
 class BagController extends Controller
 {
@@ -952,5 +953,74 @@ class BagController extends Controller
                 $e->getMessage()
             ))->response()->setStatusCode(500);
         }
+    }
+
+    public function importProduct(Request $request)
+    {
+        $request->validate([
+            'file' => 'required|mimes:xlsx,xls,csv',
+            'bag_product_id' => 'required|exists:bag_products,id'
+        ]);
+
+        $user = auth()->user();
+
+        $rows = Excel::toArray([], $request->file('file'));
+
+        $sheet = $rows[0];
+
+        $barcodes = [];
+
+        foreach ($sheet as $index => $row) {
+
+            if ($index == 0) {
+                continue;
+            }
+
+            if (!empty($row[0])) {
+                $barcodes[] = trim($row[0]);
+            }
+        }
+
+        $barcodes = array_unique($barcodes);
+
+        $success = [];
+        $failed = [];
+
+        foreach ($barcodes as $barcode) {
+
+            try {
+
+                $result = $this->processBarcode(
+                    $barcode,
+                    $request->bag_product_id,
+                    $user
+                );
+
+                if ($result['success']) {
+
+                    $success[] = $barcode;
+                } else {
+
+                    $failed[] = [
+                        'barcode' => $barcode,
+                        'message' => $result['message']
+                    ];
+                }
+            } catch (\Exception $e) {
+
+                $failed[] = [
+                    'barcode' => $barcode,
+                    'message' => $e->getMessage()
+                ];
+            }
+        }
+
+        return response()->json([
+            'total' => count($barcodes),
+            'success_count' => count($success),
+            'failed_count' => count($failed),
+            'success' => $success,
+            'failed' => $failed,
+        ]);
     }
 }
