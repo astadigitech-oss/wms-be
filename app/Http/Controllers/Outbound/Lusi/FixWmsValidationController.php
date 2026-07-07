@@ -25,7 +25,6 @@ class FixWmsValidationController extends Controller
                 'LQDSLE02883' => 'LQDSLE02882',
                 'LQDSLE02882' => 'LQDSLE02883',
             ];
-dd($mapping);
             /*
              * STEP 1
              * Ubah menjadi kode sementara
