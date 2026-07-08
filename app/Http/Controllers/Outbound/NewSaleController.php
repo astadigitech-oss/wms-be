@@ -9,6 +9,7 @@ use App\Http\Resources\ResponseResource;
 use App\Models\Buyer;
 use App\Models\SaleDocument;
 use App\Models\Voucher;
+use App\Models\VoucherApproval;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -180,6 +181,151 @@ class NewSaleController extends Controller
         }
     }
 
+    // public function pakaiVoucher(Request $request)
+    // {
+    //     DB::beginTransaction();
+
+    //     try {
+
+    //         $userId = auth()->id();
+
+    //         $validator = Validator::make($request->all(), [
+    //             'voucher_id' => 'required|exists:vouchers,id',
+    //         ]);
+
+    //         if ($validator->fails()) {
+    //             return new ResponseResource(
+    //                 false,
+    //                 'Input tidak valid!',
+    //                 $validator->errors()
+    //             );
+    //         }
+
+    //         $saleDocument = SaleDocument::where(
+    //             'status_document_sale',
+    //             'proses'
+    //         )
+    //             ->where('user_id', $userId)
+    //             ->first();
+
+    //         if (!$saleDocument) {
+    //             DB::rollBack();
+
+    //             return new ResponseResource(
+    //                 false,
+    //                 'Tidak ada transaksi yang sedang diproses',
+    //                 null
+    //             );
+    //         }
+
+    //         if (!$saleDocument->buyer_id_document_sale) {
+    //             DB::rollBack();
+
+    //             return new ResponseResource(
+    //                 false,
+    //                 'Buyer belum dipilih pada transaksi ini',
+    //                 null
+    //             );
+    //         }
+
+    //         $buyer = Buyer::findOrFail(
+    //             $saleDocument->buyer_id_document_sale
+    //         );
+
+    //         $voucher = $buyer->vouchers()
+    //             ->wherePivot('status', true)
+    //             ->where('vouchers.id', $request->voucher_id)
+    //             ->select(
+    //                 'vouchers.id',
+    //                 'vouchers.amount',
+    //                 'vouchers.max_usage',
+    //                 'vouchers.max_week',
+    //                 'vouchers.start_date'
+    //             )
+    //             ->first();
+
+    //         if (!$voucher) {
+    //             DB::rollBack();
+
+    //             return new ResponseResource(
+    //                 false,
+    //                 'Voucher tidak ditemukan atau tidak aktif',
+    //                 null
+    //             );
+    //         }
+
+    //         $startDate = Carbon::parse($voucher->start_date);
+
+    //         $expiredDate = $startDate
+    //             ->copy()
+    //             ->addWeeks($voucher->max_week);
+
+    //         if (now()->gt($expiredDate)) {
+    //             DB::rollBack();
+
+    //             return new ResponseResource(
+    //                 false,
+    //                 'Voucher sudah expired',
+    //                 null
+    //             );
+    //         }
+
+    //         $maxUsedCount = $voucher->max_usage > 0
+    //             ? (int) floor(
+    //                 $voucher->amount / $voucher->max_usage
+    //             )
+    //             : 0;
+
+    //         if (($voucher->pivot->used ?? 0) >= $maxUsedCount) {
+    //             DB::rollBack();
+
+    //             return new ResponseResource(
+    //                 false,
+    //                 'Kuota penggunaan voucher sudah habis',
+    //                 null
+    //             );
+    //         }
+
+    //         $saleDocument->update([
+    //             'voucher_id' => $voucher->id,
+    //             'voucher_rank_value' => $voucher->max_usage,
+    //         ]);
+
+    //         $currentUsed = $voucher->pivot->used ?? 0;
+
+    //         $buyer->vouchers()->updateExistingPivot(
+    //             $voucher->id,
+    //             [
+    //                 'used' => $currentUsed + 1,
+    //             ]
+    //         );
+
+    //         DB::commit();
+
+    //         return new ResponseResource(
+    //             true,
+    //             'Voucher berhasil digunakan',
+    //             null
+    //         );
+    //     } catch (\Throwable $e) {
+
+    //         DB::rollBack();
+
+    //         Log::error('Error menggunakan voucher', [
+    //             'message' => $e->getMessage(),
+    //             'file' => $e->getFile(),
+    //             'line' => $e->getLine(),
+    //             'request' => $request->all(),
+    //         ]);
+
+    //         return new ResponseResource(
+    //             false,
+    //             'Gagal menggunakan voucher',
+    //             $e->getMessage()
+    //         );
+    //     }
+    // }
+
     public function pakaiVoucher(Request $request)
     {
         DB::beginTransaction();
@@ -255,9 +401,7 @@ class NewSaleController extends Controller
 
             $startDate = Carbon::parse($voucher->start_date);
 
-            $expiredDate = $startDate
-                ->copy()
-                ->addWeeks($voucher->max_week);
+            $expiredDate = $startDate->copy()->addWeeks($voucher->max_week);
 
             if (now()->gt($expiredDate)) {
                 DB::rollBack();
@@ -270,9 +414,7 @@ class NewSaleController extends Controller
             }
 
             $maxUsedCount = $voucher->max_usage > 0
-                ? (int) floor(
-                    $voucher->amount / $voucher->max_usage
-                )
+                ? (int) floor($voucher->amount / $voucher->max_usage)
                 : 0;
 
             if (($voucher->pivot->used ?? 0) >= $maxUsedCount) {
@@ -285,32 +427,44 @@ class NewSaleController extends Controller
                 );
             }
 
-            $saleDocument->update([
-                'voucher_id' => $voucher->id,
-                'voucher_rank_value' => $voucher->max_usage,
+            // Cek apakah sudah ada request pending
+            $pending = VoucherApproval::where('sale_document_id', $saleDocument->id)
+                ->where('status', 'pending')
+                ->exists();
+
+            if ($pending) {
+                DB::rollBack();
+
+                return new ResponseResource(
+                    false,
+                    'Masih ada pengajuan voucher yang menunggu approval',
+                    null
+                );
+            }
+
+            VoucherApproval::create([
+                'requested_by'     => $userId,
+                'voucher_id'       => $voucher->id,
+                'buyer_id'         => $buyer->id,
+                'nominal'          => $voucher->max_usage,
+                'usage'            => $voucher->pivot->used ?? 0,
+                'status'           => 'pending',
+                'date_request'     => now(),
+                'sale_document_id' => $saleDocument->id,
             ]);
-
-            $currentUsed = $voucher->pivot->used ?? 0;
-
-            $buyer->vouchers()->updateExistingPivot(
-                $voucher->id,
-                [
-                    'used' => $currentUsed + 1,
-                ]
-            );
 
             DB::commit();
 
             return new ResponseResource(
                 true,
-                'Voucher berhasil digunakan',
+                'Pengajuan voucher berhasil dibuat dan menunggu approval',
                 null
             );
         } catch (\Throwable $e) {
 
             DB::rollBack();
 
-            Log::error('Error menggunakan voucher', [
+            Log::error('Error mengajukan voucher', [
                 'message' => $e->getMessage(),
                 'file' => $e->getFile(),
                 'line' => $e->getLine(),
@@ -319,7 +473,7 @@ class NewSaleController extends Controller
 
             return new ResponseResource(
                 false,
-                'Gagal menggunakan voucher',
+                'Gagal mengajukan voucher',
                 $e->getMessage()
             );
         }
@@ -412,6 +566,269 @@ class NewSaleController extends Controller
             return new ResponseResource(
                 false,
                 'Gagal menghapus voucher',
+                $e->getMessage()
+            );
+        }
+    }
+
+    public function approveVoucher($id)
+    {
+        DB::beginTransaction();
+
+        try {
+
+            $approval = VoucherApproval::findOrFail($id);
+
+            if ($approval->status !== 'pending') {
+                DB::rollBack();
+
+                return new ResponseResource(
+                    false,
+                    'Request voucher sudah diproses',
+                    null
+                );
+            }
+
+            $saleDocument = SaleDocument::findOrFail(
+                $approval->sale_document_id
+            );
+
+            $buyer = Buyer::findOrFail($approval->buyer_id);
+
+            $voucher = $buyer->vouchers()
+                ->wherePivot('status', true)
+                ->where('vouchers.id', $approval->voucher_id)
+                ->select(
+                    'vouchers.id',
+                    'vouchers.amount',
+                    'vouchers.max_usage',
+                    'vouchers.max_week',
+                    'vouchers.start_date'
+                )
+                ->first();
+
+            if (!$voucher) {
+                DB::rollBack();
+
+                return new ResponseResource(
+                    false,
+                    'Voucher tidak ditemukan atau tidak aktif',
+                    null
+                );
+            }
+
+            $expiredDate = Carbon::parse($voucher->start_date)
+                ->addWeeks($voucher->max_week);
+
+            if (now()->gt($expiredDate)) {
+                DB::rollBack();
+
+                return new ResponseResource(
+                    false,
+                    'Voucher sudah expired',
+                    null
+                );
+            }
+
+            $maxUsedCount = $voucher->max_usage > 0
+                ? (int) floor($voucher->amount / $voucher->max_usage)
+                : 0;
+
+            if (($voucher->pivot->used ?? 0) >= $maxUsedCount) {
+                DB::rollBack();
+
+                return new ResponseResource(
+                    false,
+                    'Kuota penggunaan voucher sudah habis',
+                    null
+                );
+            }
+
+            $approval->update([
+                'approved_by' => auth()->id(),
+                'status' => 'approve',
+                'date_approved' => now(),
+            ]);
+
+            $saleDocument->update([
+                'voucher_id' => $voucher->id,
+                'voucher_rank_value' => $voucher->max_usage,
+            ]);
+
+            $buyer->vouchers()->updateExistingPivot(
+                $voucher->id,
+                [
+                    'used' => ($voucher->pivot->used ?? 0) + 1,
+                ]
+            );
+
+            DB::commit();
+
+            return new ResponseResource(
+                true,
+                'Voucher berhasil diapprove',
+                null
+            );
+        } catch (\Throwable $e) {
+
+            DB::rollBack();
+
+            Log::error('Error approve voucher', [
+                'message' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+            ]);
+
+            return new ResponseResource(
+                false,
+                'Gagal approve voucher',
+                $e->getMessage()
+            );
+        }
+    }
+
+    public function rejectVoucher($id)
+    {
+        DB::beginTransaction();
+
+        try {
+
+            $approval = VoucherApproval::findOrFail($id);
+
+            if ($approval->status !== 'pending') {
+                DB::rollBack();
+
+                return new ResponseResource(
+                    false,
+                    'Request voucher sudah diproses',
+                    null
+                );
+            }
+
+            $approval->update([
+                'approved_by'   => auth()->id(),
+                'status'        => 'reject',
+                'date_approved' => now(),
+            ]);
+
+            DB::commit();
+
+            return new ResponseResource(
+                true,
+                'Pengajuan voucher berhasil ditolak',
+                null
+            );
+        } catch (\Throwable $e) {
+
+            DB::rollBack();
+
+            Log::error('Error reject voucher', [
+                'message' => $e->getMessage(),
+                'file'    => $e->getFile(),
+                'line'    => $e->getLine(),
+            ]);
+
+            return new ResponseResource(
+                false,
+                'Gagal menolak pengajuan voucher',
+                $e->getMessage()
+            );
+        }
+    }
+
+    public function checkPendingApproval()
+    {
+        try {
+
+            $approval = VoucherApproval::with([
+                'voucher:id,name',
+                'saleDocument:id,code_document'
+            ])
+                ->where('requested_by', auth()->id())
+                ->where('status', 'pending')
+                ->latest('date_request')
+                ->first();
+
+            return new ResponseResource(
+                true,
+                'Berhasil mendapatkan status approval',
+                [
+                    'is_approval_pending' => (bool) $approval,
+                    'voucher_name' => $approval?->voucher?->name,
+                    'code_document' => $approval?->saleDocument?->code_document,
+                ]
+            );
+        } catch (\Throwable $e) {
+
+            Log::error('Error check pending approval', [
+                'message' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+            ]);
+
+            return new ResponseResource(
+                false,
+                'Gagal mendapatkan status approval',
+                $e->getMessage()
+            );
+        }
+    }
+
+    public function listApprovalVoucher(Request $request)
+    {
+        try {
+
+            $approvals = VoucherApproval::with([
+                'voucher:id,name,max_usage',
+                'requester:id,name',
+                'approver:id,name',
+                'buyer',
+            ])
+                ->when($request->filled('q'), function ($query) use ($request) {
+                    $query->whereHas('requester', function ($q) use ($request) {
+                        $q->where('name', 'like', '%' . $request->q . '%');
+                    });
+                })
+                ->latest('date_request')
+                ->paginate(10);
+
+            $approvals->getCollection()->transform(function ($approval) {
+
+                $pivot = $approval->buyer
+                    ->vouchers()
+                    ->where('voucher_id', $approval->voucher_id)
+                    ->first()?->pivot;
+
+                return [
+                    'id' => $approval->id,
+                    'voucher_name' => $approval->voucher->name,
+                    'requested_by' => $approval->requester->name,
+                    'approved_by' => $approval->approver?->name,
+                    'nominal' => $approval->voucher->max_usage,
+                    'buyer_name' => $approval->buyer->name_buyer,
+                    'usage' => $pivot?->used ?? 0,
+                    'status' => $approval->status,
+                    'date_request' => $approval->date_request,
+                    'date_approved' => $approval->date_approved,
+                ];
+            });
+
+            return new ResponseResource(
+                true,
+                'Berhasil mendapatkan data approval',
+                $approvals
+            );
+        } catch (\Throwable $e) {
+
+            Log::error('Error list approval voucher', [
+                'message' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+            ]);
+
+            return new ResponseResource(
+                false,
+                'Gagal mendapatkan data approval',
                 $e->getMessage()
             );
         }

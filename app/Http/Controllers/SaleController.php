@@ -22,6 +22,7 @@ use Maatwebsite\Excel\Facades\Excel;
 use App\Http\Resources\BuyerResource;
 use App\Http\Resources\ResponseResource;
 use App\Models\Product_Bundle;
+use App\Models\VoucherApproval;
 use Illuminate\Support\Facades\Validator;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
@@ -40,6 +41,19 @@ class SaleController extends Controller
         $sale = Sale::where('status_sale', 'proses')->where('user_id', $userId)->latest()->paginate(50);
 
         $saleDocument = SaleDocument::where('status_document_sale', 'proses')->where('user_id', $userId)->first();
+
+        $pendingApproval = null;
+
+        if ($saleDocument) {
+            $pendingApproval = VoucherApproval::with([
+                'voucher:id,name'
+            ])
+                ->where('sale_document_id', $saleDocument->id)
+                ->where('requested_by', $userId)
+                ->where('status', 'pending')
+                ->latest('date_request')
+                ->first();
+        }
 
         $getBuyer = null;
         $currentTransaction = 0;
@@ -127,6 +141,8 @@ class SaleController extends Controller
             'monthly_rank_position' => $monthlyRank > 0 ? $monthlyRank : '-',
             'voucher_rank_available' => $totalSale >= $minTransaction ? true : false,
             'voucher_rank_value' => $saleDocument?->voucher_rank_value ?? 0,
+            'need_voucher_approval' => (bool) $pendingApproval,
+            'approval_voucher_name' => $pendingApproval?->voucher?->name,
             'min_transaction' => $minTransaction,
         ];
 
