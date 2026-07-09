@@ -28,7 +28,7 @@ class NewBastController extends Controller
             $validator = Validator::make($request->all(), [
                 'headerMappings' => 'required|array',
                 'code_document'  => 'required',
-                'channel_id'     => 'nullable|string|exists:cogs_channel,id'
+                'channel_id'     => 'nullable|string|exists:cogs_channels,id'
             ]);
 
             if ($validator->fails()) {
@@ -119,7 +119,7 @@ class NewBastController extends Controller
                 ]);
 
                 CogsReference::create([
-                    'channel_id'  => $request['channel_id'],
+                    'cogs_channel_id'  => $request['channel_id'],
                     'type'        => 'reguler',
                     'document_id' => $document->id,
                     'user_id'     => $userId,
