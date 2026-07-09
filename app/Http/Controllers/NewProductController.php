@@ -1755,14 +1755,14 @@ class NewProductController extends Controller
         try {
             $productQuery = New_product::select(
                 'id',
-                'old_barcode_product',
-                'new_barcode_product',
-                'new_name_product',
-                'new_tag_product',
+                DB::raw("CONVERT(old_barcode_product USING utf8mb4) COLLATE utf8mb4_unicode_ci as old_barcode_product"),
+                DB::raw("CONVERT(new_barcode_product USING utf8mb4) COLLATE utf8mb4_unicode_ci as new_barcode_product"),
+                DB::raw("CONVERT(new_name_product USING utf8mb4) COLLATE utf8mb4_unicode_ci as new_name_product"),
+                DB::raw("CONVERT(new_tag_product USING utf8mb4) COLLATE utf8mb4_unicode_ci as new_tag_product"),
                 'new_price_product',
                 'new_date_in_product',
-                'new_status_product',
-                DB::raw("'display' as source")
+                DB::raw("CONVERT(new_status_product USING utf8mb4) COLLATE utf8mb4_unicode_ci as new_status_product"),
+                DB::raw("CONVERT('display' USING utf8mb4) COLLATE utf8mb4_unicode_ci as source")
             )
                 ->whereNotNull('new_tag_product')
                 ->whereNull('new_category_product')
@@ -1776,14 +1776,14 @@ class NewProductController extends Controller
 
             $bundleQuery = Bundle::select(
                 'id',
-                'old_barcode_bundle as old_barcode_product',
-                'barcode_bundle as new_barcode_product',
-                'name_bundle as new_name_product',
-                'name_color as new_tag_product',
+                DB::raw("CONVERT(old_barcode_bundle USING utf8mb4) COLLATE utf8mb4_unicode_ci as old_barcode_product"),
+                DB::raw("CONVERT(barcode_bundle USING utf8mb4) COLLATE utf8mb4_unicode_ci as new_barcode_product"),
+                DB::raw("CONVERT(name_bundle USING utf8mb4) COLLATE utf8mb4_unicode_ci as new_name_product"),
+                DB::raw("CONVERT(name_color USING utf8mb4) COLLATE utf8mb4_unicode_ci as new_tag_product"),
                 'total_price_custom_bundle as new_price_product',
                 'created_at as new_date_in_product',
-                DB::raw("CASE WHEN product_status = 'not sale' THEN 'display' ELSE product_status END as new_status_product"),
-                DB::raw("'bundle' as source")
+                DB::raw("CONVERT(CASE WHEN product_status = 'not sale' THEN 'display' ELSE product_status END USING utf8mb4) COLLATE utf8mb4_unicode_ci as new_status_product"),
+                DB::raw("CONVERT('bundle' USING utf8mb4) COLLATE utf8mb4_unicode_ci as source")
             )
                 ->whereNotNull('name_color')
                 ->whereNull('category')
@@ -1994,18 +1994,18 @@ class NewProductController extends Controller
                 ->leftJoin('racks', 'new_products.rack_id', '=', 'racks.id')
                 ->select(
                     'new_products.id',
-                    'new_products.new_barcode_product',
-                    'new_products.new_name_product',
-                    'new_products.new_category_product',
+                    DB::raw("CONVERT(new_products.new_barcode_product USING utf8mb4) COLLATE utf8mb4_unicode_ci as new_barcode_product"),
+                    DB::raw("CONVERT(new_products.new_name_product USING utf8mb4) COLLATE utf8mb4_unicode_ci as new_name_product"),
+                    DB::raw("CONVERT(new_products.new_category_product USING utf8mb4) COLLATE utf8mb4_unicode_ci as new_category_product"),
                     'new_products.new_price_product',
                     'new_products.created_at',
-                    'new_products.new_status_product',
+                    DB::raw("CONVERT(new_products.new_status_product USING utf8mb4) COLLATE utf8mb4_unicode_ci as new_status_product"),
                     'new_products.display_price',
                     'new_products.new_date_in_product',
                     'new_products.is_so',
-                    DB::raw("'display' as source"),
-                    'racks.barcode',
-                    'racks.name'
+                    DB::raw("CONVERT('display' USING utf8mb4) COLLATE utf8mb4_unicode_ci as source"),
+                    DB::raw("CONVERT(racks.barcode USING utf8mb4) COLLATE utf8mb4_unicode_ci as barcode"),
+                    DB::raw("CONVERT(racks.name USING utf8mb4) COLLATE utf8mb4_unicode_ci as name")
                 )
                 ->whereNotNull('new_products.new_category_product')
                 ->where('new_products.new_tag_product', NULL)
@@ -2029,18 +2029,18 @@ class NewProductController extends Controller
                 ->leftJoin('racks', 'bundles.rack_id', '=', 'racks.id')
                 ->select(
                     'bundles.id',
-                    'bundles.barcode_bundle as new_barcode_product',
-                    'bundles.name_bundle as new_name_product',
-                    'bundles.category as new_category_product',
+                    DB::raw("CONVERT(bundles.barcode_bundle USING utf8mb4) COLLATE utf8mb4_unicode_ci as new_barcode_product"),
+                    DB::raw("CONVERT(bundles.name_bundle USING utf8mb4) COLLATE utf8mb4_unicode_ci as new_name_product"),
+                    DB::raw("CONVERT(bundles.category USING utf8mb4) COLLATE utf8mb4_unicode_ci as new_category_product"),
                     'bundles.total_price_custom_bundle as new_price_product',
                     'bundles.created_at',
-                    DB::raw("CASE WHEN bundles.product_status = 'not sale' THEN 'display' ELSE bundles.product_status END as new_status_product"),
+                    DB::raw("CONVERT(CASE WHEN bundles.product_status = 'not sale' THEN 'display' ELSE bundles.product_status END USING utf8mb4) COLLATE utf8mb4_unicode_ci as new_status_product"),
                     'bundles.total_price_custom_bundle as display_price',
                     'bundles.created_at as new_date_in_product',
                     'bundles.is_so',
-                    DB::raw("'bundle' as source"),
-                    'racks.barcode',
-                    'racks.name'
+                    DB::raw("CONVERT('bundle' USING utf8mb4) COLLATE utf8mb4_unicode_ci as source"),
+                    DB::raw("CONVERT(racks.barcode USING utf8mb4) COLLATE utf8mb4_unicode_ci as barcode"),
+                    DB::raw("CONVERT(racks.name USING utf8mb4) COLLATE utf8mb4_unicode_ci as name")
                 )
                 ->whereNotNull('bundles.category')
                 ->where('bundles.source', 'display')

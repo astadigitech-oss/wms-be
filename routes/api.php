@@ -57,6 +57,7 @@ use App\Http\Controllers\NonDocumentController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\Outbound\BagController;
 use App\Http\Controllers\Outbound\ExportOutboundController;
+use App\Http\Controllers\Outbound\Lusi\BagController as LusiBagController;
 use App\Http\Controllers\Outbound\Lusi\CargoNewController;
 use App\Http\Controllers\Outbound\Lusi\FixWmsValidationController;
 use App\Http\Controllers\Outbound\NewSaleController;
@@ -176,7 +177,8 @@ Route::middleware([
     Route::get('bag/{idBag}', [BagController::class, 'listProdukBag']);
     Route::get('bag/{idBag}/info', [BagController::class, 'infoDetailBag']);
     Route::post('bag', [BagController::class, 'buatBag']);
-    Route::post('bag/add-product/{idBag}', [BagController::class, 'tambahProdukKeBag']);
+    // Route::post('bag/add-product/{idBag}', [BagController::class, 'tambahProdukKeBag']);
+    Route::post('bag/add-product/{idBag}', [LusiBagController::class, 'tambahProdukKeBag']);
     Route::post('bag/remove-product/{idProduct}', [BagController::class, 'takeOutBarangbulky']);
     Route::post('bag/{idBag}/import-produk/', [BagController::class, 'importProdukKeBag']);
 });
