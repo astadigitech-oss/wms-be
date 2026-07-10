@@ -61,6 +61,7 @@ use App\Http\Controllers\Outbound\Lusi\BagController as LusiBagController;
 use App\Http\Controllers\Outbound\Lusi\CargoNewController;
 use App\Http\Controllers\Outbound\Lusi\FixWmsValidationController;
 use App\Http\Controllers\Outbound\NewSaleController;
+use App\Http\Controllers\Outbound\Lusi\VoucherSaleController;
 use App\Http\Controllers\Outbound\SaleController as OutboundSaleController;
 use App\Http\Controllers\PaletBrandController;
 use App\Http\Controllers\PaletController;
@@ -715,6 +716,10 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Admin Kasir,Kasir leade
     Route::put('/sales/update-price/{sale}', [SaleController::class, 'livePriceUpdates']);
     Route::resource('sale-documents', SaleDocumentController::class)->except(['index', 'show', 'destroy']);
     Route::post('sale-finish', [SaleDocumentController::class, 'saleFinish']);
+    Route::post('sale-documents/voucher', [VoucherSaleController::class, 'store']);
+    Route::delete('sale-documents/voucher', [VoucherSaleController::class, 'destroy']);
+    Route::post('sale-documents/{saleDocument}/voucher', [VoucherSaleController::class, 'store']);
+    Route::delete('sale-documents/{saleDocument}/voucher', [VoucherSaleController::class, 'destroy']);
     Route::put('order-into-bulky/{saleDocument}', [SaleDocumentController::class, 'orderIntoBulky']);
     Route::put('update-email-buyer/{buyer}', [BuyerController::class, 'updateEmail']);
     Route::get('fix-wms-validation', [FixWmsValidationController::class, 'fixValidation']);
