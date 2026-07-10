@@ -298,7 +298,7 @@ class SaleController extends Controller
                 'Terjadi kesalahan saat mengambil data sale.',
                 [
                     'error' => config('app.debug')
-                        ? $e->getMessage()
+                        ? $e
                         : 'Internal Server Error'
                 ]
             );
