@@ -133,23 +133,20 @@ class DamagedDocumentController extends Controller
             ];
 
             // 1. Display Query
-            $displayQuery = New_product::select($columns)
-                ->addSelect(DB::raw("'display' as source"))
+            $displayQuery = $this->buildDamagedItemQuery(New_product::class, 'display')
                 ->whereHas('damagedDocuments', function ($q) use ($doc) {
                     // Menggunakan relasi polymorphic 'damagedDocuments' di model New_product
                     $q->where('damaged_documents.id', $doc->id);
                 });
 
             // 2. Staging Query
-            $stagingQuery = StagingProduct::select($columns)
-                ->addSelect(DB::raw("'staging' as source"))
+            $stagingQuery = $this->buildDamagedItemQuery(StagingProduct::class, 'staging')
                 ->whereHas('damagedDocuments', function ($q) use ($doc) {
                     $q->where('damaged_documents.id', $doc->id);
                 });
 
             // 3. Migrate Query
-            $migrateQuery = MigrateBulkyProduct::select($columns)
-                ->addSelect(DB::raw("'migrate' as source"))
+            $migrateQuery = $this->buildDamagedItemQuery(MigrateBulkyProduct::class, 'migrate')
                 ->whereHas('damagedDocuments', function ($q) use ($doc) {
                     $q->where('damaged_documents.id', $doc->id);
                 });
@@ -328,32 +325,17 @@ class DamagedDocumentController extends Controller
                 ->response()->setStatusCode(404);
         }
 
-        $columns = [
-            'id',
-            'new_name_product',
-            'new_barcode_product',
-            'new_price_product',
-            'old_price_product',
-            'new_category_product',
-            'new_status_product',
-            'new_quality',
-            'created_at',
-            'updated_at',
-            'is_so',
-            'user_so',
-        ];
-
-        $displayQuery = New_product::select($columns)->addSelect(DB::raw("'display' as source"))
+        $displayQuery = $this->buildDamagedItemQuery(New_product::class, 'display')
             ->whereHas('damagedDocuments', function ($q) use ($id) {
                 $q->where('damaged_document_id', $id);
             });
 
-        $stagingQuery = StagingProduct::select($columns)->addSelect(DB::raw("'staging' as source"))
+        $stagingQuery = $this->buildDamagedItemQuery(StagingProduct::class, 'staging')
             ->whereHas('damagedDocuments', function ($q) use ($id) {
                 $q->where('damaged_document_id', $id);
             });
 
-        $migrateQuery = MigrateBulkyProduct::select($columns)->addSelect(DB::raw("'migrate' as source"))
+        $migrateQuery = $this->buildDamagedItemQuery(MigrateBulkyProduct::class, 'migrate')
             ->whereHas('damagedDocuments', function ($q) use ($id) {
                 $q->where('damaged_document_id', $id);
             });
@@ -482,6 +464,28 @@ class DamagedDocumentController extends Controller
             DB::rollBack();
             return (new ResponseResource(false, "Error: " . $e->getMessage(), null))->response()->setStatusCode(500);
         }
+    }
+
+    private function buildDamagedItemQuery($model, $source)
+    {
+        $selects = [
+            'id',
+            DB::raw("CAST(new_name_product AS CHAR CHARACTER SET utf8mb4) COLLATE utf8mb4_unicode_ci AS new_name_product"),
+            DB::raw("CAST(new_barcode_product AS CHAR CHARACTER SET utf8mb4) COLLATE utf8mb4_unicode_ci AS new_barcode_product"),
+            'new_price_product',
+            'old_price_product',
+            DB::raw("CAST(new_category_product AS CHAR CHARACTER SET utf8mb4) COLLATE utf8mb4_unicode_ci AS new_category_product"),
+            DB::raw("CAST(new_status_product AS CHAR CHARACTER SET utf8mb4) COLLATE utf8mb4_unicode_ci AS new_status_product"),
+            DB::raw("CAST(new_quality AS CHAR CHARACTER SET utf8mb4) COLLATE utf8mb4_unicode_ci AS new_quality"),
+            'created_at',
+            'updated_at',
+            'is_so',
+            'user_so',
+        ];
+
+        return $model::query()
+            ->select($selects)
+            ->addSelect(DB::raw("'$source' as source"));
     }
 
     private function recalculateTotals($docId)

@@ -58,8 +58,11 @@ use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\Outbound\BagController;
 use App\Http\Controllers\Outbound\ExportOutboundController;
 use App\Http\Controllers\Outbound\Lusi\BagController as LusiBagController;
+use App\Http\Controllers\Outbound\Lusi\BastApprovalController as LusiBastApprovalController;
 use App\Http\Controllers\Outbound\Lusi\CargoNewController;
 use App\Http\Controllers\Outbound\Lusi\FixWmsValidationController;
+use App\Http\Controllers\Outbound\Lusi\NewProductController as LusiNewProductController;
+use App\Http\Controllers\Outbound\Lusi\SaleDocumentController as LusiSaleDocumentController;
 use App\Http\Controllers\Outbound\NewSaleController;
 use App\Http\Controllers\Outbound\Lusi\VoucherSaleController;
 use App\Http\Controllers\Outbound\SaleController as OutboundSaleController;
@@ -192,6 +195,7 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Crew,Captai
     Route::get('scan-paused', [BastApprovalController::class, 'checkScanPaused']);
     Route::post('scanner-bast', [BastApprovalController::class, 'scannerBaru']);
     Route::post('product-approves', [BastApprovalController::class, 'scannerSubmitBaru']);
+    // Route::post('product-approves', [LusiBastApprovalController::class, 'scannerSubmitBaru']);
 });
 Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader'])->group(function () {
     Route::post('generate/merge-headers', [NewBastController::class, 'mapAndMergeHeaders']);
@@ -430,6 +434,7 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Crew,Audit,
 Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Crew,Captain'])->group(function () {
     // Route::post('product-approves', [ProductApproveController::class, 'store']);
     Route::post('addProductOld', [ProductApproveController::class, 'addProductOld']);
+    // Route::post('addProductOld', [LusiBastApprovalController::class, 'addProductOld']);
     Route::resource('/documents', DocumentController::class)->except(['index', 'show', 'destroy']);
     Route::post('historys', [RiwayatCheckController::class, 'store']);
 });
@@ -509,6 +514,7 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Admin Kasir
     Route::delete('promo/destroy/{promoId}/{productId}', [PromoController::class, 'destroy']);
     Route::resource('new_products', NewProductController::class)->except(['index', 'show', 'destroy']);
     Route::post('/new_products/to-damaged', [NewProductController::class, 'updateToDamaged']);
+    // Route::post('/new_products/to-damaged', [LusiNewProductController::class, 'updateToDamaged']);
 });
 
 // [READ ONLY - Termasuk Audit]
@@ -539,6 +545,7 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Admin Kasir
     Route::post('repair-mv', [RepairProductController::class, 'store']);
     Route::delete('repair-mv/{repair}', [RepairController::class, 'destroy']);
     Route::put('repair/update/{id}', [NewProductController::class, 'updateRepair']);
+    // Route::put('repair/update/{id}', [LusiNewProductController::class, 'updateRepair']);
     Route::delete('repair-mv/destroy/{id}', [RepairProductController::class, 'destroy']);
     Route::put('product-repair/{repairProduct}', [RepairProductController::class, 'update']);
     Route::delete('product-repair/{repairProduct}', [RepairProductController::class, 'destroy']);
@@ -702,8 +709,10 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Kasir leade
 // [READ ONLY - Termasuk Audit]
 Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Admin Kasir,Kasir leader,Audit'])->group(function () {
     Route::resource('sales', SaleController::class)->only(['index', 'show']);
-    Route::resource('sale-documents', SaleDocumentController::class)->only(['index', 'show']);
-    Route::get('sale-report', [SaleDocumentController::class, 'combinedReport']);
+    // Route::resource('sale-documents', SaleDocumentController::class)->only(['index', 'show']);
+    Route::resource('sale-documents', LusiSaleDocumentController::class)->only(['index', 'show']);
+    // Route::get('sale-report', [SaleDocumentController::class, 'combinedReport']);
+    Route::get('sale-report', [LusiSaleDocumentController::class, 'combinedReport']);
     Route::apiResource('buyers', BuyerController::class)->only(['show']);
     Route::resource('bulky-sales', BulkySaleController::class)->only(['index', 'show']);
     Route::resource('vehicle-types', VehicleTypeController::class)->only(['index', 'show']);
@@ -715,7 +724,8 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Admin Kasir,Kasir leade
     Route::resource('sales', SaleController::class)->except(['index', 'show']);
     Route::put('/sales/update-price/{sale}', [SaleController::class, 'livePriceUpdates']);
     Route::resource('sale-documents', SaleDocumentController::class)->except(['index', 'show', 'destroy']);
-    Route::post('sale-finish', [SaleDocumentController::class, 'saleFinish']);
+    // Route::post('sale-finish', [SaleDocumentController::class, 'saleFinish']);
+    Route::post('sale-finish', [LusiSaleDocumentController::class, 'saleFinish']);
     Route::post('sale-documents/voucher', [VoucherSaleController::class, 'store']);
     Route::delete('sale-documents/voucher', [VoucherSaleController::class, 'destroy']);
     Route::post('sale-documents/{saleDocument}/voucher', [VoucherSaleController::class, 'store']);
