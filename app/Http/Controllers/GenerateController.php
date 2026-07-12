@@ -46,6 +46,9 @@ class GenerateController extends Controller
 
         DB::beginTransaction();
         try {
+            // Reset staging upload lama supaya retry tidak menumpuk data dari batch sebelumnya
+            Generate::query()->delete();
+
             $spreadsheet = IOFactory::load($filePath);
             $sheet = $spreadsheet->getActiveSheet();
             $header = $this->getHeadersFromSheet($sheet);
@@ -199,7 +202,7 @@ class GenerateController extends Controller
             $validator = Validator::make($request->all(), [
                 'headerMappings' => 'required|array',
                 'code_document'  => 'required',
-                'channel_id'     => 'required|string|exists:cogs_channel,id' 
+                'channel_id'     => 'required|string|exists:cogs_channels,id' 
             ]);
 
             if ($validator->fails()) {
@@ -278,7 +281,7 @@ class GenerateController extends Controller
             $document = Document::where('code_document', $request['code_document'])->first();
 
             CogsReference::create([
-                'channel_id'  => $request['channel_id'],
+                'cogs_channel_id'  => $request['channel_id'],
                 'document_id' => $document->id,
                 'user_id'     => $userId,
             ]);
