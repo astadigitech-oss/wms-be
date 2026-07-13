@@ -61,6 +61,7 @@ use App\Http\Controllers\Outbound\Lusi\BagController as LusiBagController;
 use App\Http\Controllers\Outbound\Lusi\BastApprovalController as LusiBastApprovalController;
 use App\Http\Controllers\Outbound\Lusi\CargoNewController;
 use App\Http\Controllers\Outbound\Lusi\FixWmsValidationController;
+use App\Http\Controllers\Outbound\Lusi\MigrateBulkyProductController as LusiMigrateBulkyProductController;
 use App\Http\Controllers\Outbound\Lusi\NewProductController as LusiNewProductController;
 use App\Http\Controllers\Outbound\Lusi\SaleDocumentController as LusiSaleDocumentController;
 use App\Http\Controllers\Outbound\NewSaleController;
@@ -194,8 +195,8 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Crew,Captai
     Route::post('edit-scan', [BastApprovalController::class, 'mintaApproveDataAsal']);
     Route::get('scan-paused', [BastApprovalController::class, 'checkScanPaused']);
     Route::post('scanner-bast', [BastApprovalController::class, 'scannerBaru']);
-    Route::post('product-approves', [BastApprovalController::class, 'scannerSubmitBaru']);
-    // Route::post('product-approves', [LusiBastApprovalController::class, 'scannerSubmitBaru']);
+    // Route::post('product-approves', [BastApprovalController::class, 'scannerSubmitBaru']);
+    Route::post('product-approves', [LusiBastApprovalController::class, 'scannerSubmitBaru']);
 });
 Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader'])->group(function () {
     Route::post('generate/merge-headers', [NewBastController::class, 'mapAndMergeHeaders']);
@@ -433,8 +434,8 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Crew,Audit,
 // [WRITE / POST / ACTION - TANPA Audit]
 Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Crew,Captain'])->group(function () {
     // Route::post('product-approves', [ProductApproveController::class, 'store']);
-    Route::post('addProductOld', [ProductApproveController::class, 'addProductOld']);
-    // Route::post('addProductOld', [LusiBastApprovalController::class, 'addProductOld']);
+    // Route::post('addProductOld', [ProductApproveController::class, 'addProductOld']);
+    Route::post('addProductOld', [LusiBastApprovalController::class, 'addProductOld']);
     Route::resource('/documents', DocumentController::class)->except(['index', 'show', 'destroy']);
     Route::post('historys', [RiwayatCheckController::class, 'store']);
 });
@@ -513,8 +514,8 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Admin Kasir
     Route::put('promo/{promo}', [PromoController::class, 'update']);
     Route::delete('promo/destroy/{promoId}/{productId}', [PromoController::class, 'destroy']);
     Route::resource('new_products', NewProductController::class)->except(['index', 'show', 'destroy']);
-    Route::post('/new_products/to-damaged', [NewProductController::class, 'updateToDamaged']);
-    // Route::post('/new_products/to-damaged', [LusiNewProductController::class, 'updateToDamaged']);
+    // Route::post('/new_products/to-damaged', [NewProductController::class, 'updateToDamaged']);
+    Route::post('/new_products/to-damaged', [LusiNewProductController::class, 'updateToDamaged']);
 });
 
 // [READ ONLY - Termasuk Audit]
@@ -544,8 +545,8 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Admin Kasir
     Route::delete('repair-mv/filter_product/destroy/{id}', [RepairFilterController::class, 'destroy']);
     Route::post('repair-mv', [RepairProductController::class, 'store']);
     Route::delete('repair-mv/{repair}', [RepairController::class, 'destroy']);
-    Route::put('repair/update/{id}', [NewProductController::class, 'updateRepair']);
-    // Route::put('repair/update/{id}', [LusiNewProductController::class, 'updateRepair']);
+    // Route::put('repair/update/{id}', [NewProductController::class, 'updateRepair']);
+    Route::put('repair/update/{id}', [LusiNewProductController::class, 'updateRepair']);
     Route::delete('repair-mv/destroy/{id}', [RepairProductController::class, 'destroy']);
     Route::put('product-repair/{repairProduct}', [RepairProductController::class, 'update']);
     Route::delete('product-repair/{repairProduct}', [RepairProductController::class, 'destroy']);
@@ -693,7 +694,8 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Kasir leade
     Route::post('migrate-bulky-product/addByBarcode', [MigrateBulkyProductController::class, 'storeByBarcode']);
     Route::put('migrate-bulky/product/{id}', [MigrateBulkyProductController::class, 'update']);
     Route::delete('migrate-bulky-product/{migrate_bulky_product}/delete', [MigrateBulkyProductController::class, 'destroy']);
-    Route::put('migrate-bulky/product/{id}/to-display', [MigrateBulkyProductController::class, 'toDisplay']);
+    // Route::put('migrate-bulky/product/{id}/to-display', [MigrateBulkyProductController::class, 'toDisplay']);
+    Route::put('migrate-bulky/product/{id}/to-display', [LusiMigrateBulkyProductController::class, 'toDisplay']);
     Route::post('migrate-rack/add', [MigrateController::class, 'storeRack']);
     Route::post('color-racks', [ColorRackController::class, 'store']);
     Route::get('color-racks/{id}', [ColorRackController::class, 'show']);
