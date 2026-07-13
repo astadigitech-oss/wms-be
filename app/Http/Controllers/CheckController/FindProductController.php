@@ -23,7 +23,7 @@ class FindProductController extends Controller
 
         foreach ($sheet as $index => $row) {
             if ($index === 0) {
-                continue; // skip header
+                continue;
             }
 
             if (!empty($row[0])) {
@@ -33,6 +33,7 @@ class FindProductController extends Controller
 
         $barcodes = array_unique($barcodes);
 
+        // Barcode yang ditemukan
         $newProducts = DB::table('new_products')
             ->whereIn('new_barcode_product', $barcodes)
             ->pluck('new_barcode_product')
@@ -52,10 +53,36 @@ class FindProductController extends Controller
             array_diff($barcodes, $foundBarcodes)
         );
 
+        // Hitung rack_id NULL
+        $rackNullCount =
+            DB::table('new_products')
+            ->whereIn('new_barcode_product', $barcodes)
+            ->whereNull('rack_id')
+            ->count()
+            +
+            DB::table('staging_products')
+            ->whereIn('new_barcode_product', $barcodes)
+            ->whereNull('rack_id')
+            ->count();
+
+        // Hitung rack_id NOT NULL
+        $rackNotNullCount =
+            DB::table('new_products')
+            ->whereIn('new_barcode_product', $barcodes)
+            ->whereNotNull('rack_id')
+            ->count()
+            +
+            DB::table('staging_products')
+            ->whereIn('new_barcode_product', $barcodes)
+            ->whereNotNull('rack_id')
+            ->count();
+
         return response()->json([
             'total_excel' => count($barcodes),
             'found_count' => count($foundBarcodes),
             'not_found_count' => count($notFoundBarcodes),
+            'rack_null_count' => $rackNullCount,
+            'rack_not_null_count' => $rackNotNullCount,
             'not_found_barcodes' => $notFoundBarcodes,
         ]);
     }
