@@ -35,6 +35,17 @@ class ColorRackController extends Controller
 
         $barcode = $request->barcode;
 
+        $recentDuplicate = ColorRackHistory::where('color_rack_id', $rack->id)
+            ->where('barcode', $barcode)
+            ->where('action', 'IN')
+            ->where('created_at', '>=', now()->subHours(2))
+            ->exists();
+
+        if ($recentDuplicate) {
+            return (new ResponseResource(false, 'Item sudah pernah ditambahkan ke rak ini dalam 2 jam terakhir', null))
+                ->response()->setStatusCode(409);
+        }
+
         DB::beginTransaction();
         try {
             $bundle = Bundle::where(function ($query) use ($barcode) {
