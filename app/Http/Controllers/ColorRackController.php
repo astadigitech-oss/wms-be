@@ -22,6 +22,10 @@ use Maatwebsite\Excel\Facades\Excel;
 
 class ColorRackController extends Controller
 {
+    protected function buildUnifiedUnionColumnExpression(string $expression, string $alias): string
+    {
+        return "CAST({$expression} AS CHAR CHARACTER SET utf8mb4) COLLATE utf8mb4_unicode_ci AS {$alias}";
+    }
 
     public function index(Request $request)
     {
@@ -541,11 +545,11 @@ class ColorRackController extends Controller
             $displayQuery = New_product::query()
                 ->select(
                     'id',
-                    'new_name_product',
-                    'new_barcode_product',
-                    'old_barcode_product',
-                    'new_status_product',
-                    'new_tag_product',
+                    DB::raw($this->buildUnifiedUnionColumnExpression('new_name_product', 'new_name_product')),
+                    DB::raw($this->buildUnifiedUnionColumnExpression('new_barcode_product', 'new_barcode_product')),
+                    DB::raw($this->buildUnifiedUnionColumnExpression('old_barcode_product', 'old_barcode_product')),
+                    DB::raw($this->buildUnifiedUnionColumnExpression('new_status_product', 'new_status_product')),
+                    DB::raw($this->buildUnifiedUnionColumnExpression('new_tag_product', 'new_tag_product')),
                     'new_price_product',
                     'old_price_product',
                     'created_at',
@@ -569,11 +573,11 @@ class ColorRackController extends Controller
             $bundleQuery = \App\Models\Bundle::query()
                 ->select(
                     'id',
-                    DB::raw("CONCAT('[BUNDLE] ', name_bundle) as new_name_product"),
-                    'barcode_bundle as new_barcode_product',
-                    DB::raw("NULL as old_barcode_product"),
-                    'product_status as new_status_product',
-                    'name_color as new_tag_product',
+                    DB::raw($this->buildUnifiedUnionColumnExpression("CONCAT('[BUNDLE] ', name_bundle)", 'new_name_product')),
+                    DB::raw($this->buildUnifiedUnionColumnExpression('barcode_bundle', 'new_barcode_product')),
+                    DB::raw($this->buildUnifiedUnionColumnExpression('NULL', 'old_barcode_product')),
+                    DB::raw($this->buildUnifiedUnionColumnExpression('product_status', 'new_status_product')),
+                    DB::raw($this->buildUnifiedUnionColumnExpression('name_color', 'new_tag_product')),
                     'total_price_custom_bundle as new_price_product',
                     'total_price_bundle as old_price_product',
                     'created_at',
