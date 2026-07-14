@@ -60,6 +60,7 @@ use App\Http\Controllers\Outbound\ExportOutboundController;
 use App\Http\Controllers\Outbound\Lusi\BagController as LusiBagController;
 use App\Http\Controllers\Outbound\Lusi\BastApprovalController as LusiBastApprovalController;
 use App\Http\Controllers\Outbound\Lusi\CargoNewController;
+use App\Http\Controllers\Outbound\Lusi\ColorRackController as LusiColorRackController;
 use App\Http\Controllers\Outbound\Lusi\FixWmsValidationController;
 use App\Http\Controllers\Outbound\Lusi\MigrateBulkyProductController as LusiMigrateBulkyProductController;
 use App\Http\Controllers\Outbound\Lusi\NewProductController as LusiNewProductController;
@@ -701,7 +702,8 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Kasir leade
     Route::get('color-racks/{id}', [ColorRackController::class, 'show']);
     Route::put('color-racks/{id}', [ColorRackController::class, 'update']);
     Route::put('color-racks/{id}/to-migrate', [ColorRackController::class, 'toMigrate']);
-    Route::post('color-racks/{id}/add-product', [ColorRackController::class, 'addProduct']);
+    // Route::post('color-racks/{id}/add-product', [ColorRackController::class, 'addProduct']);
+    Route::post('color-racks/{id}/add-product', [LusiColorRackController::class, 'addProduct']);
     Route::delete('color-racks/{id}/remove-product', [ColorRackController::class, 'removeProduct']);
     Route::delete('color-racks/{id}', [ColorRackController::class, 'destroy']);
     Route::post('color-racks/export/history', [ColorRackController::class, 'exportRackHistory']);

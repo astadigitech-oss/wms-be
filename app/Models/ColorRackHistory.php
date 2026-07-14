@@ -20,4 +20,14 @@ class ColorRackHistory extends Model
     {
         return $this->belongsTo(ColorRack::class, 'color_rack_id');
     }
+
+    public function newProduct()
+    {
+        return $this->belongsTo(New_product::class, 'new_product_id');
+    }
+
+    public function bundle()
+    {
+        return $this->belongsTo(Bundle::class, 'bundle_id');
+    }
 }
