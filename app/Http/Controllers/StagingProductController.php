@@ -53,20 +53,20 @@ class StagingProductController extends Controller
                 ->leftJoin('racks', 'staging_products.rack_id', '=', 'racks.id')
                 ->select(
                     'staging_products.id',
-                    'staging_products.new_barcode_product',
-                    'staging_products.new_name_product',
-                    'staging_products.new_category_product',
+                    DB::raw("CONVERT(staging_products.new_barcode_product USING utf8mb4) COLLATE utf8mb4_unicode_ci as new_barcode_product"),
+                    DB::raw("CONVERT(staging_products.new_name_product USING utf8mb4) COLLATE utf8mb4_unicode_ci as new_name_product"),
+                    DB::raw("CONVERT(staging_products.new_category_product USING utf8mb4) COLLATE utf8mb4_unicode_ci as new_category_product"),
                     'staging_products.new_price_product',
                     'staging_products.new_status_product',
                     'staging_products.display_price',
                     'staging_products.new_date_in_product',
                     'staging_products.stage',
                     'staging_products.is_so',
-                    DB::raw("'staging' as source"),
-                    'racks.barcode',
-                    'racks.name'
+                    DB::raw("CONVERT('staging' USING utf8mb4) COLLATE utf8mb4_unicode_ci as source"),
+                    DB::raw("CONVERT(racks.barcode USING utf8mb4) COLLATE utf8mb4_unicode_ci as barcode"),
+                    DB::raw("CONVERT(racks.name USING utf8mb4) COLLATE utf8mb4_unicode_ci as name")
                 )
-                ->whereNotIn('staging_products.new_status_product', ['dump', 'sale', 'migrate', 'repair', 'scrap_qcd'])
+                ->whereNotIn('staging_products.new_status_product', ['dump', 'sale', 'migrate', 'repair', 'scrap_qcd', 'cargo'])
                 ->where(function ($query) {
                     $query->whereRaw("JSON_UNQUOTE(JSON_EXTRACT(staging_products.new_quality, '$.lolos')) = 'lolos'")
                         ->orWhereRaw("JSON_UNQUOTE(JSON_EXTRACT(JSON_UNQUOTE(staging_products.new_quality), '$.lolos')) = 'lolos'");
@@ -82,18 +82,18 @@ class StagingProductController extends Controller
                 ->leftJoin('racks', 'bundles.rack_id', '=', 'racks.id')
                 ->select(
                     'bundles.id',
-                    'bundles.barcode_bundle as new_barcode_product',
-                    'bundles.name_bundle as new_name_product',
-                    'bundles.category as new_category_product',
+                    DB::raw("CONVERT(bundles.barcode_bundle USING utf8mb4) COLLATE utf8mb4_unicode_ci as new_barcode_product"),
+                    DB::raw("CONVERT(bundles.name_bundle USING utf8mb4) COLLATE utf8mb4_unicode_ci as new_name_product"),
+                    DB::raw("CONVERT(bundles.category USING utf8mb4) COLLATE utf8mb4_unicode_ci as new_category_product"),
                     'bundles.total_price_custom_bundle as new_price_product',
-                    DB::raw("CASE WHEN bundles.product_status = 'not sale' THEN 'display' ELSE bundles.product_status END as new_status_product"),
+                    DB::raw("CONVERT(CASE WHEN bundles.product_status = 'not sale' THEN 'display' ELSE bundles.product_status END USING utf8mb4) COLLATE utf8mb4_unicode_ci as new_status_product"),
                     'bundles.total_price_custom_bundle as display_price',
                     'bundles.created_at as new_date_in_product',
                     DB::raw("NULL as stage"),
                     'bundles.is_so',
-                    DB::raw("'bundle' as source"),
-                    'racks.barcode',
-                    'racks.name'
+                    DB::raw("CONVERT('bundle' USING utf8mb4) COLLATE utf8mb4_unicode_ci as source"),
+                    DB::raw("CONVERT(racks.barcode USING utf8mb4) COLLATE utf8mb4_unicode_ci as barcode"),
+                    DB::raw("CONVERT(racks.name USING utf8mb4) COLLATE utf8mb4_unicode_ci as name")
                 )
                 ->whereNotNull('bundles.category')
                 ->where('bundles.source', 'staging')
