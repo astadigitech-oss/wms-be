@@ -65,6 +65,7 @@ use App\Http\Controllers\Outbound\Lusi\FixWmsValidationController;
 use App\Http\Controllers\Outbound\Lusi\MigrateBulkyProductController as LusiMigrateBulkyProductController;
 use App\Http\Controllers\Outbound\Lusi\NewProductController as LusiNewProductController;
 use App\Http\Controllers\Outbound\Lusi\SaleDocumentController as LusiSaleDocumentController;
+use App\Http\Controllers\Outbound\Lusi\SkuProductController as LusiSkuProductController;
 use App\Http\Controllers\Outbound\NewSaleController;
 use App\Http\Controllers\Outbound\Lusi\VoucherSaleController;
 use App\Http\Controllers\Outbound\SaleController as OutboundSaleController;
@@ -1092,7 +1093,8 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Admin Kasir
     // Route::post('sku/map-merge', [SkuDocumentController::class, 'mapAndMergeHeaders']);
     Route::post('sku/change-barcode-document', [SkuDocumentController::class, 'changeBarcodeDocument']);
     Route::delete('sku/remove-barcode-document', [SkuDocumentController::class, 'deleteCustomBarcode']);
-    Route::post('sku-products/add-bundle/{id}', [SkuProductController::class, 'storeBundle']);
+    // Route::post('sku-products/add-bundle/{id}', [SkuProductController::class, 'storeBundle']);
+    Route::post('sku-products/add-bundle/{id}', [LusiSkuProductController::class, 'storeBundle']);
     Route::post('sku-products/add-damaged/{id}', [SkuProductController::class, 'storeDamaged']);
     Route::post('sku-products/{id}/check-bundle', [SkuProductController::class, 'checkBundlePrice']);
     Route::post('sku-products/check-type', [SkuProductController::class, 'checkBundleLimit']);
