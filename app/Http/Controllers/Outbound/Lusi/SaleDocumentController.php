@@ -590,7 +590,7 @@ class SaleDocumentController extends BaseSaleDocumentController
             $sales->each->update(['status_sale' => 'selesai']);
 
             $earnPoint = 0;
-            if ($totalDisplayPrice >= 5000000) {
+            if ($calculation['total_price_document_sale'] >= 5000000) {
                 $earnPoint = floor($calculation['total_price_document_sale'] / 1000);
             }
 
