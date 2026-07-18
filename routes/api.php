@@ -61,6 +61,7 @@ use App\Http\Controllers\Outbound\Lusi\BagController as LusiBagController;
 use App\Http\Controllers\Outbound\Lusi\BastApprovalController as LusiBastApprovalController;
 use App\Http\Controllers\Outbound\Lusi\CargoNewController;
 use App\Http\Controllers\Outbound\Lusi\ColorRackController as LusiColorRackController;
+use App\Http\Controllers\Outbound\Lusi\DashboardController as LusiDashboardController;
 use App\Http\Controllers\Outbound\Lusi\FixWmsValidationController;
 use App\Http\Controllers\Outbound\Lusi\MigrateBulkyProductController as LusiMigrateBulkyProductController;
 use App\Http\Controllers\Outbound\Lusi\NewProductController as LusiNewProductController;
@@ -380,7 +381,8 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Admin Kasir
 
 // [READ ONLY - Termasuk Audit]
 Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Admin Kasir,Audit,Kasir leader'])->group(function () {
-    Route::get('dashboard/general-sales', [DashboardController::class, 'generalSale']);
+    // Route::get('dashboard/general-sales', [DashboardController::class, 'generalSale']);
+    Route::get('dashboard/general-sales', [LusiDashboardController::class, 'generalSale']);
     Route::get('dashboard/monthly-analytic-sales/export', [DashboardController::class, 'exportMonthlyAnalyticSales']);
     Route::get('dashboard/yearly-analytic-sales/export', [DashboardController::class, 'exportYearlyAnalyticSales']);
 });
