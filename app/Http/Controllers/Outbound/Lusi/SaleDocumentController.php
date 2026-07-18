@@ -233,6 +233,237 @@ class SaleDocumentController extends BaseSaleDocumentController
         ];
     }
 
+    // public function saleFinish(Request $request)
+    // {
+    //     try {
+    //         DB::beginTransaction();
+
+    //         $user = $request->user();
+    //         if (!$user) {
+    //             throw new Exception("User tidak terautentikasi!");
+    //         }
+
+    //         $userId = $user->id;
+    //         $saleDocument = SaleDocument::where('status_document_sale', 'proses')
+    //             ->where('user_id', $userId)
+    //             ->first();
+
+    //         if ($saleDocument == null) {
+    //             throw new Exception("Data sale belum dibuat!");
+    //         }
+
+    //         $validator = Validator::make($request->all(), [
+    //             'voucher' => 'nullable|numeric',
+    //             'cardbox_qty' => 'nullable|numeric|required_with:cardbox_unit_price',
+    //             'cardbox_unit_price' => 'nullable|numeric|required_with:cardbox_qty',
+    //             'tax' => 'nullable|numeric|min:0|max:50',
+    //         ]);
+
+    //         if ($validator->fails()) {
+    //             return (new ResponseResource(false, "Input tidak valid!", $validator->errors()))->response()->setStatusCode(422);
+    //         }
+
+    //         $sales = Sale::where('code_document_sale', $saleDocument->code_document_sale)->get();
+
+    //         if ($sales->isEmpty()) {
+    //             throw new Exception("Tidak ada produk dalam sale document {$saleDocument->code_document_sale}!");
+    //         }
+
+    //         $approved = '0';
+    //         if ($request->filled('voucher')) {
+    //             foreach ($sales as $sale) {
+    //                 if ($sale->gabor_sale !== null || $sale->product_update_price_sale !== null) {
+    //                     $sale->update(['approved' => '1']);
+    //                     $approved = '1';
+    //                 } else {
+    //                     $sale->update(['approved' => '0']);
+    //                 }
+    //             }
+    //         } else {
+    //             foreach ($sales as $sale) {
+    //                 if ($sale->gabor_sale !== null || $sale->product_update_price_sale !== null) {
+    //                     $sale->update(['approved' => '1']);
+    //                     $approved = '1';
+    //                 } else {
+    //                     $sale->update(['approved' => '0']);
+    //                     $approved = '0';
+    //                 }
+    //             }
+    //         }
+    //         if ($request->filled('voucher') && $request->input('voucher') !== '0') {
+    //             $approved = '1';
+    //         }
+    //         if ($saleDocument->new_discount_sale > 0) {
+    //             $approved = '1';
+    //         }
+
+    //         if ($approved === '1') {
+    //             if (!$user || !$user->id) {
+    //                 throw new Exception("User ID tidak valid untuk membuat notifikasi!");
+    //             }
+
+    //             if (!$saleDocument || !$saleDocument->id) {
+    //                 throw new Exception("Sale Document ID tidak valid untuk membuat notifikasi!");
+    //             }
+
+    //             Notification::create([
+    //                 'user_id' => $userId,
+    //                 'notification_name' => 'approve discount sale',
+    //                 'status' => 'sale',
+    //                 'role' => 'Spv',
+    //                 'external_id' => $saleDocument->id
+    //             ]);
+
+    //             $saleDocument->update(['approved' => '1']);
+    //         }
+
+    //         $totalDisplayPrice = Sale::where('code_document_sale', $saleDocument->code_document_sale)->sum('display_price');
+    //         $totalProductOldPriceSale = Sale::where('code_document_sale', $saleDocument->code_document_sale)->sum('product_old_price_sale');
+
+    //         $totalCardBoxPrice = (float) ($request->cardbox_qty ?? 0) * (float) ($request->cardbox_unit_price ?? 0);
+    //         $voucherValue = $request->filled('voucher')
+    //             ? (float) $request->input('voucher')
+    //             : (float) ($saleDocument->voucher ?? 0);
+
+    //         $calculation = $this->calculateSaleDocumentTotals(
+    //             $saleDocument,
+    //             $voucherValue,
+    //             $totalCardBoxPrice,
+    //             $request->input('tax') !== null ? (float) $request->input('tax') : null,
+    //             $request->input('tax') !== null ? 1 : null
+    //         );
+
+    //         $buyer = Buyer::findOrFail($saleDocument->buyer_id_document_sale);
+
+    //         if (!$buyer) {
+    //             throw new Exception("Buyer dengan ID {$saleDocument->buyer_id_document_sale} tidak ditemukan!");
+    //         }
+
+    //         $rankDiscount = LoyaltyService::processLoyalty($buyer->id, $totalDisplayPrice);
+
+    //         $productBarcodes = $sales->pluck('product_barcode_sale');
+    //         Bundle::whereIn('barcode_bundle', $productBarcodes)->update(['product_status' => 'sale']);
+    //         $sales->each->update(['status_sale' => 'selesai']);
+
+    //         $earnPoint = 0;
+    //         if ($totalDisplayPrice >= 5000000) {
+    //             $earnPoint = floor($calculation['total_price_document_sale'] / 1000);
+    //         }
+
+    //         $saleDocument->update([
+    //             'buyer_point_document_sale' => $earnPoint,
+    //             'total_product_document_sale' => count($sales),
+    //             'total_old_price_document_sale' => $totalProductOldPriceSale,
+    //             'total_price_document_sale' => $calculation['total_price_document_sale'],
+    //             'total_display_document_sale' => $totalDisplayPrice,
+    //             'status_document_sale' => 'selesai',
+    //             'cardbox_qty' => $request->cardbox_qty ?? 0,
+    //             'cardbox_unit_price' => $request->cardbox_unit_price ?? 0,
+    //             'cardbox_total_price' => $calculation['cardbox_total_price'],
+    //             'voucher' => $calculation['voucher_value'],
+    //             'approved' => $approved,
+    //             'is_tax' => $request->filled('tax') ? 1 : 0,
+    //             'tax' => $request->filled('tax') ? $request->input('tax') : 0,
+    //             'price_after_tax' => $calculation['price_after_tax'],
+    //         ]);
+
+    //         $avgPurchaseBuyer = SaleDocument::where('status_document_sale', 'selesai')
+    //             ->where('buyer_id_document_sale', $saleDocument->buyer_id_document_sale)
+    //             ->avg('total_price_document_sale');
+
+    //         $saleDocumentCountWithBuyerId = SaleDocument::where('buyer_id_document_sale', $buyer->id)->count();
+
+    //         if ($saleDocumentCountWithBuyerId == 2 || $saleDocumentCountWithBuyerId == 3) {
+    //             $typeBuyer = 'Repeat';
+    //         } else if ($saleDocumentCountWithBuyerId > 3) {
+    //             $typeBuyer = 'Reguler';
+    //         }
+
+    //         $buyer->update([
+    //             'type_buyer' => $typeBuyer ?? "Biasa",
+    //             'amount_transaction_buyer' => $buyer->amount_transaction_buyer + 1,
+    //             'amount_purchase_buyer' => number_format($buyer->amount_purchase_buyer + $saleDocument->total_price_document_sale, 2, '.', ''),
+    //             'avg_purchase_buyer' => number_format($avgPurchaseBuyer, 2, '.', ''),
+    //             'point_buyer' => $buyer->point_buyer + $earnPoint,
+    //         ]);
+
+    //         if (!$buyer || !$buyer->id) {
+    //             throw new Exception("Buyer ID tidak valid untuk membuat buyer point!");
+    //         }
+
+    //         if ($earnPoint > 0) {
+    //             BuyerPoint::create([
+    //                 'buyer_id' => $buyer->id,
+    //                 'earn' => $earnPoint,
+    //                 'year' => Carbon::now()->year,
+    //             ]);
+    //         }
+
+    //         logUserAction($request, $request->user(), "outbound/sale/kasir", "Menekan tombol sale", $saleDocument->code_document_sale);
+
+    //         DB::commit();
+
+    //         try {
+    //             $newProductsForMovement = New_product::whereIn('new_barcode_product', $productBarcodes)
+    //                 ->where('new_status_product', 'sale')
+    //                 ->get(['new_barcode_product', 'new_category_product', 'new_tag_product', 'new_quantity_product']);
+
+    //             $stagingForMovement = StagingProduct::whereIn('new_barcode_product', $productBarcodes)
+    //                 ->where('new_status_product', 'sale')
+    //                 ->get(['new_barcode_product', 'new_quantity_product']);
+
+    //             $movementRows = [];
+    //             foreach ($newProductsForMovement as $p) {
+    //                 $from = $p->new_tag_product ? 'display_color' : 'display_reguler';
+    //                 $movementRows[] = [
+    //                     'product_id' => $p->new_barcode_product,
+    //                     'is_sku'     => false,
+    //                     'type'       => 'Out',
+    //                     'type_out'   => 'reguler_sales',
+    //                     'from'       => $from,
+    //                     'to'         => 'reguler_sales',
+    //                     'qty'        => $p->new_quantity_product,
+    //                 ];
+    //             }
+    //             foreach ($stagingForMovement as $p) {
+    //                 $movementRows[] = [
+    //                     'product_id' => $p->new_barcode_product,
+    //                     'is_sku'     => false,
+    //                     'type'       => 'Out',
+    //                     'type_out'   => 'reguler_sales',
+    //                     'from'       => 'staging_reguler',
+    //                     'to'         => 'reguler_sales',
+    //                     'qty'        => $p->new_quantity_product,
+    //                 ];
+    //             }
+    //             MovementService::logBulk($movementRows);
+    //         } catch (\Exception $e) {
+    //             Log::error('[Movement] saleFinish log failed: ' . $e->getMessage());
+    //         }
+
+    //         $resource = new ResponseResource(true, "Data berhasil disimpan!", $saleDocument->load('sales', 'user', 'buyer:id,point_buyer'));
+    //     } catch (\Exception $e) {
+    //         DB::rollBack();
+
+    //         Log::error('Error in saleFinish method:', [
+    //             'message' => $e->getMessage(),
+    //             'file' => $e->getFile(),
+    //             'line' => $e->getLine(),
+    //             'trace' => $e->getTraceAsString(),
+    //             'user_id' => auth()->id(),
+    //             'request_data' => $request->all()
+    //         ]);
+
+    //         $resource = new ResponseResource(false, "Data gagal disimpan!", [
+    //             'error' => $e->getMessage(),
+    //             'file' => $e->getFile(),
+    //             'line' => $e->getLine()
+    //         ]);
+    //         return $resource->response()->setStatusCode(500);
+    //     }
+    //     return $resource->response();
+    // }
+
     public function saleFinish(Request $request)
     {
         try {
@@ -256,7 +487,8 @@ class SaleDocumentController extends BaseSaleDocumentController
                 'voucher' => 'nullable|numeric',
                 'cardbox_qty' => 'nullable|numeric|required_with:cardbox_unit_price',
                 'cardbox_unit_price' => 'nullable|numeric|required_with:cardbox_qty',
-                'tax' => 'nullable|numeric|min:0|max:50',
+                'is_tax' => 'nullable|boolean',
+                'tax' => 'nullable|numeric|min:0|max:50|required_if:is_tax,1',
             ]);
 
             if ($validator->fails()) {
@@ -324,13 +556,25 @@ class SaleDocumentController extends BaseSaleDocumentController
             $voucherValue = $request->filled('voucher')
                 ? (float) $request->input('voucher')
                 : (float) ($saleDocument->voucher ?? 0);
+            $isTaxRequested = $request->boolean('is_tax');
+
+            $baseCalculation = $this->calculateSaleDocumentTotals(
+                $saleDocument,
+                $voucherValue,
+                $totalCardBoxPrice,
+            );
+
+            $taxInput = $request->input('tax');
+            $shouldApplyTax = $isTaxRequested
+                && $baseCalculation['total_price_document_sale'] >= 1000000
+                && $taxInput !== null;
 
             $calculation = $this->calculateSaleDocumentTotals(
                 $saleDocument,
                 $voucherValue,
                 $totalCardBoxPrice,
-                $request->input('tax') !== null ? (float) $request->input('tax') : null,
-                $request->input('tax') !== null ? 1 : null
+                $shouldApplyTax ? (float) $taxInput : 0,
+                $shouldApplyTax ? 1 : 0
             );
 
             $buyer = Buyer::findOrFail($saleDocument->buyer_id_document_sale);
@@ -362,8 +606,8 @@ class SaleDocumentController extends BaseSaleDocumentController
                 'cardbox_total_price' => $calculation['cardbox_total_price'],
                 'voucher' => $calculation['voucher_value'],
                 'approved' => $approved,
-                'is_tax' => $request->filled('tax') ? 1 : 0,
-                'tax' => $request->filled('tax') ? $request->input('tax') : 0,
+                'is_tax' => $shouldApplyTax ? 1 : 0,
+                'tax' => $shouldApplyTax ? $taxInput : 0,
                 'price_after_tax' => $calculation['price_after_tax'],
             ]);
 
