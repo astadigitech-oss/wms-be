@@ -65,6 +65,8 @@ use App\Http\Controllers\Outbound\Lusi\DashboardController as LusiDashboardContr
 use App\Http\Controllers\Outbound\Lusi\FixWmsValidationController;
 use App\Http\Controllers\Outbound\Lusi\MigrateBulkyProductController as LusiMigrateBulkyProductController;
 use App\Http\Controllers\Outbound\Lusi\NewProductController as LusiNewProductController;
+use App\Http\Controllers\Outbound\Lusi\NewSaleController as LusiNewSaleController;
+use App\Http\Controllers\Outbound\Lusi\SaleController as LusiSaleController;
 use App\Http\Controllers\Outbound\Lusi\SaleDocumentController as LusiSaleDocumentController;
 use App\Http\Controllers\Outbound\Lusi\SkuProductController as LusiSkuProductController;
 use App\Http\Controllers\Outbound\NewSaleController;
@@ -271,15 +273,17 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Kasir leader'])->group(
 // ========================================================================================================
 Route::middleware(['auth:sanctum', 'check.role:Admin,Kasir leader,Admin Kasir'])->group(function () {
     Route::get('list-voucher-buyer/{id}', [NewSaleController::class, 'listVoucherBuyer']);
-    Route::post('pakai-voucher', [NewSaleController::class, 'pakaiVoucher']);
-    Route::post('lepas-voucher', [NewSaleController::class, 'lepasVoucher']);
-    Route::get('check-pending-voucher', [NewSaleController::class, 'checkPendingApproval']);
+    // Route::post('pakai-voucher', [NewSaleController::class, 'pakaiVoucher']);
+    Route::post('pakai-voucher', [LusiNewSaleController::class, 'pakaiVoucher']);
+    // Route::post('lepas-voucher', [NewSaleController::class, 'lepasVoucher']);
+    Route::post('lepas-voucher', [LusiNewSaleController::class, 'lepasVoucher']);
+    Route::get('check-pending-voucher', [LusiNewSaleController::class, 'checkPendingApproval']);
 });
 
 Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Kasir leader'])->group(function () {
-    Route::post('vouchers/{id}/approve', [NewSaleController::class, 'approveVoucher']);
-    Route::post('vouchers/{id}/reject', [NewSaleController::class, 'rejectVoucher']);
-    Route::get('list-voucher-approval', [NewSaleController::class, 'listApprovalVoucher']);
+    Route::post('vouchers/{id}/approve', [LusiNewSaleController::class, 'approveVoucher']);
+    Route::post('vouchers/{id}/reject', [LusiNewSaleController::class, 'rejectVoucher']);
+    Route::get('list-voucher-approval', [LusiNewSaleController::class, 'listApprovalVoucher']);
 });
 
 // ========================================================================================================
@@ -715,7 +719,7 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Kasir leade
 
 // [READ ONLY - Termasuk Audit]
 Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Admin Kasir,Kasir leader,Audit'])->group(function () {
-    Route::resource('sales', SaleController::class)->only(['index', 'show']);
+    Route::resource('sales', LusiSaleController::class)->only(['index', 'show']);
     // Route::resource('sale-documents', SaleDocumentController::class)->only(['index', 'show']);
     Route::resource('sale-documents', LusiSaleDocumentController::class)->only(['index', 'show']);
     // Route::get('sale-report', [SaleDocumentController::class, 'combinedReport']);
