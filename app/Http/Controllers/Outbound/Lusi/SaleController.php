@@ -9,24 +9,30 @@ use App\Models\LoyaltyRank;
 use App\Models\Sale;
 use App\Models\SaleDocument;
 use App\Models\VoucherApproval;
-
 class SaleController extends BaseSaleController
 {
     public function index()
     {
         $userId = auth()->id();
 
-        $allSales = Sale::where('status_sale', 'proses')->where('user_id', $userId)->get();
-        $totalSale = $allSales->sum('product_price_sale');
-        $sale = Sale::where('status_sale', 'proses')->where('user_id', $userId)->latest()->paginate(50);
+        $allSales = Sale::where('status_sale', 'proses')
+            ->where('user_id', $userId)
+            ->get();
+        $grossTotalSale = $allSales->sum('product_price_sale');
 
-        $saleDocument = SaleDocument::where('status_document_sale', 'proses')->where('user_id', $userId)->first();
+        $sale = Sale::where('status_sale', 'proses')
+            ->where('user_id', $userId)
+            ->latest()
+            ->paginate(50);
+
+        $saleDocument = SaleDocument::where('status_document_sale', 'proses')
+            ->where('user_id', $userId)
+            ->first();
 
         $pendingApproval = null;
-
         if ($saleDocument) {
             $pendingApproval = VoucherApproval::with([
-                'voucher:id,name'
+                'voucher:id,name',
             ])
                 ->where('sale_document_id', $saleDocument->id)
                 ->where('requested_by', $userId)
@@ -38,78 +44,63 @@ class SaleController extends BaseSaleController
         $getBuyer = null;
         $currentTransaction = 0;
         $nextRank = null;
-
         $monthlyPoint = 0;
         $monthlyRank = 0;
 
-        if ($saleDocument == null) {
-            $codeDocumentSale = codeDocumentSale($userId);
-            $saleBuyerName = '';
-            $saleBuyerId = '';
-            $addressBuyer = '';
-            $buyerPhone = '';
-            $buyerIdDocumentSale = null;
-        } else {
-            $codeDocumentSale = $saleDocument->code_document_sale;
-            $saleBuyerName = $saleDocument->buyer_name_document_sale ?? '';
-            $saleBuyerId = $saleDocument->buyer_id_document_sale ?? '';
-            $addressBuyer = $saleDocument->buyer_address_document_sale ?? '';
-            $buyerPhone = $saleDocument->buyer_phone_document_sale ?? '';
-            $buyerIdDocumentSale = $saleDocument->buyer_id_document_sale;
+        if ($saleDocument && $saleDocument->buyer_id_document_sale) {
+            $getBuyer = Buyer::with(['buyerLoyalty.rank'])
+                ->where('id', $saleDocument->buyer_id_document_sale)
+                ->first();
 
-            if ($saleDocument->buyer_id_document_sale) {
-                $getBuyer = Buyer::with(['buyerLoyalty.rank'])
-                    ->where('id', $saleDocument->buyer_id_document_sale)
-                    ->first();
+            if ($getBuyer && $getBuyer->buyerLoyalty) {
+                $currentTransaction = $getBuyer->buyerLoyalty->transaction_count ?? 0;
 
-                if ($getBuyer && $getBuyer->buyerLoyalty) {
-                    $currentTransaction = $getBuyer->buyerLoyalty->transaction_count ?? 0;
-
-                    if ($currentTransaction <= 1) {
-                        $nextRank = LoyaltyRank::where('min_transactions', $currentTransaction)
-                            ->first();
-                    } else {
-                        $nextRank = LoyaltyRank::where('min_transactions', '>', $currentTransaction)
-                            ->orderBy('min_transactions', 'asc')
-                            ->first();
-                    }
-
-                    $monthlyPoint = SaleDocument::where('buyer_id_document_sale', $saleDocument->buyer_id_document_sale)
-                        ->where('status_document_sale', 'selesai')
-                        ->whereMonth('created_at', now()->month)
-                        ->whereYear('created_at', now()->year)
-                        ->sum('buyer_point_document_sale');
-
-                    $higherRankCount = SaleDocument::selectRaw('SUM(buyer_point_document_sale) as total_point')
-                        ->where('status_document_sale', 'selesai')
-                        ->whereMonth('created_at', now()->month)
-                        ->whereYear('created_at', now()->year)
-                        ->groupBy('buyer_id_document_sale')
-                        ->havingRaw('SUM(buyer_point_document_sale) > ?', [$monthlyPoint])
-                        ->get()
-                        ->count();
-
-                    $monthlyRank = $higherRankCount + 1;
+                if ($currentTransaction <= 1) {
+                    $nextRank = LoyaltyRank::where('min_transactions', $currentTransaction)
+                        ->first();
+                } else {
+                    $nextRank = LoyaltyRank::where('min_transactions', '>', $currentTransaction)
+                        ->orderBy('min_transactions', 'asc')
+                        ->first();
                 }
+
+                $monthlyPoint = SaleDocument::where('buyer_id_document_sale', $saleDocument->buyer_id_document_sale)
+                    ->where('status_document_sale', 'selesai')
+                    ->whereMonth('created_at', now()->month)
+                    ->whereYear('created_at', now()->year)
+                    ->sum('buyer_point_document_sale');
+
+                $higherRankCount = SaleDocument::selectRaw('SUM(buyer_point_document_sale) as total_point')
+                    ->where('status_document_sale', 'selesai')
+                    ->whereMonth('created_at', now()->month)
+                    ->whereYear('created_at', now()->year)
+                    ->groupBy('buyer_id_document_sale')
+                    ->havingRaw('SUM(buyer_point_document_sale) > ?', [$monthlyPoint])
+                    ->count();
+
+                $monthlyRank = $higherRankCount + 1;
             }
         }
 
-        $buyerAvail = Buyer::find($buyerIdDocumentSale);
+        $buyerAvail = $saleDocument?->buyer_id_document_sale
+            ? Buyer::find($saleDocument->buyer_id_document_sale)
+            : null;
 
-        $minTransaction = null;
+        $minTransaction = $buyerAvail
+            ? $buyerAvail->vouchers()->min('min_transaction')
+            : null;
 
-        if ($buyerAvail) {
-            $minTransaction = $buyerAvail->vouchers()->min('min_transaction');
-        }
+        $calculation = $this->calculateSaleDocumentTotals($saleDocument, $grossTotalSale);
 
         $data = [
-            'buyer_id_document_sale' => $buyerIdDocumentSale,
-            'code_document_sale' => $codeDocumentSale,
-            'buyer_address' => $addressBuyer,
-            'buyer_phone' => $buyerPhone,
-            'sale_buyer_name' => $saleBuyerName,
-            'sale_buyer_id' => $saleBuyerId,
-            'total_sale' => $totalSale,
+            'buyer_id_document_sale' => $saleDocument?->buyer_id_document_sale ?? null,
+            'code_document_sale' => $saleDocument?->code_document_sale ?? codeDocumentSale($userId),
+            'buyer_address' => $saleDocument?->buyer_address_document_sale ?? '',
+            'buyer_phone' => $saleDocument?->buyer_phone_document_sale ?? '',
+            'sale_buyer_name' => $saleDocument?->buyer_name_document_sale ?? '',
+            'sale_buyer_id' => $saleDocument?->buyer_id_document_sale ?? '',
+            'total_sale' => $grossTotalSale,
+            'gross_total_sale' => $grossTotalSale,
             'rank' => optional(optional($getBuyer?->buyerLoyalty)->rank)->rank ?? null,
             'next_rank' => $nextRank?->rank ?? null,
             'transaction_next' => $nextRank ? max(1, $nextRank->min_transactions - $currentTransaction) : 0,
@@ -117,22 +108,66 @@ class SaleController extends BaseSaleController
             'current_transaction' => $currentTransaction,
             'monthly_point' => (int) $monthlyPoint,
             'monthly_rank_position' => $monthlyRank > 0 ? $monthlyRank : '-',
-            'voucher' => $saleDocument?->voucher ?? 0,
+            'voucher' => $calculation['voucher_value'],
             'voucher_id' => $saleDocument?->voucher_id ?? null,
-            'voucher_rank_available' => $totalSale >= $minTransaction ? true : false,
-            'voucher_rank_value' => $saleDocument?->voucher_rank_value ?? 0,
-            'total_price_document_sale' => $saleDocument?->total_price_document_sale ?? 0,
-            'cardbox_total_price' => $saleDocument?->cardbox_total_price ?? 0,
-            'price_after_tax' => $saleDocument?->price_after_tax ?? 0,
-            'grand_total' => $saleDocument?->grand_total ?? 0,
+            'voucher_rank_available' => $minTransaction !== null ? $grossTotalSale >= $minTransaction : false,
+            'voucher_rank_value' => $calculation['voucher_rank_value'],
+            'total_price_document_sale' => $calculation['total_price_document_sale'],
+            'cardbox_total_price' => $calculation['cardbox_total_price'],
+            'price_after_tax' => $calculation['price_after_tax'],
+            'grand_total' => $calculation['grand_total'],
             'need_voucher_approval' => (bool) $pendingApproval,
-            'approval_voucher_name' => $pendingApproval?->voucher?->name,
+            'approval_voucher_name' => $pendingApproval?->voucher?->name ?? 'Voucher Manual',
             'min_transaction' => $minTransaction,
+            'calculation' => $calculation,
         ];
 
         $data += $sale->toArray();
 
-        $resource = new ResponseResource(true, "list data sale", $data);
-        return $resource->response();
+        return (new ResponseResource(true, 'list data sale', $data))->response();
+    }
+
+    public function show(Sale $sale)
+    {
+        return (new ResponseResource(true, 'data sale', $sale))->response();
+    }
+
+    private function calculateSaleDocumentTotals(?SaleDocument $saleDocument, float $grossTotalSale = 0): array
+    {
+        if (!$saleDocument) {
+            return [
+                'total_product_price_sale' => 0,
+                'voucher_value' => 0,
+                'voucher_rank_value' => 0,
+                'cardbox_total_price' => 0,
+                'total_price_document_sale' => 0,
+                'grand_total' => 0,
+                'price_after_tax' => 0,
+            ];
+        }
+
+        $voucherValue = (float) ($saleDocument->voucher ?? 0);
+        $voucherRankValue = (float) ($saleDocument->voucher_rank_value ?? 0);
+        $cardboxTotalPrice = (float) ($saleDocument->cardbox_total_price ?? 0);
+        $taxRate = (float) ($saleDocument->tax ?? 0);
+        $isTax = (int) ($saleDocument->is_tax ?? 0);
+
+        $totalPriceDocumentSale = max(0, $grossTotalSale - $voucherValue - $voucherRankValue);
+        $grandTotal = $totalPriceDocumentSale + $cardboxTotalPrice;
+
+        $priceAfterTax = $grandTotal;
+        if ($isTax === 1 && $taxRate > 0) {
+            $priceAfterTax = $grandTotal + ($grandTotal * ($taxRate / 100));
+        }
+
+        return [
+            'total_product_price_sale' => $grossTotalSale,
+            'voucher_value' => $voucherValue,
+            'voucher_rank_value' => $voucherRankValue,
+            'cardbox_total_price' => $cardboxTotalPrice,
+            'total_price_document_sale' => $totalPriceDocumentSale,
+            'grand_total' => $grandTotal,
+            'price_after_tax' => ceil($priceAfterTax),
+        ];
     }
 }
