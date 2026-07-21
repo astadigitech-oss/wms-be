@@ -195,10 +195,10 @@ class VoucherSaleController extends Controller
             }
 
             // ============================================
-            // Validasi minimal transaksi Rp 3.000.000
+            // Validasi minimal transaksi Rp 1.000.000
             // Mengacu ke total_price_document_sale hasil kalkulasi sales GET
             // ============================================
-            $minimumTransaction = 3000000;
+            $minimumTransaction = 1000000;
             $calculation = $this->calculateSaleDocumentTotals($saleDocument);
             $totalPriceDocumentSale = (float) ($calculation['total_price_document_sale'] ?? 0);
 
