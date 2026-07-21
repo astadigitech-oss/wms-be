@@ -66,6 +66,8 @@ use App\Http\Controllers\Outbound\Lusi\FixWmsValidationController;
 use App\Http\Controllers\Outbound\Lusi\MigrateBulkyProductController as LusiMigrateBulkyProductController;
 use App\Http\Controllers\Outbound\Lusi\NewProductController as LusiNewProductController;
 use App\Http\Controllers\Outbound\Lusi\NewSaleController as LusiNewSaleController;
+use App\Http\Controllers\Outbound\Lusi\RackController as LusiRackController;
+use App\Http\Controllers\Outbound\Lusi\RackStatusController as LusiRackStatusController;
 use App\Http\Controllers\Outbound\Lusi\SaleController as LusiSaleController;
 use App\Http\Controllers\Outbound\Lusi\SaleDocumentController as LusiSaleDocumentController;
 use App\Http\Controllers\Outbound\Lusi\SkuProductController as LusiSkuProductController;
@@ -654,14 +656,16 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Kasir leade
     Route::get('racks/history-stats', [RackController::class, 'getRackInsertionStats']);
     Route::get('racks/history-stats/export', [RackController::class, 'exportRackHistory']);
     Route::get('racks/export', [RackController::class, 'exportRacks']);
-    Route::apiResource('racks', RackController::class)->only(['index', 'show']);
+    // Route::apiResource('racks', RackController::class)->only(['index', 'show']);
+    Route::apiResource('racks', LusiRackController::class)->only(['index', 'show']);
 });
 
 // [WRITE / POST / ACTION - TANPA Audit]
 Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Kasir leader,Admin Kasir,Crew,Captain'])->group(function () {
     Route::post('racks/add-product-by-barcode', [RackController::class, 'addProductByBarcode']);
-    Route::post('racks/{id}/move-to-display', [RackController::class, 'moveAllProductsInRackToDisplay']);
+    Route::post('racks/{id}/move-to-display', [LusiRackController::class, 'moveAllProductsInRackToDisplay']);
     Route::post('racks/remove-product', [RackController::class, 'removeProduct']);
+    Route::post('racks/upload-barcode-excel', [LusiRackStatusController::class, 'updateStatusByExcel']);
     Route::apiResource('racks', RackController::class)->except(['index', 'show']);
 });
 
