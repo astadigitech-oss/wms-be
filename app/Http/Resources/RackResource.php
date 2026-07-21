@@ -18,6 +18,7 @@ class RackResource extends JsonResource
             'id' => $this->id,
             'name' => $this->name,
             'source' => $this->source, // staging / display
+            'status' => $this->status,
             'total_data' => (int) $this->total_data,
             'total_new_price_product' => (float) $this->total_new_price_product,
             'total_old_price_product' => (float) $this->total_old_price_product,
