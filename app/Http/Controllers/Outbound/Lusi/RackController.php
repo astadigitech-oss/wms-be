@@ -256,7 +256,7 @@ class RackController extends BaseRackController
                 'status' => 'done'
             ]);
 
-            $this->recalculateRackTotals($stagingRack);
+            // Jangan recalculate staging agar nilai total tetap tersimpan
             $this->recalculateRackTotals($displayRack);
 
             DB::commit();
