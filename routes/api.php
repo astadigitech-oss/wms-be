@@ -157,6 +157,9 @@ Route::middleware([
         // Route::post('cargo/{idCargo}/set-volume-berat', [CargoController::class, 'setVolumeDanBerat']);
         Route::post('cargo/{idCargo}/set-volume-berat', [CargoNewController::class, 'setVolumeDanBerat']);
         Route::post('cargo/{idCargo}/toggle-status-bulky', [CargoController::class, 'toggleStatusBulky']);
+        Route::post('bulky/update-sale-price', [CargoNewController::class, 'updateSalePrice']);
+        Route::get('/bulky-documents/not-sale', [CargoNewController::class, 'getPaletBelumDikasihHarga']);
+        Route::get('/bulky-documents/ready-sale', [CargoNewController::class, 'getPaletSudahDikasihHarga']);
     });
 
     // =====================================================================
