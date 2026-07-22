@@ -53,8 +53,8 @@ class CargoNewController extends Controller
                         ->orWhere('name_document', 'LIKE', $baseName . ' %')
                         ->orWhere('name_document', 'LIKE', $baseName . ' (%)');
                 })
-                ->lockForUpdate()
-                ->pluck('name_document');
+                    ->lockForUpdate()
+                    ->pluck('name_document');
 
                 $nextNumber = 1;
                 foreach ($existingNames as $name) {
@@ -113,8 +113,8 @@ class CargoNewController extends Controller
                     ->orWhere('name_document', 'LIKE', $baseName . ' %')
                     ->orWhere('name_document', 'LIKE', $baseName . ' (%)');
             })
-            ->lockForUpdate()
-            ->pluck('name_document');
+                ->lockForUpdate()
+                ->pluck('name_document');
 
             $nextNumber = 1;
             foreach ($existingNames as $name) {
@@ -158,6 +158,75 @@ class CargoNewController extends Controller
 
             $resource = new ResponseResource(false, "Gagal membuat dokumen cargo!", $e->getMessage());
             return $resource->response()->setStatusCode(500);
+        }
+    }
+    public function setVolumeDanBerat(Request $request, $id)
+    {
+        $validator = Validator::make($request->all(), [
+            'length' => 'required|numeric',
+            'width'  => 'required|numeric',
+            'height' => 'required|numeric',
+            'weight' => 'required|numeric',
+        ]);
+
+        if ($validator->fails()) {
+            return (new ResponseResource(
+                false,
+                "Input dimensi tidak valid!",
+                $validator->errors()
+            ))->response()->setStatusCode(422);
+        }
+
+        $doc = BulkyDocument::findOrFail($id);
+
+        // Hanya boleh diubah jika status masih NOT SALE
+        if ($doc->is_sale !== BulkyDocument::SALE_NOT) {
+            return (new ResponseResource(
+                false,
+                "Dokumen sudah dalam status sale dan tidak bisa diubah",
+                null
+            ))->response()->setStatusCode(400);
+        }
+
+        DB::beginTransaction();
+
+        try {
+            $doc->update([
+                'length'           => $request->length,
+                'width'            => $request->width,
+                'height'           => $request->height,
+                'weight'           => $request->weight,
+                'fleet_estimation' => $request->fleet_estimation ?? null,
+                // is_sale sengaja tidak diubah agar tetap SALE_NOT
+            ]);
+
+            DB::commit();
+
+            // Refresh agar data yang dikembalikan merupakan data terbaru
+            $doc->refresh();
+
+            return (new ResponseResource(
+                true,
+                "Berhasil diupdate",
+                [
+                    'id'               => $doc->id,
+                    'length'           => $doc->length,
+                    'width'            => $doc->width,
+                    'height'           => $doc->height,
+                    'weight'           => $doc->weight,
+                    'fleet_estimation' => $doc->fleet_estimation,
+                    'status_bulky'     => $doc->status_bulky,
+                    'is_sale'          => $doc->is_sale,
+                ]
+            ))->response();
+        } catch (\Exception $e) {
+            DB::rollBack();
+
+            return (new ResponseResource(
+                false,
+                "Terjadi kesalahan sistem: " . $e->getMessage(),
+                null
+            ))->response()->setStatusCode(500);
         }
     }
 }
