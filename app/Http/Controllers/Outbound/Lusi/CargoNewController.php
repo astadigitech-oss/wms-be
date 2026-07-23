@@ -265,6 +265,99 @@ class CargoNewController extends Controller
         }
     }
 
+    // public function updateSalePrice(Request $request)
+    // {
+    //     DB::beginTransaction();
+
+    //     try {
+
+    //         $validator = Validator::make($request->all(), [
+    //             'bulky_document_id' => 'required|exists:bulky_documents,id',
+    //             'discount'          => 'required|numeric|min:0|max:100',
+    //         ]);
+
+    //         if ($validator->fails()) {
+    //             return (new ResponseResource(
+    //                 false,
+    //                 'Validasi gagal.',
+    //                 $validator->errors()
+    //             ))->response()->setStatusCode(422);
+    //         }
+
+    //         $bulkyDocument = BulkyDocument::find($request->bulky_document_id);
+
+    //         if (!$bulkyDocument) {
+    //             DB::rollBack();
+
+    //             return (new ResponseResource(
+    //                 false,
+    //                 'Bulky Document tidak ditemukan.',
+    //                 null
+    //             ))->response()->setStatusCode(404);
+    //         }
+
+    //         $bulkySales = BulkySale::where(
+    //             'bulky_document_id',
+    //             $bulkyDocument->id
+    //         )->get();
+
+    //         if ($bulkySales->isEmpty()) {
+    //             DB::rollBack();
+
+    //             return (new ResponseResource(
+    //                 false,
+    //                 'Data Bulky Sale tidak ditemukan.',
+    //                 null
+    //             ))->response()->setStatusCode(404);
+    //         }
+
+    //         $discount = $request->discount;
+
+    //         $totalAfterPriceBulky = 0;
+
+    //         foreach ($bulkySales as $sale) {
+
+    //             $afterPriceBulkySale = round(
+    //                 $sale->old_price_bulky_sale * (1 - ($discount / 100))
+    //             );
+
+    //             $sale->update([
+    //                 'after_price_bulky_sale' => $afterPriceBulkySale,
+    //                 'display_price'          => $afterPriceBulkySale,
+    //             ]);
+
+    //             $totalAfterPriceBulky += $afterPriceBulkySale;
+    //         }
+
+    //         $bulkyDocument->update([
+    //             'after_price_bulky' => $totalAfterPriceBulky,
+    //             'is_sale'           => 'ready',
+    //         ]);
+
+    //         DB::commit();
+
+    //         return (new ResponseResource(
+    //             true,
+    //             'Harga jual berhasil diperbarui.',
+    //             [
+    //                 'bulky_document_id' => $bulkyDocument->id,
+    //                 'discount'          => $discount,
+    //                 'after_price_bulky' => $totalAfterPriceBulky,
+    //                 'is_sale'           => 'ready',
+    //             ]
+    //         ))->response()->setStatusCode(200);
+    //     } catch (\Exception $e) {
+
+    //         DB::rollBack();
+
+    //         return (new ResponseResource(
+    //             false,
+    //             $e->getMessage(),
+    //             null
+    //         ))->response()->setStatusCode(500);
+    //     }
+    // }
+
     public function updateSalePrice(Request $request)
     {
         DB::beginTransaction();
@@ -294,6 +387,20 @@ class CargoNewController extends Controller
                     'Bulky Document tidak ditemukan.',
                     null
                 ))->response()->setStatusCode(404);
+            }
+
+            // Hanya boleh update jika status masih "not sale"
+            if ($bulkyDocument->is_sale !== BulkyDocument::SALE_NOT) {
+                DB::rollBack();
+
+                return (new ResponseResource(
+                    false,
+                    'Harga jual tidak dapat diperbarui karena status penjualan sudah ready atau sale.',
+                    [
+                        'current_status'  => $bulkyDocument->is_sale,
+                        'required_status' => BulkyDocument::SALE_NOT,
+                    ]
+                ))->response()->setStatusCode(422);
             }
 
             $bulkySales = BulkySale::where(
@@ -331,7 +438,7 @@ class CargoNewController extends Controller
 
             $bulkyDocument->update([
                 'after_price_bulky' => $totalAfterPriceBulky,
-                'is_sale'           => 'ready',
+                'is_sale'           => BulkyDocument::SALE_READY,
             ]);
 
             DB::commit();
@@ -343,7 +450,7 @@ class CargoNewController extends Controller
                     'bulky_document_id' => $bulkyDocument->id,
                     'discount'          => $discount,
                     'after_price_bulky' => $totalAfterPriceBulky,
-                    'is_sale'           => 'ready',
+                    'is_sale'           => BulkyDocument::SALE_READY,
                 ]
             ))->response()->setStatusCode(200);
         } catch (\Exception $e) {
