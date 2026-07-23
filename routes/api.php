@@ -160,6 +160,7 @@ Route::middleware([
         Route::post('bulky/update-sale-price', [CargoNewController::class, 'updateSalePrice']);
         Route::get('/bulky-documents/not-sale', [CargoNewController::class, 'getPaletBelumDikasihHarga']);
         Route::get('/bulky-documents/ready-sale', [CargoNewController::class, 'getPaletSudahDikasihHarga']);
+        Route::put('/cargo/{id}/status-sale', [CargoNewController::class, 'updateStatusSale']);
     });
 
     // =====================================================================
