@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Outbound\Lusi;
 
+use App\Exports\RackDataExport;
 use App\Http\Controllers\RackController as BaseRackController;
 use App\Http\Resources\ResponseResource;
 use App\Models\Bundle;
@@ -13,6 +14,9 @@ use App\Services\MovementService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Validator;
+use Maatwebsite\Excel\Facades\Excel;
 
 class RackController extends BaseRackController
 {
@@ -273,6 +277,58 @@ class RackController extends BaseRackController
         } catch (\Exception $e) {
             DB::rollback();
             return response()->json(['status' => false, 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    public function exportRacks(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'source' => 'required|in:staging,display'
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'status' => false,
+                'message' => $validator->errors()
+            ], 422);
+        }
+
+        try {
+            $source = $request->source;
+            $sourceName = strtoupper($source);
+
+            $folderName = 'exports/racks';
+            $fileName = "DATA_RAK_{$sourceName}_" . date('Ymd') . ".xlsx";
+            $filePath = $folderName . '/' . $fileName;
+
+            if (!Storage::disk('public_direct')->exists($folderName)) {
+                Storage::disk('public_direct')->makeDirectory($folderName);
+            }
+
+            if (Storage::disk('public_direct')->exists($filePath)) {
+                Storage::disk('public_direct')->delete($filePath);
+            }
+
+            // Filter status progress untuk staging dilakukan di RackDataExport
+            Excel::store(
+                new RackDataExport($source),
+                $filePath,
+                'public_direct'
+            );
+
+            return new ResponseResource(
+                true,
+                'File Data Rak berhasil diexport',
+                [
+                    'download_url' => url($filePath) . '?t=' . time(),
+                    'file_name'    => $fileName,
+                ]
+            );
+        } catch (\Exception $e) {
+            return response()->json([
+                'status'  => false,
+                'message' => 'Gagal export: ' . $e->getMessage(),
+            ], 500);
         }
     }
 
