@@ -157,9 +157,6 @@ Route::middleware([
         // Route::post('cargo/{idCargo}/set-volume-berat', [CargoController::class, 'setVolumeDanBerat']);
         Route::post('cargo/{idCargo}/set-volume-berat', [CargoNewController::class, 'setVolumeDanBerat']);
         Route::post('cargo/{idCargo}/toggle-status-bulky', [CargoController::class, 'toggleStatusBulky']);
-        Route::post('bulky/update-sale-price', [CargoNewController::class, 'updateSalePrice']);
-        Route::get('/bulky-documents/not-sale', [CargoNewController::class, 'getPaletBelumDikasihHarga']);
-        Route::get('/bulky-documents/ready-sale', [CargoNewController::class, 'getPaletSudahDikasihHarga']);
         Route::put('/cargo/{id}/status-sale', [CargoNewController::class, 'updateStatusSale']);
     });
 
@@ -660,7 +657,8 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Kasir leade
     Route::get('racks/history', [RackController::class, 'getRackHistory']);
     Route::get('racks/history-stats', [RackController::class, 'getRackInsertionStats']);
     Route::get('racks/history-stats/export', [RackController::class, 'exportRackHistory']);
-    Route::get('racks/export', [RackController::class, 'exportRacks']);
+    // Route::get('racks/export', [RackController::class, 'exportRacks']);
+    Route::get('racks/export', [LusiRackController::class, 'exportRacks']);
     // Route::apiResource('racks', RackController::class)->only(['index', 'show']);
     Route::apiResource('racks', LusiRackController::class)->only(['index', 'show']);
 });
@@ -1183,3 +1181,6 @@ Route::post('olsera/sync-tokens', [DestinationController::class, 'syncOlseraToke
 Route::get('cargo-online/waiting', [BulkyDocumentController::class, 'getWaitingCargoOnline']);
 Route::get('cargo-online/{id}/pdf', [BulkyDocumentController::class, 'exportPdfBuffer']);
 Route::put('cargo-online/{id}/ready', [BulkyDocumentController::class, 'updateReadyBulky']);
+Route::post('bulky/update-sale-price', [CargoNewController::class, 'updateSalePrice']);
+Route::get('/bulky-documents/not-sale', [CargoNewController::class, 'getPaletBelumDikasihHarga']);
+Route::get('/bulky-documents/ready-sale', [CargoNewController::class, 'getPaletSudahDikasihHarga']);

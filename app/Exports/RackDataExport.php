@@ -26,6 +26,11 @@ class RackDataExport implements FromQuery, WithHeadings, WithMapping, ShouldAuto
 
         if ($this->source) {
             $query->where('source', $this->source);
+
+            // Jika export staging, hanya ambil rack yang masih progress
+            if ($this->source === 'staging') {
+                $query->where('status', 'progress');
+            }
         }
 
         $statuses = ['display', 'expired', 'slow_moving'];
