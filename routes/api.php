@@ -1182,5 +1182,3 @@ Route::get('cargo-online/waiting', [BulkyDocumentController::class, 'getWaitingC
 Route::get('cargo-online/{id}/pdf', [BulkyDocumentController::class, 'exportPdfBuffer']);
 Route::put('cargo-online/{id}/ready', [BulkyDocumentController::class, 'updateReadyBulky']);
 Route::post('bulky/update-sale-price', [CargoNewController::class, 'updateSalePrice']);
-Route::get('/bulky-documents/not-sale', [CargoNewController::class, 'getPaletBelumDikasihHarga']);
-Route::get('/bulky-documents/ready-sale', [CargoNewController::class, 'getPaletSudahDikasihHarga']);
