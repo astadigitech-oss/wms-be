@@ -8,6 +8,7 @@ use App\Models\Buyer;
 use App\Models\BulkyDocument;
 use App\Models\BulkySale;
 use Barryvdh\DomPDF\Facade\Pdf;
+use Carbon\Carbon;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -164,156 +165,6 @@ class CargoNewController extends Controller
             return $resource->response()->setStatusCode(500);
         }
     }
-
-    // public function setVolumeDanBerat(Request $request, $id)
-    // {
-    //     $validator = Validator::make($request->all(), [
-    //         'length' => 'required|numeric',
-    //         'width'  => 'required|numeric',
-    //         'height' => 'required|numeric',
-    //         'weight' => 'required|numeric',
-    //     ]);
-
-    //     if ($validator->fails()) {
-    //         return (new ResponseResource(
-    //             false,
-    //             "Input dimensi tidak valid!",
-    //             $validator->errors()
-    //         ))->response()->setStatusCode(422);
-    //     }
-
-    //     $doc = BulkyDocument::findOrFail($id);
-
-    //     // Hanya boleh diubah jika status masih NOT SALE
-    //     if ($doc->is_sale !== BulkyDocument::SALE_NOT) {
-    //         return (new ResponseResource(
-    //             false,
-    //             "Dokumen sudah dalam status sale dan tidak bisa diubah",
-    //             null
-    //         ))->response()->setStatusCode(400);
-    //     }
-
-    //     DB::beginTransaction();
-
-    //     try {
-    //         $doc->update([
-    //             'length'           => $request->length,
-    //             'width'            => $request->width,
-    //             'height'           => $request->height,
-    //             'weight'           => $request->weight,
-    //             'fleet_estimation' => $request->fleet_estimation ?? null,
-    //             // is_sale sengaja tidak diubah agar tetap SALE_NOT
-    //         ]);
-
-    //         DB::commit();
-
-    //         // Refresh agar data yang dikembalikan merupakan data terbaru
-    //         $doc->refresh();
-
-    //         return (new ResponseResource(
-    //             true,
-    //             "Berhasil diupdate",
-    //             [
-    //                 'id'               => $doc->id,
-    //                 'length'           => $doc->length,
-    //                 'width'            => $doc->width,
-    //                 'height'           => $doc->height,
-    //                 'weight'           => $doc->weight,
-    //                 'fleet_estimation' => $doc->fleet_estimation,
-    //                 'status_bulky'     => $doc->status_bulky,
-    //                 'is_sale'          => $doc->is_sale,
-    //             ]
-    //         ))->response();
-    //     } catch (\Exception $e) {
-    //         DB::rollBack();
-
-    //         return (new ResponseResource(
-    //             false,
-    //             "Terjadi kesalahan sistem: " . $e->getMessage(),
-    //             null
-    //         ))->response()->setStatusCode(500);
-    //     }
-    // }
-    // public function setVolumeDanBerat(Request $request, $id)
-    // {
-    //     $validator = Validator::make($request->all(), [
-    //         'length' => 'required|numeric',
-    //         'width'  => 'required|numeric',
-    //         'height' => 'required|numeric',
-    //         'weight' => 'required|numeric',
-    //     ]);
-
-    //     if ($validator->fails()) {
-    //         return (new ResponseResource(
-    //             false,
-    //             "Input dimensi tidak valid!",
-    //             $validator->errors()
-    //         ))->response()->setStatusCode(422);
-    //     }
-
-    //     $doc = BulkyDocument::with('bulkySales')->findOrFail($id);
-
-    //     // Hanya boleh diubah jika status masih NOT SALE
-    //     if ($doc->is_sale !== BulkyDocument::SALE_NOT) {
-    //         return (new ResponseResource(
-    //             false,
-    //             "Dokumen sudah dalam status sale dan tidak bisa diubah",
-    //             null
-    //         ))->response()->setStatusCode(400);
-    //     }
-
-    //     DB::beginTransaction();
-
-    //     try {
-    //         $doc->update([
-    //             'length'           => $request->length,
-    //             'width'            => $request->width,
-    //             'height'           => $request->height,
-    //             'weight'           => $request->weight,
-    //             'fleet_estimation' => $request->fleet_estimation ?? null,
-    //             // is_sale sengaja tidak diubah agar tetap SALE_NOT
-    //         ]);
-
-    //         // Ambil data terbaru beserta relasinya
-    //         $doc->refresh();
-    //         $doc->load('bulkySales');
-
-    //         // Generate PDF
-    //         $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('pdf.cargo_online', [
-    //             'doc' => $doc,
-    //         ]);
-
-    //         $fileName = 'Cargo-Online-' . $doc->id . '.pdf';
-    //         $filePath = 'public/pdfs/cargo/' . $fileName;
-
-    //         \Illuminate\Support\Facades\Storage::put($filePath, $pdf->output());
-
-    //         DB::commit();
-
-    //         return (new ResponseResource(
-    //             true,
-    //             "Berhasil diupdate",
-    //             [
-    //                 'id'               => $doc->id,
-    //                 'length'           => $doc->length,
-    //                 'width'            => $doc->width,
-    //                 'height'           => $doc->height,
-    //                 'weight'           => $doc->weight,
-    //                 'fleet_estimation' => $doc->fleet_estimation,
-    //                 'status_bulky'     => $doc->status_bulky,
-    //                 'is_sale'          => $doc->is_sale,
-    //             ]
-    //         ))->response();
-    //     } catch (\Exception $e) {
-    //         DB::rollBack();
-
-    //         return (new ResponseResource(
-    //             false,
-    //             "Terjadi kesalahan sistem: " . $e->getMessage(),
-    //             null
-    //         ))->response()->setStatusCode(500);
-    //     }
-    // }
 
     public function setVolumeDanBerat(Request $request, $id)
     {
@@ -537,5 +388,116 @@ class CargoNewController extends Controller
             'Berhasil mendapatkan daftar palet sudah dikasih harga.',
             $bulkyDocuments
         );
+    }
+
+    public function updateStatusSale(Request $request, $id)
+    {
+        $validator = Validator::make($request->all(), [
+            'is_sale' => 'required|in:ready,sale',
+        ]);
+
+        if ($validator->fails()) {
+            return (new ResponseResource(
+                false,
+                "Input tidak valid!",
+                $validator->errors()
+            ))->response()->setStatusCode(422);
+        }
+
+        $cargo = BulkyDocument::find($id);
+
+        if (!$cargo) {
+            return (new ResponseResource(
+                false,
+                "Cargo tidak ditemukan!",
+                null
+            ))->response()->setStatusCode(404);
+        }
+
+        // hanya cargo online
+        if ($cargo->type !== BulkyDocument::TYPE_ONLINE) {
+            return (new ResponseResource(
+                false,
+                "Hanya cargo online yang dapat diupdate.",
+                null
+            ))->response()->setStatusCode(400);
+        }
+
+        // cargo harus selesai
+        if ($cargo->status_bulky !== 'selesai') {
+            return (new ResponseResource(
+                false,
+                "Cargo belum selesai.",
+                null
+            ))->response()->setStatusCode(400);
+        }
+
+        DB::beginTransaction();
+
+        try {
+
+            if ($request->is_sale === 'sale') {
+
+                // hanya boleh dari READY -> SALE
+                if ($cargo->is_sale !== 'ready') {
+                    DB::rollBack();
+
+                    return (new ResponseResource(
+                        false,
+                        "Status cargo harus READY sebelum menjadi SALE.",
+                        null
+                    ))->response()->setStatusCode(400);
+                }
+
+                $cargo->update([
+                    'is_sale' => 'sale',
+                    'date_penjualan_sale' => Carbon::now(),
+                ]);
+
+                $message = "Cargo berhasil ditandai sudah terjual.";
+            } else {
+
+                // hanya boleh dari SALE -> READY
+                if ($cargo->is_sale !== 'sale') {
+                    DB::rollBack();
+
+                    return (new ResponseResource(
+                        false,
+                        "Cargo belum berstatus SALE.",
+                        null
+                    ))->response()->setStatusCode(400);
+                }
+
+                $cargo->update([
+                    'is_sale' => 'ready',
+                    'date_penjualan_sale' => null,
+                ]);
+
+                $message = "Status cargo berhasil dikembalikan menjadi READY.";
+            }
+
+            DB::commit();
+
+            return (new ResponseResource(
+                true,
+                $message,
+                [
+                    'id' => $cargo->id,
+                    'name_document' => $cargo->name_document,
+                    'status_bulky' => $cargo->status_bulky,
+                    'is_sale' => $cargo->is_sale,
+                    'date_penjualan_sale' => $cargo->date_penjualan_sale,
+                ]
+            ))->response();
+        } catch (\Exception $e) {
+
+            DB::rollBack();
+
+            return (new ResponseResource(
+                false,
+                "Terjadi kesalahan sistem.",
+                $e->getMessage()
+            ))->response()->setStatusCode(500);
+        }
     }
 }
