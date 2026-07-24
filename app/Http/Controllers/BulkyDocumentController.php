@@ -584,6 +584,39 @@ class BulkyDocumentController extends Controller
         }
     }
 
+    // public function exportPdfBuffer($id)
+    // {
+    //     $doc = BulkyDocument::where('type', BulkyDocument::TYPE_ONLINE)
+    //         ->where('is_sale', BulkyDocument::SALE_NOT)
+    //         ->whereNotNull('length')
+    //         ->whereNotNull('width')
+    //         ->whereNotNull('height')
+    //         ->whereNotNull('weight')
+    //         ->find($id);
+
+    //     if (!$doc) {
+    //         return response()->json([
+    //             'status'  => false,
+    //             'message' => 'Dokumen tidak ditemukan atau belum siap!'
+    //         ], 404);
+    //     }
+
+    //     $fileName = 'Cargo-Online-' . $doc->id . '.pdf';
+
+    //     $filePath = storage_path('app/public/pdfs/cargo/' . $fileName);
+
+    //     if (!file_exists($filePath)) {
+    //         return response()->json([
+    //             'status' => false,
+    //             'message' => 'File PDF fisik belum ter-generate di server! Pastikan Anda sudah mengisi dimensi untuk dokumen ini.'
+    //         ], 404);
+    //     }
+
+    //     return response()->file($filePath, [
+    //         'Content-Type' => 'application/pdf',
+    //         'Content-Disposition' => 'inline; filename="' . $fileName . '"'
+    //     ]);
+    // }
     public function exportPdfBuffer($id)
     {
         $doc = BulkyDocument::where('type', BulkyDocument::TYPE_ONLINE)
@@ -601,20 +634,28 @@ class BulkyDocumentController extends Controller
             ], 404);
         }
 
-        $fileName = 'Cargo-Online-' . $doc->id . '.pdf';
+        if (empty($doc->cargo_file)) {
+            return response()->json([
+                'status' => false,
+                'message' => 'File PDF belum tersedia.'
+            ], 404);
+        }
 
-        $filePath = storage_path('app/public/pdfs/cargo/' . $fileName);
+        $filePath = storage_path('app/' . $doc->cargo_file);
 
         if (!file_exists($filePath)) {
             return response()->json([
                 'status' => false,
-                'message' => 'File PDF fisik belum ter-generate di server! Pastikan Anda sudah mengisi dimensi untuk dokumen ini.'
+                'message' => 'File PDF tidak ditemukan di server!'
             ], 404);
         }
 
-        return response()->file($filePath, [
-            'Content-Type' => 'application/pdf',
-            'Content-Disposition' => 'inline; filename="' . $fileName . '"'
-        ]);
+        return response()->file(
+            $filePath,
+            [
+                'Content-Type' => 'application/pdf',
+                'Content-Disposition' => 'inline; filename="' . basename($filePath) . '"',
+            ]
+        );
     }
 }
