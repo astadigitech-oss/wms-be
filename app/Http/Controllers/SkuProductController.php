@@ -659,11 +659,9 @@ class SkuProductController extends Controller
             $endDate = $request->input('end_date');
 
             $stagingQuery = StagingProduct::with('user')
-                ->where('new_name_product', 'LIKE', 'Bundling %')
                 ->where('code_document', 'LIKE', '%SKU%');
 
             $newProdQuery = New_product::with('user')
-                ->where('new_name_product', 'LIKE', 'Bundling %')
                 ->where('code_document', 'LIKE', '%SKU%');
 
             if ($startDate && $endDate) {
@@ -685,10 +683,12 @@ class SkuProductController extends Controller
                     ->response()->setStatusCode(404);
             }
 
+            $time = now()->format('His');
+
             if ($startDate && $endDate) {
-                $fileName = 'Export_Bundling_SKU_' . $startDate . '_to_' . $endDate . '.xlsx';
+                $fileName = 'Export_Bundling_SKU_' . $startDate . '_to_' . $endDate . '_' . $time . '.xlsx';
             } else {
-                $fileName = 'Export_Bundling_SKU.xlsx';
+                $fileName = 'Export_Bundling_SKU_' . $time . '.xlsx';
             }
 
             $publicPath = 'exports/sku';

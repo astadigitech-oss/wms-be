@@ -73,6 +73,7 @@ use App\Http\Controllers\Outbound\Lusi\SaleDocumentController as LusiSaleDocumen
 use App\Http\Controllers\Outbound\Lusi\SkuProductController as LusiSkuProductController;
 use App\Http\Controllers\Outbound\NewSaleController;
 use App\Http\Controllers\Outbound\Lusi\VoucherSaleController;
+use App\Http\Controllers\Outbound\MasJo\ImportB2bController;
 use App\Http\Controllers\Outbound\SaleController as OutboundSaleController;
 use App\Http\Controllers\PaletBrandController;
 use App\Http\Controllers\PaletController;
@@ -1182,3 +1183,9 @@ Route::get('cargo-online/waiting', [BulkyDocumentController::class, 'getWaitingC
 Route::get('cargo-online/{id}/pdf', [BulkyDocumentController::class, 'exportPdfBuffer']);
 Route::put('cargo-online/{id}/ready', [BulkyDocumentController::class, 'updateReadyBulky']);
 Route::post('bulky/update-sale-price', [CargoNewController::class, 'updateSalePrice']);
+
+
+// ANAS
+Route::middleware(['auth:sanctum', 'check.role:Admin'])->group(function () {
+    Route::post('importb2b', [ImportB2bController::class, 'importB2B']);
+});
