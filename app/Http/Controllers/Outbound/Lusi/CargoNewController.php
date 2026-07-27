@@ -607,4 +607,30 @@ class CargoNewController extends Controller
             ))->response()->setStatusCode(500);
         }
     }
+
+    public function updateSyncCargo($id)
+    {
+        $cargo = BulkyDocument::find($id);
+
+        if (!$cargo) {
+            return (new ResponseResource(
+                false,
+                "Cargo tidak ditemukan!",
+                null
+            ))->response()->setStatusCode(404);
+        }
+
+        $cargo->update([
+            'is_sync' => true,
+        ]);
+
+        return (new ResponseResource(
+            true,
+            "Cargo berhasil ditandai sudah sync.",
+            [
+                'id' => $cargo->id,
+                'is_sync' => $cargo->is_sync,
+            ]
+        ))->response();
+    }
 }
