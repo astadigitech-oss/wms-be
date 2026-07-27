@@ -20,6 +20,7 @@ class BulkyDocument extends Model
     protected $casts = [
         'category_bulky_id' => 'string',
         'is_sync' => 'boolean',
+        'price_sale_sold' => 'decimal:2',
     ];
 
     public const SALE_NOT = 'not sale';

@@ -15,3 +15,5 @@ use Illuminate\Support\Facades\Route;
 
 Route::get('bulky-documents/not-sale', [CargoNewController::class, 'getPaletBelumDikasihHarga']);
 Route::get('bulky-documents/ready-sale', [CargoNewController::class, 'getPaletSudahDikasihHarga']);
+Route::post('sync-b2b/{idCargo}', [CargoNewController::class, 'updateSyncCargo']);
+Route::post('sale-b2b/{idCargo}/sold', [CargoNewController::class, 'updateSoldCargo']);
