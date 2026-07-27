@@ -666,6 +666,17 @@ class CargoNewController extends Controller
             ))->response()->setStatusCode(400);
         }
 
+        if ($cargo->is_sale !== BulkyDocument::SALE_READY) {
+            return (new ResponseResource(
+                false,
+                "Cargo harus berstatus READY sebelum ditandai SOLD.",
+                [
+                    'current_status' => $cargo->is_sale,
+                    'required_status' => BulkyDocument::SALE_READY,
+                ]
+            ))->response()->setStatusCode(400);
+        }
+
         if ($cargo->is_sale === BulkyDocument::SALE) {
             return (new ResponseResource(
                 false,
