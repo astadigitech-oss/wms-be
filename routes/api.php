@@ -763,6 +763,7 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Admin Kasir,Kasir leade
     Route::post('bulky-sale-finish', [BulkyDocumentController::class, 'bulkySaleFinish']);
     // Route::post('create-b2b', [BulkyDocumentController::class, 'createBulkyDocument']);
     Route::post('create-b2b', [CargoNewController::class, 'createBulkyDocumentNew']);
+    Route::post('sync-b2b/{idCargo}', [CargoNewController::class, 'updateSyncCargo']);
     Route::post('export-b2b', [BulkyDocumentController::class, 'export']);
     Route::resource('vehicle-types', VehicleTypeController::class)->except(['index', 'show']);
     Route::post('bulky-documents/{id}/ready-online', [BulkyDocumentController::class, 'setOnlineReady']);
