@@ -633,4 +633,62 @@ class CargoNewController extends Controller
             ]
         ))->response();
     }
+
+    public function updateSoldCargo(Request $request, $id)
+    {
+        $validator = Validator::make($request->all(), [
+            'price_sale_sold' => 'required|numeric|min:0',
+        ]);
+
+        if ($validator->fails()) {
+            return (new ResponseResource(
+                false,
+                "Input tidak valid!",
+                $validator->errors()
+            ))->response()->setStatusCode(422);
+        }
+
+        $cargo = BulkyDocument::find($id);
+
+        if (!$cargo) {
+            return (new ResponseResource(
+                false,
+                "Cargo tidak ditemukan!",
+                null
+            ))->response()->setStatusCode(404);
+        }
+
+        if ($cargo->type !== BulkyDocument::TYPE_ONLINE) {
+            return (new ResponseResource(
+                false,
+                "Hanya cargo online yang dapat ditandai sold.",
+                null
+            ))->response()->setStatusCode(400);
+        }
+
+        if ($cargo->is_sale === BulkyDocument::SALE) {
+            return (new ResponseResource(
+                false,
+                "Cargo sudah berstatus sale.",
+                null
+            ))->response()->setStatusCode(400);
+        }
+
+        $cargo->update([
+            'is_sale' => BulkyDocument::SALE,
+            'price_sale_sold' => $request->price_sale_sold,
+            'date_penjualan_sale' => Carbon::now(),
+        ]);
+
+        return (new ResponseResource(
+            true,
+            "Cargo berhasil ditandai terjual.",
+            [
+                'id' => $cargo->id,
+                'is_sale' => $cargo->is_sale,
+                'price_sale_sold' => $cargo->price_sale_sold,
+                'date_penjualan_sale' => $cargo->date_penjualan_sale,
+            ]
+        ))->response();
+    }
 }
