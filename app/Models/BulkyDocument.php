@@ -19,6 +19,7 @@ class BulkyDocument extends Model
 
     protected $casts = [
         'category_bulky_id' => 'string',
+        'is_sync' => 'boolean',
     ];
 
     public const SALE_NOT = 'not sale';
