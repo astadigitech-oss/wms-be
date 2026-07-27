@@ -651,8 +651,10 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Crew,Captai
 
 // [READ ONLY - Termasuk Audit]
 Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Kasir leader,Admin Kasir,Crew,Audit,Captain'])->group(function () {
-    Route::get('racks/list-product-staging', [RackController::class, 'listStagingProducts']);
-    Route::get('racks/list-product-display', [RackController::class, 'listDisplayProducts']);
+    // Route::get('racks/list-product-staging', [RackController::class, 'listStagingProducts']);
+    // Route::get('racks/list-product-display', [RackController::class, 'listDisplayProducts']);
+    Route::get('racks/list-product-staging', [LusiRackController::class, 'listStagingProducts']);
+    Route::get('racks/list-product-display', [LusiRackController::class, 'listDisplayProducts']);
     Route::get('racks/list', [RackController::class, 'getRackList']);
     Route::get('racks/history', [RackController::class, 'getRackHistory']);
     Route::get('racks/history-stats', [RackController::class, 'getRackInsertionStats']);
