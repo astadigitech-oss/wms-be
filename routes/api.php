@@ -57,6 +57,7 @@ use App\Http\Controllers\NonDocumentController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\Outbound\BagController;
 use App\Http\Controllers\Outbound\ExportOutboundController;
+use App\Http\Controllers\Outbound\Lusi\ApproveQueueController as LusiApproveQueueController;
 use App\Http\Controllers\Outbound\Lusi\BagController as LusiBagController;
 use App\Http\Controllers\Outbound\Lusi\BastApprovalController as LusiBastApprovalController;
 use App\Http\Controllers\Outbound\Lusi\CargoNewController;
@@ -737,7 +738,8 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Admin Kasir,Kasir leade
     Route::apiResource('buyers', BuyerController::class)->only(['show']);
     Route::resource('bulky-sales', BulkySaleController::class)->only(['index', 'show']);
     Route::resource('vehicle-types', VehicleTypeController::class)->only(['index', 'show']);
-    Route::get('get_approve_spv/{status}/{external_id}', [ApproveQueueController::class, 'get_approve_spv']);
+    // Route::get('get_approve_spv/{status}/{external_id}', [ApproveQueueController::class, 'get_approve_spv']);
+    Route::get('get_approve_spv/{status}/{external_id}', [LusiApproveQueueController::class, 'get_approve_spv']);
 });
 
 // [WRITE / POST / ACTION - TANPA Audit]
@@ -776,8 +778,10 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Kasir leader'])->group(
     Route::put('reject-product/{id_sale}', [SaleDocumentController::class, 'rejectProduct']);
     Route::put('reject-document/{id_sale}', [SaleDocumentController::class, 'rejectAllDiscounts']);
     Route::put('doneApproveDiscount/{id_sale_document}', [SaleDocumentController::class, 'doneApproveDiscount']);
-    Route::post('approve-edit/{id}', [ApproveQueueController::class, 'approve']);
-    Route::post('reject-edit/{id}', [ApproveQueueController::class, 'reject']);
+    // Route::post('approve-edit/{id}', [ApproveQueueController::class, 'approve']);
+    // Route::post('reject-edit/{id}', [ApproveQueueController::class, 'reject']);
+    Route::post('approve-edit/{id}', [LusiApproveQueueController::class, 'approve']);
+    Route::post('reject-edit/{id}', [LusiApproveQueueController::class, 'reject']);
 });
 
 // ========================================================================================================

@@ -18,6 +18,7 @@ use App\Http\Controllers\MigrateController;
 use App\Http\Controllers\MigrateDocumentController;
 use App\Http\Controllers\NewProductController;
 use App\Http\Controllers\NotificationController;
+use App\Http\Controllers\Outbound\Lusi\NewProductController as LusiNewProductController;
 use App\Http\Controllers\PaletController;
 use App\Http\Controllers\PaletFilterController;
 use App\Http\Controllers\PaletImageController;
@@ -203,6 +204,7 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader'])->group(f
    Route::post('new_products', [NewProductController::class, 'store']);
 
    Route::put('new_products/{new_product}', [NewProductController::class, 'update']);
+   // Route::put('new_products/{new_product}', [LusiNewProductController::class, 'update']);
    Route::get('new_products/{new_product}', [NewProductController::class, 'show']);
    // Route::delete('new_products/{new_product}', [NewProductController::class, 'destroy']);
 
