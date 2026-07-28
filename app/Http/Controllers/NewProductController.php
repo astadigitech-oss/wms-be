@@ -274,6 +274,262 @@ class NewProductController extends Controller
     /**
      * Update the specified resource in storage.
      */
+    // public function update(Request $request, New_product $new_product)
+    // {
+    //     DB::beginTransaction();
+    //     try {
+    //         $checkApproveQueue = ApproveQueue::where('type', 'inventory')->where('product_id', $new_product->id)->where('status', '1')->first();
+    //         if ($checkApproveQueue) {
+    //             return (new ResponseResource(false, "product sudah ada dalam antrian approve spv, konfirmasi ke spv", null))
+    //                 ->response()->setStatusCode(422);
+    //         }
+
+    //         $user = auth()->user()->email;
+    //         $validator = Validator::make($request->all(), [
+    //             'code_document' => 'nullable',
+    //             'old_barcode_product' => 'nullable',
+    //             'new_barcode_product' => 'required',
+    //             'new_name_product' => 'required',
+    //             'new_quantity_product' => 'required|integer',
+    //             'new_price_product' => 'required|numeric',
+    //             'old_price_product' => 'required|numeric',
+    //             'new_status_product' => 'required|in:display,expired,promo,bundle,palet,dump,sale,migrate,slow_moving',
+    //             'condition' => 'nullable',
+    //             'new_category_product' => 'nullable',
+    //             'new_tag_product' => 'nullable|exists:color_tags,name_color',
+    //             'new_discount' => 'nullable|numeric',
+    //             'display_price' => 'required|numeric'
+    //         ]);
+
+    //         if ($validator->fails()) {
+    //             return response()->json(['errors' => $validator->errors()], 422);
+    //         }
+
+    //         $status = $request->input('condition');
+    //         $description = $request->input('deskripsi', '');
+
+    //         $qualityData = [
+    //             'lolos' => $status === 'lolos' ? 'lolos' : null,
+    //             'damaged' => $status === 'damaged' ? $description : null,
+    //             'abnormal' => $status === 'abnormal' ? $description : null,
+    //         ];
+
+
+    //         $inputData = $request->only([
+    //             'code_document',
+    //             'old_barcode_product',
+    //             'new_barcode_product',
+    //             'new_name_product',
+    //             'new_quantity_product',
+    //             'new_price_product',
+    //             'old_price_product',
+    //             'new_date_in_product',
+    //             'new_status_product',
+    //             'new_category_product',
+    //             'new_tag_product',
+    //             'new_discount',
+    //             'display_price'
+    //         ]);
+
+    //         $indonesiaTime = Carbon::now('Asia/Jakarta');
+    //         $inputData['new_date_in_product'] = $indonesiaTime->toDateString();
+    //         // $inputData['display_price'] = $inputData['new_price_product'];
+
+
+    //         if ($inputData['old_price_product'] >= 100000) {
+    //             $inputData['new_tag_product'] = null;
+
+    //             if (empty($inputData['new_category_product'])) {
+    //                 return (new ResponseResource(false, "Kategori produk wajib diisi untuk harga di atas 100k.", null))
+    //                     ->response()->setStatusCode(422);
+    //             }
+
+    //             $category = Category::where('name_category', $inputData['new_category_product'])->first();
+    //             if (!$category) {
+    //                 return (new ResponseResource(false, "Kategori '" . $inputData['new_category_product'] . "' tidak ditemukan.", null))
+    //                     ->response()->setStatusCode(422);
+    //             }
+
+    //             if (isset($category->discount_category) && $category->discount_category > 0) {
+    //                 $discountAmount = ($category->discount_category / 100) * $inputData['old_price_product'];
+    //                 // if (isset($category->max_price_category) && $category->max_price_category > 0) {
+    //                 //     if ($discountAmount > $category->max_price_category) {
+    //                 //         $discountAmount = $category->max_price_category;
+    //                 //     }
+    //                 // }
+    //                 $calculatedPrice = $inputData['old_price_product'] - $discountAmount;
+    //                 $calculatedPriceFinal = round($calculatedPrice);
+    //                 $inputPrice = $inputData['new_price_product'];
+
+    //                 if (round($calculatedPriceFinal) != round($inputPrice)) {
+    //                     $errorMsg = "Harga tidak sesuai kalkulasi sistem (Diskon & Max Price Limit). Seharusnya: " . round($calculatedPriceFinal);
+
+    //                     return (new ResponseResource(false, $errorMsg, null))
+    //                         ->response()->setStatusCode(422);
+    //                 }
+    //             }
+    //         }
+
+    //         if ($request->input('old_price_product') < 100000) {
+    //             $tagwarna = Color_tag::where('min_price_color', '<=', $request->input('old_price_product'))
+    //                 ->where('max_price_color', '>=', $request->input('old_price_product'))
+    //                 ->select('fixed_price_color', 'name_color')->first();
+    //             $inputData['new_tag_product'] = $tagwarna['name_color'];
+    //             $inputData['new_price_product'] = $tagwarna['fixed_price_color'];
+    //             $inputData['new_category_product'] = null;
+    //         }
+
+    //         if ($status !== 'lolos') {
+    //             // Set nilai-nilai default jika status bukan 'lolos'
+    //             $inputData['new_price_product'] = null;
+    //             $inputData['new_category_product'] = null;
+    //         }
+
+    //         $inputData['new_quality'] = json_encode($qualityData);
+
+    //         if ($new_product->new_category_product != null) {
+    //             $inputData['new_barcode_product'] = $new_product->new_barcode_product;
+    //         }
+    //         $userRole = User::where('id', auth()->id())->first();
+
+    //         $original_barcode = $new_product->new_barcode_product;
+    //         $original_new_price = $new_product->new_price_product;
+    //         $original_old_price = $new_product->old_price_product;
+
+    //         $isDifferent = false;
+    //         if (
+    //             $original_barcode != $inputData['new_barcode_product'] ||
+    //             $new_product->new_name_product != $inputData['new_name_product'] ||
+    //             $new_product->new_quantity_product != $inputData['new_quantity_product'] ||
+    //             $original_new_price != $inputData['new_price_product'] ||
+    //             $original_old_price != $inputData['old_price_product'] ||
+    //             ($new_product->new_category_product ?? '-') != ($inputData['new_category_product'] ?? '-') ||
+    //             ($new_product->new_tag_product ?? '-') != ($inputData['new_tag_product'] ?? '-') ||
+    //             $new_product->new_quality != json_encode($qualityData)
+    //         ) {
+    //             $isDifferent = true;
+    //         }
+
+    //         $oldValue = [
+    //             'barcode' => $original_barcode,
+    //             'name_product' => $new_product->new_name_product,
+    //             'qty' => $new_product->new_quantity_product,
+    //             'old_price' => $original_old_price,
+    //             'new_price' => $original_new_price,
+    //             'category' => $new_product->new_category_product ?? '-',
+    //             'quality' => is_string($new_product->new_quality) ? json_decode($new_product->new_quality, true) : $new_product->new_quality,
+    //         ];
+
+    //         $newValue = [
+    //             'barcode' => $inputData['new_barcode_product'],
+    //             'name_product' => $inputData['new_name_product'],
+    //             'qty' => $inputData['new_quantity_product'],
+    //             'old_price' => $inputData['old_price_product'],
+    //             'new_price' => $inputData['new_price_product'],
+    //             'category' => $inputData['new_category_product'] ?? '-',
+    //             'quality' => $qualityData,
+    //         ];
+    //         // ----------------------------------------------
+
+    //         $response = $new_product; // Default Response jika tdk ada perubahan
+
+    //         if ($userRole->role->role_name != 'Admin' && $userRole->role->role_name != 'Spv') {
+    //             if ($isDifferent) {
+    //                 $response =  ApproveQueue::create([
+    //                     'user_id' => auth()->id(),
+    //                     'product_id' => $new_product->id,
+    //                     'type' => 'inventory',
+    //                     'code_document' => $inputData['code_document'] ?? '-',
+    //                     'old_price_product' => $inputData['old_price_product'],
+    //                     'new_name_product' => $inputData['new_name_product'],
+    //                     'new_quantity_product' => $inputData['new_quantity_product'],
+    //                     'new_price_product' => $inputData['new_price_product'],
+    //                     'new_discount' => $inputData['new_discount'] ?? 0,
+    //                     'new_tag_product' => $inputData['new_tag_product'],
+    //                     'new_category_product' => $inputData['new_category_product'],
+    //                     'status' => '1',
+    //                 ]);
+
+    //                 $notification = Notification::create([
+    //                     'user_id' => auth()->id(),
+    //                     'notification_name' => "edit product inventory" . " " . $inputData['new_barcode_product'],
+    //                     'role' => 'Spv',
+    //                     'read_at' => Carbon::now('Asia/Jakarta'),
+    //                     'riwayat_check_id' => null,
+    //                     'repair_id' => null,
+    //                     'status' => 'inventory',
+    //                     'external_id' => $new_product->id,
+    //                     'approved' => '0'
+    //                 ]);
+
+    //                 \App\Models\ProductEditHistory::create([
+    //                     'notification_id' => $notification->id,
+    //                     'code_document' => $inputData['code_document'] ?? '-',
+    //                     'barcode_product' => $inputData['new_barcode_product'],
+    //                     'old_value' => $oldValue,
+    //                     'new_value' => $newValue,
+    //                     'request_user_id' => auth()->id(),
+    //                     'status' => 'pending'
+    //                 ]);
+
+    //                 logUserAction(
+    //                     $request,
+    //                     $request->user(),
+    //                     "Inventory/product/category/detail",
+    //                     "barcode " . $inputData['new_barcode_product'] .
+    //                         ", new_price " . $inputData['new_price_product'] .
+    //                         ", old_price " . $inputData['old_price_product'] .
+    //                         ". before_edit_barcode " . $original_barcode .
+    //                         ", before_edit_new_price " . $original_new_price .
+    //                         ", before_edit_old_price " . $original_old_price .
+    //                         " wait for update product approve by spv" . $user
+    //                 );
+    //             }
+    //         } else {
+    //             $response = $new_product->update($inputData);
+    //             $new_product->save();
+
+    //             if ($isDifferent) {
+    //                 \App\Models\ProductEditHistory::create([
+    //                     'notification_id' => null,
+    //                     'code_document' => $inputData['code_document'] ?? '-',
+    //                     'barcode_product' => $inputData['new_barcode_product'],
+    //                     'old_value' => $oldValue,
+    //                     'new_value' => $newValue,
+    //                     'request_user_id' => auth()->id(),
+    //                     'approver_id' => auth()->id(),
+    //                     'status' => 'approved'
+    //                 ]);
+    //             }
+
+    //             logUserAction(
+    //                 $request,
+    //                 $request->user(),
+    //                 "Inventory/product/category/detail",
+    //                 "barcode " . $inputData['new_barcode_product'] .
+    //                     ", new_price " . $inputData['new_price_product'] .
+    //                     ", old_price " . $inputData['old_price_product'] .
+    //                     ". Data Before Edit ->" .
+    //                     ". before_edit_barcode " . $original_barcode .
+    //                     ", before_edit_new_price " . $original_new_price .
+    //                     ", before_edit_old_price " . $original_old_price .
+    //                     " wait for update product approve by spv" . $user
+    //             );
+    //         }
+
+    //         DB::commit();
+    //         return new ResponseResource(true, "New Produk Berhasil di Update", $response);
+    //     } catch (\Exception $e) {
+    //         DB::rollback();
+    //         return (new ResponseResource(false, "Terjadi kesalahan: " . $e->getMessage(), null))
+    //             ->response()
+    //             ->setStatusCode(500);
+    //     }
+    // }
+
+    /**
+     * Update the specified resource in storage.
+     */
     public function update(Request $request, New_product $new_product)
     {
         DB::beginTransaction();
@@ -435,21 +691,6 @@ class NewProductController extends Controller
 
             if ($userRole->role->role_name != 'Admin' && $userRole->role->role_name != 'Spv') {
                 if ($isDifferent) {
-                    $response =  ApproveQueue::create([
-                        'user_id' => auth()->id(),
-                        'product_id' => $new_product->id,
-                        'type' => 'inventory',
-                        'code_document' => $inputData['code_document'] ?? '-',
-                        'old_price_product' => $inputData['old_price_product'],
-                        'new_name_product' => $inputData['new_name_product'],
-                        'new_quantity_product' => $inputData['new_quantity_product'],
-                        'new_price_product' => $inputData['new_price_product'],
-                        'new_discount' => $inputData['new_discount'] ?? 0,
-                        'new_tag_product' => $inputData['new_tag_product'],
-                        'new_category_product' => $inputData['new_category_product'],
-                        'status' => '1',
-                    ]);
-
                     $notification = Notification::create([
                         'user_id' => auth()->id(),
                         'notification_name' => "edit product inventory" . " " . $inputData['new_barcode_product'],
@@ -460,6 +701,22 @@ class NewProductController extends Controller
                         'status' => 'inventory',
                         'external_id' => $new_product->id,
                         'approved' => '0'
+                    ]);
+
+                    $response =  ApproveQueue::create([
+                        'user_id' => auth()->id(),
+                        'product_id' => $new_product->id,
+                        'notification_id' => $notification->id,
+                        'type' => 'inventory',
+                        'code_document' => $inputData['code_document'] ?? '-',
+                        'old_price_product' => $inputData['old_price_product'],
+                        'new_name_product' => $inputData['new_name_product'],
+                        'new_quantity_product' => $inputData['new_quantity_product'],
+                        'new_price_product' => $inputData['new_price_product'],
+                        'new_discount' => $inputData['new_discount'] ?? 0,
+                        'new_tag_product' => $inputData['new_tag_product'],
+                        'new_category_product' => $inputData['new_category_product'],
+                        'status' => '1',
                     ]);
 
                     \App\Models\ProductEditHistory::create([

@@ -15,4 +15,8 @@ class ApproveQueue extends Model
     {
         return $this->belongsTo(User::class, 'user_id');
     }
+    public function notification()
+    {
+        return $this->belongsTo(Notification::class);
+    }
 }

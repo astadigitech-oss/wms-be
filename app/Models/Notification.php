@@ -10,14 +10,21 @@ class Notification extends Model
     use HasFactory;
     protected $guarded = ['id'];
 
-    public function user(){
+    public function user()
+    {
         return $this->belongsTo(User::class);
     }
 
-    public function riwayat_check(){
+    public function riwayat_check()
+    {
         return $this->belongsTo(RiwayatCheck::class);
     }
-    public function repair(){
+    public function repair()
+    {
         return $this->belongsTo(Repair::class);
+    }
+    public function approveQueue()
+    {
+        return $this->hasOne(ApproveQueue::class);
     }
 }
