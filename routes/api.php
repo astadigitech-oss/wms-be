@@ -60,6 +60,7 @@ use App\Http\Controllers\Outbound\ExportOutboundController;
 use App\Http\Controllers\Outbound\Lusi\ApproveQueueController as LusiApproveQueueController;
 use App\Http\Controllers\Outbound\Lusi\BagController as LusiBagController;
 use App\Http\Controllers\Outbound\Lusi\BastApprovalController as LusiBastApprovalController;
+use App\Http\Controllers\Outbound\Lusi\BulkyDocumentController as LusiBulkyDocumentController;
 use App\Http\Controllers\Outbound\Lusi\CargoNewController;
 use App\Http\Controllers\Outbound\Lusi\ColorRackController as LusiColorRackController;
 use App\Http\Controllers\Outbound\Lusi\DashboardController as LusiDashboardController;
@@ -768,7 +769,8 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Admin Kasir,Kasir leade
     Route::post('export-b2b', [BulkyDocumentController::class, 'export']);
     Route::resource('vehicle-types', VehicleTypeController::class)->except(['index', 'show']);
     Route::post('bulky-documents/{id}/ready-online', [BulkyDocumentController::class, 'setOnlineReady']);
-    Route::post('bulky-documents/{id}/sale', [BulkyDocumentController::class, 'confirmSale']);
+    // Route::post('bulky-documents/{id}/sale', [BulkyDocumentController::class, 'confirmSale']);
+    Route::post('bulky-documents/{id}/sale', [LusiBulkyDocumentController::class, 'confirmSale']);
 });
 
 // [WRITE / POST / ACTION - TANPA Audit (Hanya approval tidak ada GET)]
