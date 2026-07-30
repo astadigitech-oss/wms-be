@@ -73,4 +73,9 @@ class BulkyDocument extends Model
     {
         return $this->belongsTo(User::class, 'user_id');
     }
+
+    public function userSetSale()
+    {
+        return $this->belongsTo(User::class, 'user_id_set_sale');
+    }
 }
