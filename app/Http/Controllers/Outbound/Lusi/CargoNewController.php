@@ -487,6 +487,7 @@ class CargoNewController extends Controller
             ->where('type', 'Cargo Online')
             ->where('status_bulky', 'selesai')
             ->where('is_sale', 'ready')
+            ->where('is_sync', false)
             ->latest()
             ->get();
 
