@@ -60,6 +60,7 @@ use App\Http\Controllers\Outbound\ExportOutboundController;
 use App\Http\Controllers\Outbound\Lusi\ApproveQueueController as LusiApproveQueueController;
 use App\Http\Controllers\Outbound\Lusi\BagController as LusiBagController;
 use App\Http\Controllers\Outbound\Lusi\BastApprovalController as LusiBastApprovalController;
+use App\Http\Controllers\Outbound\Lusi\BulkController as LusiBulkController;
 use App\Http\Controllers\Outbound\Lusi\BulkyDocumentController as LusiBulkyDocumentController;
 use App\Http\Controllers\Outbound\Lusi\CargoNewController;
 use App\Http\Controllers\Outbound\Lusi\ColorRackController as LusiColorRackController;
@@ -465,6 +466,7 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Audit'])->group(functio
 // [WRITE / POST / ACTION - TANPA Audit]
 Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader'])->group(function () {
     Route::post('/excelOld', [StagingProductController::class, 'processExcelFilesCategoryStaging']);
+    Route::post('/excelDamaged', [LusiBulkController::class, 'excelDamaged']);
     Route::post('/bulkingInventory', [NewProductController::class, 'processExcelFilesCategory']);
     // Route::post('/bulking_tag_warna', [NewProductController::class, 'processExcelFilesTagColor']);
     Route::post('/export-buyers/action/{id}', [BuyerController::class, 'actionExportRequest']);
