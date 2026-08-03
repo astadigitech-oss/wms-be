@@ -35,12 +35,11 @@ class PosService
 
             $data = $response->json();
 
-            if (
-                $response->successful() &&
-                ($data['status'] ?? false) &&
-                !empty($data['data']['access_token'])
-            ) {
-                return $data['data']['access_token'];
+            // Token POS berada di dalam object 'data': data.data.access_token
+            $accessToken = $data['data']['access_token'] ?? ($data['access_token'] ?? null);
+
+            if ($response->successful() && !empty($accessToken)) {
+                return $accessToken;
             }
 
             Log::error('POS Token Error: ' . $response->body());
