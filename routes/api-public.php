@@ -1,6 +1,11 @@
 <?php
 
 use App\Http\Controllers\Outbound\Lusi\CargoNewController;
+use App\Http\Controllers\Outbound\Lusi\PublicCategoryController;
+use App\Http\Controllers\Outbound\Lusi\PublicColorTagController;
+use App\Http\Controllers\Outbound\Lusi\PublicTaxController;
+use App\Http\Controllers\Outbound\Lusi\PublicUserController;
+use App\Http\Controllers\Outbound\Lusi\PublicVoucherController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -17,3 +22,10 @@ Route::get('bulky-documents/not-sale', [CargoNewController::class, 'getPaletBelu
 Route::get('bulky-documents/ready-sale', [CargoNewController::class, 'getPaletSudahDikasihHarga']);
 Route::post('sync-b2b/{idCargo}', [CargoNewController::class, 'updateSyncCargo']);
 Route::post('sale-b2b/{idCargo}/sold', [CargoNewController::class, 'updateSoldCargo']);
+
+// Public API tanpa auth - list data penting
+Route::get('public/users', [PublicUserController::class, 'index']);
+Route::get('public/categories', [PublicCategoryController::class, 'index']);
+Route::get('public/color-tags', [PublicColorTagController::class, 'index']);
+Route::get('public/taxes', [PublicTaxController::class, 'index']);
+Route::get('public/vouchers', [PublicVoucherController::class, 'index']);
