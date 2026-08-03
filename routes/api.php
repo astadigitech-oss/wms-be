@@ -710,8 +710,8 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Kasir leade
 Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Kasir leader,Admin Kasir,Reparasi,Retail,Captain'])->group(function () {
     Route::resource('destinations', DestinationController::class)->except(['index', 'show', 'destroy']);
     Route::resource('migrates', MigrateController::class)->except(['index', 'show', 'destroy']);
-    // Route::post('migrate-finish', [MigrateDocumentController::class, 'MigrateDocumentFinish']);
-    Route::post('migrate-finish', [LusiMigrateDocumentController::class, 'MigrateDocumentFinish']);
+    Route::post('migrate-finish', [MigrateDocumentController::class, 'MigrateDocumentFinish']);
+    // Route::post('migrate-finish', [LusiMigrateDocumentController::class, 'MigrateDocumentFinish']);
     Route::delete('migrates/{migrate}', [MigrateController::class, 'destroy']);
     Route::resource('migrate-documents', MigrateDocumentController::class)->except(['index', 'show', 'destroy']);
     Route::post('migrate-bulky-finish', [MigrateBulkyController::class, 'finishMigrateBulky']);
