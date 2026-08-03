@@ -34,9 +34,10 @@ class PosService
             ]);
 
             $data = $response->json();
+            $accessToken = $data['access_token'] ?? $data['data']['access_token'] ?? null;
 
-            if ($response->successful() && !empty($data['access_token'])) {
-                return $data['access_token'];
+            if ($response->successful() && !empty($accessToken)) {
+                return $accessToken;
             }
 
             Log::error('POS Token Error: ' . $response->body());
