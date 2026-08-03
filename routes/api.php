@@ -65,6 +65,7 @@ use App\Http\Controllers\Outbound\Lusi\BulkyDocumentController as LusiBulkyDocum
 use App\Http\Controllers\Outbound\Lusi\CargoNewController;
 use App\Http\Controllers\Outbound\Lusi\ColorRackController as LusiColorRackController;
 use App\Http\Controllers\Outbound\Lusi\DashboardController as LusiDashboardController;
+use App\Http\Controllers\Outbound\Lusi\DocumentController as LusiDocumentController;
 use App\Http\Controllers\Outbound\Lusi\FixWmsValidationController;
 use App\Http\Controllers\Outbound\Lusi\MigrateBulkyProductController as LusiMigrateBulkyProductController;
 use App\Http\Controllers\Outbound\Lusi\NewProductController as LusiNewProductController;
@@ -885,7 +886,8 @@ Route::middleware(['auth:sanctum', 'check.role:Admin'])->group(function () {
     Route::delete('categories/{category}', [CategoryController::class, 'destroy']);
     Route::delete('color_tags/{color_tag}', [ColorTagController::class, 'destroy']);
     Route::delete('product_olds/{product_old}', [ProductOldController::class, 'destroy']);
-    Route::delete('documents/{document}', [DocumentController::class, 'destroy']);
+    // Route::delete('documents/{document}', [DocumentController::class, 'destroy']);
+    Route::delete('documents/{document}', [LusiDocumentController::class, 'destroy']);
     Route::delete('historys/{history}', [RiwayatCheckController::class, 'destroy']);
     Route::delete('notifications/{notification}', [NotificationController::class, 'destroy']);
     Route::delete('destinations/{destination}', [DestinationController::class, 'destroy']);
