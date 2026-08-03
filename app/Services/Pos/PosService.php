@@ -23,28 +23,7 @@ class PosService
     /**
      * 1. Get OAuth Token
      */
-    // public function getToken()
-    // {
-
-    //     return Cache::remember('pos_oauth_token', 3300, function () {
-
-    //         $response = Http::post($this->baseUrl . '/api/oauth/token', [
-    //             'client_id'     => $this->clientId,
-    //             'client_secret' => $this->clientSecret,
-    //         ]);
-
-    //         $data = $response->json();
-
-    //         if ($response->successful() && !empty($data['access_token'])) {
-    //             return $data['access_token'];
-    //         }
-
-    //         Log::error('POS Token Error: ' . $response->body());
-    //         throw new \Exception('Gagal Get Token POS. Response Server: ' . $response->body());
-    //     });
-    // }
-
-     public function getToken()
+    public function getToken()
     {
 
         return Cache::remember('pos_oauth_token', 3300, function () {
@@ -55,22 +34,43 @@ class PosService
             ]);
 
             $data = $response->json();
-            $accessToken = $data['access_token'] ?? $data['data']['access_token'] ?? null;
 
-            if (!empty($accessToken)) {
-                if (!$response->successful()) {
-                    Log::warning('POS Token response returned non-2xx status but contained access_token', [
-                        'status' => $response->status(),
-                        'body'   => $response->body(),
-                    ]);
-                }
-                return $accessToken;
+            if ($response->successful() && !empty($data['access_token'])) {
+                return $data['access_token'];
             }
 
             Log::error('POS Token Error: ' . $response->body());
             throw new \Exception('Gagal Get Token POS. Response Server: ' . $response->body());
         });
     }
+
+    //  public function getToken()
+    // {
+
+    //     return Cache::remember('pos_oauth_token', 3300, function () {
+
+    //         $response = Http::post($this->baseUrl . '/api/oauth/token', [
+    //             'client_id'     => $this->clientId,
+    //             'client_secret' => $this->clientSecret,
+    //         ]);
+
+    //         $data = $response->json();
+    //         $accessToken = $data['access_token'] ?? $data['data']['access_token'] ?? null;
+
+    //         if (!empty($accessToken)) {
+    //             if (!$response->successful()) {
+    //                 Log::warning('POS Token response returned non-2xx status but contained access_token', [
+    //                     'status' => $response->status(),
+    //                     'body'   => $response->body(),
+    //                 ]);
+    //             }
+    //             return $accessToken;
+    //         }
+
+    //         Log::error('POS Token Error: ' . $response->body());
+    //         throw new \Exception('Gagal Get Token POS. Response Server: ' . $response->body());
+    //     });
+    // }
 
     /**
      * 2. Get List Stores / Destination Tokens
