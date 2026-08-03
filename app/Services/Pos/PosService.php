@@ -23,7 +23,28 @@ class PosService
     /**
      * 1. Get OAuth Token
      */
-    public function getToken()
+    // public function getToken()
+    // {
+
+    //     return Cache::remember('pos_oauth_token', 3300, function () {
+
+    //         $response = Http::post($this->baseUrl . '/api/oauth/token', [
+    //             'client_id'     => $this->clientId,
+    //             'client_secret' => $this->clientSecret,
+    //         ]);
+
+    //         $data = $response->json();
+
+    //         if ($response->successful() && !empty($data['access_token'])) {
+    //             return $data['access_token'];
+    //         }
+
+    //         Log::error('POS Token Error: ' . $response->body());
+    //         throw new \Exception('Gagal Get Token POS. Response Server: ' . $response->body());
+    //     });
+    // }
+
+     public function getToken()
     {
 
         return Cache::remember('pos_oauth_token', 3300, function () {
@@ -36,7 +57,13 @@ class PosService
             $data = $response->json();
             $accessToken = $data['access_token'] ?? $data['data']['access_token'] ?? null;
 
-            if ($response->successful() && !empty($accessToken)) {
+            if (!empty($accessToken)) {
+                if (!$response->successful()) {
+                    Log::warning('POS Token response returned non-2xx status but contained access_token', [
+                        'status' => $response->status(),
+                        'body'   => $response->body(),
+                    ]);
+                }
                 return $accessToken;
             }
 
@@ -68,6 +95,27 @@ class PosService
 
         Log::error('Gagal mengambil list store dari POS: ' . $response->body());
         throw new \Exception('Gagal mengambil data toko dari server POS.');
+    }
+
+    public function getStoreTokenByShopName(string $shopName): ?string
+    {
+        $response = $this->getStores();
+        $stores = $response['resource'] ?? $response['data'] ?? [];
+
+        if (!is_array($stores)) {
+            return null;
+        }
+
+        foreach ($stores as $store) {
+            $storeName = $store['store_name'] ?? $store['name'] ?? null;
+            $storeToken = $store['token'] ?? $store['store_token'] ?? null;
+
+            if ($storeName !== null && strcasecmp(trim($storeName), trim($shopName)) === 0) {
+                return $storeToken ?: null;
+            }
+        }
+
+        return null;
     }
 
     /**

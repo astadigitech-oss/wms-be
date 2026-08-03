@@ -68,6 +68,7 @@ use App\Http\Controllers\Outbound\Lusi\DashboardController as LusiDashboardContr
 use App\Http\Controllers\Outbound\Lusi\DocumentController as LusiDocumentController;
 use App\Http\Controllers\Outbound\Lusi\FixWmsValidationController;
 use App\Http\Controllers\Outbound\Lusi\MigrateBulkyProductController as LusiMigrateBulkyProductController;
+use App\Http\Controllers\Outbound\Lusi\MigrateDocumentController as LusiMigrateDocumentController;
 use App\Http\Controllers\Outbound\Lusi\NewProductController as LusiNewProductController;
 use App\Http\Controllers\Outbound\Lusi\NewSaleController as LusiNewSaleController;
 use App\Http\Controllers\Outbound\Lusi\RackController as LusiRackController;
@@ -709,7 +710,8 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Kasir leade
 Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Kasir leader,Admin Kasir,Reparasi,Retail,Captain'])->group(function () {
     Route::resource('destinations', DestinationController::class)->except(['index', 'show', 'destroy']);
     Route::resource('migrates', MigrateController::class)->except(['index', 'show', 'destroy']);
-    Route::post('migrate-finish', [MigrateDocumentController::class, 'MigrateDocumentFinish']);
+    // Route::post('migrate-finish', [MigrateDocumentController::class, 'MigrateDocumentFinish']);
+    Route::post('migrate-finish', [LusiMigrateDocumentController::class, 'MigrateDocumentFinish']);
     Route::delete('migrates/{migrate}', [MigrateController::class, 'destroy']);
     Route::resource('migrate-documents', MigrateDocumentController::class)->except(['index', 'show', 'destroy']);
     Route::post('migrate-bulky-finish', [MigrateBulkyController::class, 'finishMigrateBulky']);
