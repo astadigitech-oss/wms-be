@@ -25,23 +25,29 @@ class PosService
      */
     public function getToken()
     {
+        $cachedToken = Cache::get('pos_oauth_token');
+        if ($cachedToken) {
+            return $cachedToken;
+        }
 
-        return Cache::remember('pos_oauth_token', 3300, function () {
+        $response = Http::post($this->baseUrl . '/api/oauth/token', [
+            'client_id'     => $this->clientId,
+            'client_secret' => $this->clientSecret,
+        ]);
 
-            $response = Http::post($this->baseUrl . '/api/oauth/token', [
-                'client_id'     => $this->clientId,
-                'client_secret' => $this->clientSecret,
-            ]);
+        $data = $response->json();
 
-            $data = $response->json();
+        // Struktur response POS API:
+        // { "message": "...", "status": true, "data": { "access_token": "...", "token_type": "Bearer" } }
+        $token = $data['data']['access_token'] ?? ($data['access_token'] ?? null);
 
-            if ($response->successful() && !empty($data['access_token'])) {
-                return $data['access_token'];
-            }
+        if ($response->successful() && !empty($token)) {
+            Cache::put('pos_oauth_token', $token, 3300); // 55 menit (token berlaku 15 menit)
+            return $token;
+        }
 
-            Log::error('POS Token Error: ' . $response->body());
-            throw new \Exception('Gagal Get Token POS. Response Server: ' . $response->body());
-        });
+        Log::error('POS Token Error: ' . $response->body());
+        throw new \Exception('Gagal Get Token POS. Response Server: ' . $response->body());
     }
 
     /**
