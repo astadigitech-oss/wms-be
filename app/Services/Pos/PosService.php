@@ -34,16 +34,37 @@ class PosService
             ]);
 
             $data = $response->json();
-            $accessToken = $data['access_token'] ?? $data['data']['access_token'] ?? null;
 
-            if ($response->successful() && !empty($accessToken)) {
-                return $accessToken;
+            if ($response->successful() && !empty($data['access_token'])) {
+                return $data['access_token'];
             }
 
             Log::error('POS Token Error: ' . $response->body());
             throw new \Exception('Gagal Get Token POS. Response Server: ' . $response->body());
         });
     }
+
+    //  public function getToken()
+    // {
+
+    //     return Cache::remember('pos_oauth_token', 3300, function () {
+
+    //         $response = Http::post($this->baseUrl . '/api/oauth/token', [
+    //             'client_id'     => $this->clientId,
+    //             'client_secret' => $this->clientSecret,
+    //         ]);
+
+    //         $data = $response->json();
+    //         $accessToken = $data['access_token'] ?? $data['data']['access_token'] ?? null;
+
+    //         if ($response->successful() && !empty($accessToken)) {
+    //             return $accessToken;
+    //         }
+
+    //         Log::error('POS Token Error: ' . $response->body());
+    //         throw new \Exception('Gagal Get Token POS. Response Server: ' . $response->body());
+    //     });
+    // }
 
     /**
      * 2. Get List Stores / Destination Tokens
