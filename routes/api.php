@@ -76,6 +76,7 @@ use App\Http\Controllers\Outbound\Lusi\RackStatusController as LusiRackStatusCon
 use App\Http\Controllers\Outbound\Lusi\SaleController as LusiSaleController;
 use App\Http\Controllers\Outbound\Lusi\SaleDocumentController as LusiSaleDocumentController;
 use App\Http\Controllers\Outbound\Lusi\SkuProductController as LusiSkuProductController;
+use App\Http\Controllers\Outbound\Lusi\UpdateStatusCargoController;
 use App\Http\Controllers\Outbound\NewSaleController;
 use App\Http\Controllers\Outbound\Lusi\VoucherSaleController;
 use App\Http\Controllers\Outbound\MasJo\ImportB2bController;
@@ -164,6 +165,7 @@ Route::middleware([
         Route::post('cargo/{idCargo}/set-volume-berat', [CargoNewController::class, 'setVolumeDanBerat']);
         Route::post('cargo/{idCargo}/toggle-status-bulky', [CargoController::class, 'toggleStatusBulky']);
         Route::put('/cargo/{id}/status-sale', [CargoNewController::class, 'updateStatusSale']);
+        Route::post('cargo/update-status-to-cargo', [UpdateStatusCargoController::class, 'updateStatusToCargo']);
     });
 
     // =====================================================================
