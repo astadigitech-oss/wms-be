@@ -3,6 +3,7 @@
 use App\Http\Controllers\Outbound\Lusi\CargoNewController;
 use App\Http\Controllers\Outbound\Lusi\PublicCategoryController;
 use App\Http\Controllers\Outbound\Lusi\PublicColorTagController;
+use App\Http\Controllers\Outbound\Lusi\MigrasiController;
 use App\Http\Controllers\Outbound\Lusi\PublicTaxController;
 use App\Http\Controllers\Outbound\Lusi\PublicUserController;
 use App\Http\Controllers\Outbound\Lusi\PublicVoucherController;
@@ -29,3 +30,10 @@ Route::get('public/categories', [PublicCategoryController::class, 'index']);
 Route::get('public/color-tags', [PublicColorTagController::class, 'index']);
 Route::get('public/taxes', [PublicTaxController::class, 'index']);
 Route::get('public/vouchers', [PublicVoucherController::class, 'index']);
+
+// Public API rank (class) & buyer
+Route::get('public/ranks', [MigrasiController::class, 'ranks']);
+Route::get('public/buyers', [MigrasiController::class, 'buyers']);
+Route::get('public/suppliers', [MigrasiController::class, 'suppliers']);
+Route::get('public/buyer-vouchers', [MigrasiController::class, 'buyerVouchers']);
+Route::get('public/staging-products', [MigrasiController::class, 'stagingProducts']);
