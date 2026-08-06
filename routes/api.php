@@ -165,7 +165,6 @@ Route::middleware([
         Route::post('cargo/{idCargo}/set-volume-berat', [CargoNewController::class, 'setVolumeDanBerat']);
         Route::post('cargo/{idCargo}/toggle-status-bulky', [CargoController::class, 'toggleStatusBulky']);
         Route::put('/cargo/{id}/status-sale', [CargoNewController::class, 'updateStatusSale']);
-        Route::post('cargo/update-status-to-cargo', [UpdateStatusCargoController::class, 'updateStatusToCargo']);
     });
 
     // =====================================================================
@@ -330,6 +329,9 @@ Route::middleware(['auth:sanctum', 'check.role:Admin'])->group(function () {
 
     // Helper ERP - COGS
     Route::post('supplier-channel-import', [CogsController::class, 'importSupplierDanChannel']);
+    
+    // Helper ubah status sale to cargo table new_products, staging_products, bundles
+    Route::post('cargo/update-status-to-cargo', [UpdateStatusCargoController::class, 'updateStatusToCargo']);
 });
 
 Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader'])->group(function () {
