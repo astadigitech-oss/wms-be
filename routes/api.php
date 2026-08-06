@@ -76,6 +76,7 @@ use App\Http\Controllers\Outbound\Lusi\RackStatusController as LusiRackStatusCon
 use App\Http\Controllers\Outbound\Lusi\SaleController as LusiSaleController;
 use App\Http\Controllers\Outbound\Lusi\SaleDocumentController as LusiSaleDocumentController;
 use App\Http\Controllers\Outbound\Lusi\SkuProductController as LusiSkuProductController;
+use App\Http\Controllers\Outbound\Lusi\UpdateStatusCargoController;
 use App\Http\Controllers\Outbound\NewSaleController;
 use App\Http\Controllers\Outbound\Lusi\VoucherSaleController;
 use App\Http\Controllers\Outbound\MasJo\ImportB2bController;
@@ -328,6 +329,9 @@ Route::middleware(['auth:sanctum', 'check.role:Admin'])->group(function () {
 
     // Helper ERP - COGS
     Route::post('supplier-channel-import', [CogsController::class, 'importSupplierDanChannel']);
+    
+    // Helper ubah status sale to cargo table new_products, staging_products, bundles
+    Route::post('cargo/update-status-to-cargo', [UpdateStatusCargoController::class, 'updateStatusToCargo']);
 });
 
 Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader'])->group(function () {
