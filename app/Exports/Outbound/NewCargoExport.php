@@ -4,6 +4,7 @@ namespace App\Exports\Outbound;
 
 use App\Models\BulkyDocument;
 use App\Models\BulkySale;
+use Carbon\Carbon;
 use Maatwebsite\Excel\Concerns\FromCollection;
 use Maatwebsite\Excel\Concerns\WithHeadings;
 use Maatwebsite\Excel\Concerns\WithMapping;
@@ -12,24 +13,40 @@ use Maatwebsite\Excel\Concerns\WithTitle;
 
 class NewCargoExport implements WithMultipleSheets
 {
+    protected $exportDate;
+
+    public function __construct($exportDate = null)
+    {
+        // Jika tanggal null/kosong, otomatis default ke hari ini (23:59:59)
+        $this->exportDate = !empty($exportDate)
+            ? Carbon::parse($exportDate)->endOfDay()
+            : now()->endOfDay();
+    }
+
     public function sheets(): array
     {
+        // Ambil ID dokumen yang created_at <= exportDate
         $documentIds = BulkyDocument::query()
             ->where('is_sale', BulkyDocument::SALE_NOT)
             ->where('type', BulkyDocument::TYPE_OFFLINE)
+            ->where('created_at', '<=', $this->exportDate)
             ->pluck('id');
 
         return [
 
             // Sheet 1 - Dokumen B2B
-            new class($documentIds) implements FromCollection, WithTitle, WithHeadings, WithMapping {
+            new class($documentIds, $this->exportDate) implements FromCollection, WithTitle, WithHeadings, WithMapping {
 
-                public function __construct(protected $documentIds) {}
+                public function __construct(
+                    protected $documentIds,
+                    protected $exportDate
+                ) {}
 
                 public function collection()
                 {
                     return BulkyDocument::query()
                         ->whereIn('id', $this->documentIds)
+                        ->where('created_at', '<=', $this->exportDate)
                         ->get();
                 }
 
@@ -60,15 +77,19 @@ class NewCargoExport implements WithMultipleSheets
             },
 
             // Sheet 2 - Produk B2B
-            new class($documentIds) implements FromCollection, WithTitle, WithHeadings, WithMapping {
+            new class($documentIds, $this->exportDate) implements FromCollection, WithTitle, WithHeadings, WithMapping {
 
-                public function __construct(protected $documentIds) {}
+                public function __construct(
+                    protected $documentIds,
+                    protected $exportDate
+                ) {}
 
                 public function collection()
                 {
                     return BulkySale::query()
                         ->with('bulkyDocument')
                         ->whereIn('bulky_document_id', $this->documentIds)
+                        ->where('created_at', '<=', $this->exportDate)
                         ->get();
                 }
 
