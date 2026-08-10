@@ -3,6 +3,7 @@
 use App\Http\Controllers\AbnormalDocumentController;
 use App\Http\Controllers\AdminPanel\NewBuyerController;
 use App\Http\Controllers\AdminPanel\VoucherController;
+use App\Http\Controllers\Outbound\Lusi\VoucherController as LusiVoucherController;
 use App\Http\Controllers\ApproveQueueController;
 use App\Http\Controllers\ArchiveStorageController;
 use App\Http\Controllers\AuthController;
@@ -269,32 +270,50 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader'])->group(f
 });
 
 // ========================================================================================================
-// 0. Fixing Helper - Voucher
+// 0. Fixing Helper - Voucher (LUSI)
 // ========================================================================================================
 Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Kasir leader'])->group(function () {
-    Route::get('vouchers', [VoucherController::class, 'listVoucher']);
-    Route::post('vouchers', [VoucherController::class, 'buatVoucher']);
-    Route::post('vouchers/{id}', [VoucherController::class, 'updateVoucher']);
-    Route::post('vouchers/{id}/tambah-buyer', [VoucherController::class, 'tambahBuyerKeVoucher']);
-    Route::get('vouchers/{id}', [VoucherController::class, 'detailVoucher']);
+    // KODE LAMA (di-disable, diganti versi baru di bawah)
+    // Route::get('vouchers', [VoucherController::class, 'listVoucher']);
+    // Route::post('vouchers', [VoucherController::class, 'buatVoucher']);
+    // Route::post('vouchers/{id}', [VoucherController::class, 'updateVoucher']);
+    // Route::post('vouchers/{id}/tambah-buyer', [VoucherController::class, 'tambahBuyerKeVoucher']);
+    // Route::get('vouchers/{id}', [VoucherController::class, 'detailVoucher']);
+
+    // VERSI BARU - LusiVoucherController (mendukung voucher_type nominal/barang)
+    Route::get('vouchers', [LusiVoucherController::class, 'listVoucher']);
+    Route::post('vouchers', [LusiVoucherController::class, 'buatVoucher']);
+    Route::post('vouchers/{id}', [LusiVoucherController::class, 'updateVoucher']);
+    Route::post('vouchers/{id}/tambah-buyer', [LusiVoucherController::class, 'tambahBuyerKeVoucher']);
+    Route::get('vouchers/{id}', [LusiVoucherController::class, 'detailVoucher']);
 });
 
 // ========================================================================================================
 // 0. Fixing Helper - Adjust Usage Voucher
 // ========================================================================================================
 Route::middleware(['auth:sanctum', 'check.role:Admin,Kasir leader,Admin Kasir'])->group(function () {
-    Route::get('list-voucher-buyer/{id}', [NewSaleController::class, 'listVoucherBuyer']);
+    // KODE LAMA (di-disable, diganti versi baru di bawah)
+    // Route::get('list-voucher-buyer/{id}', [NewSaleController::class, 'listVoucherBuyer']);
     // Route::post('pakai-voucher', [NewSaleController::class, 'pakaiVoucher']);
-    Route::post('pakai-voucher', [LusiNewSaleController::class, 'pakaiVoucher']);
     // Route::post('lepas-voucher', [NewSaleController::class, 'lepasVoucher']);
+
+    // VERSI BARU - LusiNewSaleController (mendukung voucher_type nominal/barang)
+    Route::get('list-voucher-buyer/{id}', [LusiNewSaleController::class, 'listVoucherBuyer']);
+    Route::post('pakai-voucher', [LusiNewSaleController::class, 'pakaiVoucher']);
     Route::post('lepas-voucher', [LusiNewSaleController::class, 'lepasVoucher']);
     Route::get('check-pending-voucher', [LusiNewSaleController::class, 'checkPendingApproval']);
 });
 
 Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Kasir leader'])->group(function () {
+    // VERSI BARU - LusiNewSaleController (mendukung voucher_type nominal/barang)
     Route::post('vouchers/{id}/approve', [LusiNewSaleController::class, 'approveVoucher']);
     Route::post('vouchers/{id}/reject', [LusiNewSaleController::class, 'rejectVoucher']);
     Route::get('list-voucher-approval', [LusiNewSaleController::class, 'listApprovalVoucher']);
+
+    // KODE LAMA (di-disable, diganti versi baru di atas)
+    // Route::post('vouchers/{id}/approve', [NewSaleController::class, 'approveVoucher']);
+    // Route::post('vouchers/{id}/reject', [NewSaleController::class, 'rejectVoucher']);
+    // Route::get('list-voucher-approval', [NewSaleController::class, 'listApprovalVoucher']);
 });
 
 // ========================================================================================================
@@ -1025,6 +1044,7 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Admin Kasir
     Route::resource('summary_so_color', SummarySoColorController::class)->only(['index', 'show']);
     Route::get('bulky-documents/summary-sales', [BulkyDocumentController::class, 'getSummaryBulkySales']);
     Route::get('bulky-documents', [BulkyDocumentController::class, 'index']);
+    Route::put('bulky-documents/{bulkyDocument}/edit-name', [BulkyDocumentController::class, 'updateName']);
     Route::get('bulky-documents/{bulkyDocument}', [BulkyDocumentController::class, 'show']);
     Route::get('bag_by_user', [BagProductsController::class, 'index']);
     Route::get('bags/{bagProducts}', [BagProductsController::class, 'show']);

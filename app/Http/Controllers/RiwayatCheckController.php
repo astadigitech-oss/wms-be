@@ -497,7 +497,22 @@ class RiwayatCheckController extends Controller
                 $product->new_quantity_product = $reference ? ($reference->new_quantity_product ?? 1) : 1;
                 $product->old_name_product = $product->new_name_product;
 
-                if ($product->type === 'damaged') {
+                // if ($product->type === 'damaged') {
+                //     // Gunakan note yang diinput user sebagai keterangan,
+                //     // fallback ke 'damaged' jika note kosong
+                //     $product->damaged_value = $product->note ?? 'damaged';
+                //     $getProductDamaged[] = $product;
+                //     $totalOldPriceDamaged += $product->old_price_product;
+                // } elseif ($product->type === 'abnormal') {
+                //     $product->abnormal_value = $product->note ?? 'abnormal';
+                //     $getProductAbnormal[] = $product;
+                //     $totalOldPriceAbnormal += $product->old_price_product;
+                // } elseif ($product->type === 'non') {
+                //     $product->non_value = $product->note ?? 'non';
+                //     $getProductNon[] = $product;
+                //     $totalOldPriceNon += $product->old_price_product;
+                // }
+                  if ($product->type === 'damaged') {
                     $product->damaged_value = 'damaged';
                     $getProductDamaged[] = $product;
                     $totalOldPriceDamaged += $product->old_price_product;
