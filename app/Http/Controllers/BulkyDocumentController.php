@@ -23,6 +23,50 @@ use Illuminate\Support\Facades\Validator;
 
 class BulkyDocumentController extends Controller
 {
+    private function normalizeDocumentName(string $name): string
+    {
+        return trim(preg_replace('/\s+/', ' ', $name));
+    }
+
+    private function generateUniqueDocumentName(?int $ignoreId, string $requestedName): string
+    {
+        $baseName = $this->normalizeDocumentName($requestedName);
+
+        $existingNames = BulkyDocument::when($ignoreId !== null, function ($query) use ($ignoreId) {
+                $query->where('id', '!=', $ignoreId);
+            })
+            ->where(function ($query) use ($baseName) {
+                $query->where('name_document', $baseName)
+                    ->orWhere('name_document', 'LIKE', $baseName . ' %');
+            })
+            ->lockForUpdate()
+            ->pluck('name_document');
+
+        $hasMatch = false;
+        $maxNumber = 0;
+
+        foreach ($existingNames as $name) {
+            if ($name === $baseName) {
+                $hasMatch = true;
+                continue;
+            }
+
+            if (preg_match('/^' . preg_quote($baseName, '/') . '(?: \((\d+)\)| (\d+))$/i', $name, $matches)) {
+                $hasMatch = true;
+                $matchedNumber = !empty($matches[1]) ? intval($matches[1]) : intval($matches[2]);
+                $maxNumber = max($maxNumber, $matchedNumber);
+            }
+        }
+
+        if (!$hasMatch) {
+            return $baseName;
+        }
+
+        $nextNumber = $maxNumber > 0 ? $maxNumber + 1 : 1;
+
+        return $baseName . ' ' . $nextNumber;
+    }
+
     /**
      * Display a listing of the resource.
      */
@@ -70,6 +114,42 @@ class BulkyDocumentController extends Controller
 
         $resource = new ResponseResource(true, "list document bulky", $bulkyDocumentPaginator);
         return $resource->response();
+    }
+
+    /**
+     * Update the name of a bulky document (fitur edit nama pada list).
+     * Jika nama sudah dipakai dokumen lain, otomatis dibuat penomoran unik
+     * seperti perilaku saat create (misal: "Nama 1", "Nama 2", dst).
+     */
+    public function updateName(Request $request, BulkyDocument $bulkyDocument)
+    {
+        $validator = Validator::make($request->all(), [
+            'name_document' => 'required|string|max:255',
+        ]);
+
+        if ($validator->fails()) {
+            $resource = new ResponseResource(false, "Input tidak valid!", $validator->errors());
+            return $resource->response()->setStatusCode(422);
+        }
+
+        DB::beginTransaction();
+
+        try {
+            $finalName = $this->generateUniqueDocumentName($bulkyDocument->id, (string) $request->name_document);
+
+            $bulkyDocument->update([
+                'name_document' => $finalName,
+            ]);
+
+            DB::commit();
+
+            return new ResponseResource(true, "berhasil mengupdate nama dokumen", $bulkyDocument->fresh());
+        } catch (\Exception $e) {
+            DB::rollBack();
+
+            $resource = new ResponseResource(false, "Gagal mengupdate nama dokumen!", $e->getMessage());
+            return $resource->response()->setStatusCode(500);
+        }
     }
 
     /**
@@ -131,7 +211,7 @@ class BulkyDocumentController extends Controller
         $validator = Validator::make($request->all(), [
             'discount_bulky' => 'nullable|numeric|max:100',
             'buyer_id' => 'nullable|exists:buyers,id',
-            'name_document' => 'required|unique:bulky_documents,name_document,' . $bulkyDocument->id,
+            'name_document' => 'required|string|max:255',
         ]);
 
         if ($validator->fails()) {
@@ -143,14 +223,28 @@ class BulkyDocumentController extends Controller
             $buyer = Buyer::find($request->buyer_id);
         }
 
-        $bulkyDocument->update([
-            'discount_bulky' => $request['discount_bulky'] ?? 0,
-            'buyer_id' => $buyer?->id,
-            'name_buyer' => $buyer?->name_buyer,
-            'name_document' => $request['name_document']
-        ]);
+        DB::beginTransaction();
 
-        return new ResponseResource(true, "berhasil mengupdate data", $bulkyDocument);
+        try {
+            $finalName = $this->generateUniqueDocumentName($bulkyDocument, (string) $request->name_document);
+
+            $bulkyDocument->update([
+                'discount_bulky' => $request['discount_bulky'] ?? 0,
+                'buyer_id' => $buyer?->id,
+                'name_buyer' => $buyer?->name_buyer,
+                'name_document' => $finalName
+            ]);
+
+            DB::commit();
+
+            return new ResponseResource(true, "berhasil mengupdate data", $bulkyDocument->fresh());
+        } catch (\Exception $e) {
+            DB::rollBack();
+
+            $resource = new ResponseResource(false, "Gagal mengupdate data!", $e->getMessage());
+            return $resource->response()->setStatusCode(500);
+        }
+
     }
 
     /**
@@ -283,23 +377,7 @@ class BulkyDocumentController extends Controller
 
             DB::beginTransaction();
 
-            $baseName = $request->name_document;
-            $lastDoc = BulkyDocument::orderByDesc('id')
-                ->lockForUpdate()
-                ->first();
-
-            if ($lastDoc && preg_match('/^(\d+)[\.\-]/', $lastDoc->name_document, $matches)) {
-                $nextNumber = intval($matches[1]) + 1;
-            } else {
-                $nextNumber = 1;
-            }
-
-            $finalName = $nextNumber . '-' . $baseName;
-
-            if (BulkyDocument::where('name_document', $finalName)->exists()) {
-                DB::rollBack();
-                return (new ResponseResource(false, "Nama dokumen sudah digunakan, silakan coba lagi.", null))->response()->setStatusCode(409);
-            }
+            $finalName = $this->generateUniqueDocumentName(null, (string) $request->name_document);
 
             $bulkyDocument = BulkyDocument::create([
                 'user_id'               => $user->id,
