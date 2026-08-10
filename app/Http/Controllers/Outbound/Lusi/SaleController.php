@@ -207,7 +207,7 @@ class SaleController extends BaseSaleController
             'monthly_rank_position' => $monthlyRank > 0 ? $monthlyRank : '-',
             'voucher' => $calculation['voucher_value'],
             'voucher_id' => $saleDocument?->voucher_id ?? null,
-            'voucher_rank_available' => $minTransaction !== null ? $grossTotalSale >= $minTransaction : false,
+            'voucher_rank_available' => !empty($voucherAvailable) && $minTransaction !== null ? $grossTotalSale >= $minTransaction : false,
             'voucher_rank_value' => $calculation['voucher_rank_value'],
             'voucher_type' => $saleDocument?->voucher ? $this->getVoucherType($saleDocument) : null,
             'voucher_available' => $voucherAvailable,
