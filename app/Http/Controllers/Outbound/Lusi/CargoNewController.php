@@ -18,6 +18,50 @@ use Illuminate\Support\Str;
 
 class CargoNewController extends Controller
 {
+    private function normalizeDocumentName(string $name): string
+    {
+        return trim(preg_replace('/\s+/', ' ', $name));
+    }
+
+    private function generateUniqueDocumentName(?int $ignoreId, string $requestedName): string
+    {
+        $baseName = $this->normalizeDocumentName($requestedName);
+
+        $existingNames = BulkyDocument::when($ignoreId !== null, function ($query) use ($ignoreId) {
+                $query->where('id', '!=', $ignoreId);
+            })
+            ->where(function ($query) use ($baseName) {
+                $query->where('name_document', $baseName)
+                    ->orWhere('name_document', 'LIKE', $baseName . ' %');
+            })
+            ->lockForUpdate()
+            ->pluck('name_document');
+
+        $hasMatch = false;
+        $maxNumber = 0;
+
+        foreach ($existingNames as $name) {
+            if ($name === $baseName) {
+                $hasMatch = true;
+                continue;
+            }
+
+            if (preg_match('/^' . preg_quote($baseName, '/') . '(?: \((\d+)\)| (\d+))$/i', $name, $matches)) {
+                $hasMatch = true;
+                $matchedNumber = !empty($matches[1]) ? intval($matches[1]) : intval($matches[2]);
+                $maxNumber = max($maxNumber, $matchedNumber);
+            }
+        }
+
+        if (!$hasMatch) {
+            return $baseName;
+        }
+
+        $nextNumber = $maxNumber > 0 ? $maxNumber + 1 : 1;
+
+        return $baseName . ' ' . $nextNumber;
+    }
+
     public function createBulkyDocumentNew(Request $request)
     {
         try {
@@ -50,31 +94,7 @@ class CargoNewController extends Controller
 
             if ($isOffline) {
                 DB::beginTransaction();
-
-                $baseName = trim(preg_replace('/\s+/', ' ', (string) $request->name_document));
-
-                $existingNames = BulkyDocument::where(function ($query) use ($baseName) {
-                    $query->where('name_document', $baseName)
-                        ->orWhere('name_document', 'LIKE', $baseName . ' %')
-                        ->orWhere('name_document', 'LIKE', $baseName . ' (%)');
-                })
-                    ->lockForUpdate()
-                    ->pluck('name_document');
-
-                $nextNumber = 1;
-                foreach ($existingNames as $name) {
-                    if (preg_match('/^' . preg_quote($baseName, '/') . '(?: \((\d+)\)| (\d+))?$/i', $name, $matches)) {
-                        $matchedNumber = $matches[1] ?? $matches[2] ?? null;
-                        $nextNumber = max($nextNumber, $matchedNumber !== null ? intval($matchedNumber) + 1 : 2);
-                    }
-                }
-
-                $finalName = $baseName . ' ' . $nextNumber;
-
-                if (BulkyDocument::where('name_document', $finalName)->exists()) {
-                    DB::rollBack();
-                    return (new ResponseResource(false, "Nama dokumen sudah digunakan, silakan coba lagi.", null))->response()->setStatusCode(409);
-                }
+                $finalName = $this->generateUniqueDocumentName(null, (string) $request->name_document);
 
                 $bulkyDocument = BulkyDocument::create([
                     'user_id'               => $user->id,
@@ -112,24 +132,7 @@ class CargoNewController extends Controller
             $cleanCategoryName = trim($cleanCategoryName);
 
             $baseName = trim('Palet ' . $cleanCategoryName);
-
-            $existingNames = BulkyDocument::where(function ($query) use ($baseName) {
-                $query->where('name_document', $baseName)
-                    ->orWhere('name_document', 'LIKE', $baseName . ' %')
-                    ->orWhere('name_document', 'LIKE', $baseName . ' (%)');
-            })
-                ->lockForUpdate()
-                ->pluck('name_document');
-
-            $nextNumber = 1;
-            foreach ($existingNames as $name) {
-                if (preg_match('/^' . preg_quote($baseName, '/') . '(?: \((\d+)\)| (\d+))?$/i', $name, $matches)) {
-                    $matchedNumber = $matches[1] ?? $matches[2] ?? null;
-                    $nextNumber = max($nextNumber, $matchedNumber !== null ? intval($matchedNumber) + 1 : 2);
-                }
-            }
-
-            $finalName = $baseName . ' ' . $nextNumber;
+            $finalName = $this->generateUniqueDocumentName(null, $baseName);
 
             $categoryPayload = [
                 'category_bulky' => null,

@@ -9,6 +9,7 @@ use App\Models\LoyaltyRank;
 use App\Models\Sale;
 use App\Models\SaleDocument;
 use App\Models\VoucherApproval;
+use Carbon\Carbon;
 class SaleController extends BaseSaleController
 {
     public function index()
@@ -86,9 +87,105 @@ class SaleController extends BaseSaleController
             ? Buyer::find($saleDocument->buyer_id_document_sale)
             : null;
 
-        $minTransaction = $buyerAvail
-            ? $buyerAvail->vouchers()->min('min_transaction')
-            : null;
+        // ================================================================
+        // KODE LAMA (di-disable, diganti versi baru di bawah)
+        // Sebelumnya hanya mengambil min_transaction terendah dari seluruh
+        // voucher buyer tanpa membedakan tipe voucher & tanpa status
+        // enable/disable per voucher
+        // ================================================================
+        /*
+        $minTransaction = $buyerAvail?->vouchers()->min('min_transaction');
+        */
+
+        // ================================================================
+        // VERSI BARU - Ambil daftar voucher aktif milik buyer + status
+        // enable/disable
+        // - Voucher NOMINAL : enable jika gross total >= min_transaction
+        // - Voucher BARANG  : enable jika gross total dalam range
+        //                     nominal voucher ± min_transaction, selain itu disabled
+        // ================================================================
+        $voucherAvailable = [];
+        $minTransaction = null;
+
+        if ($buyerAvail) {
+            $buyerVouchers = $buyerAvail->vouchers()
+                ->wherePivot('status', true)
+                ->select(
+                    'vouchers.id',
+                    'vouchers.code',
+                    'vouchers.name',
+                    'vouchers.voucher_type',
+                    'vouchers.amount',
+                    'vouchers.max_usage',
+                    'vouchers.max_week',
+                    'vouchers.start_date',
+                    'vouchers.min_transaction'
+                )
+                ->get();
+
+            foreach ($buyerVouchers as $bv) {
+                $startDate = Carbon::parse($bv->start_date);
+                $expiredDate = $startDate->copy()->addWeeks($bv->max_week);
+
+                if (now()->gt($expiredDate)) {
+                    continue;
+                }
+
+                $maxUsedCount = $bv->max_usage > 0
+                    ? (int) floor($bv->amount / $bv->max_usage)
+                    : 0;
+
+                if (($bv->pivot->used ?? 0) >= $maxUsedCount) {
+                    continue;
+                }
+
+                $voucherType = $bv->voucher_type ?? 'nominal';
+                $isEnabled = false;
+                $rangeMin = null;
+                $rangeMax = null;
+
+                if ($voucherType === 'barang') {
+                    $rangeTolerance = 20000;
+                    $rangeCenter = (float) ($bv->min_transaction ?? 0);
+
+                    $rangeMin = $rangeCenter - $rangeTolerance;
+                    $rangeMax = $rangeCenter + $rangeTolerance;
+                    $isEnabled = $grossTotalSale >= $rangeMin && $grossTotalSale <= $rangeMax;
+                } else {
+                    $minTransVoucher = (float) ($bv->min_transaction ?? 0);
+                    $isEnabled = $minTransVoucher <= 0 || $grossTotalSale >= $minTransVoucher;
+
+                    if ($minTransaction === null || ($minTransVoucher > 0 && $minTransVoucher < $minTransaction)) {
+                        $minTransaction = $minTransVoucher > 0 ? $minTransVoucher : $minTransaction;
+                    }
+                }
+
+                $voucherAvailable[] = [
+                    'id' => $bv->id,
+                    'code' => $bv->code,
+                    'name' => $bv->name,
+                    'voucher_type' => $voucherType,
+                    'amount' => $bv->amount,
+                    'max_usage' => $bv->max_usage,
+                    'min_transaction' => $bv->min_transaction,
+                    'range_min' => $rangeMin,
+                    'range_max' => $rangeMax,
+                    'status' => $isEnabled ? 'active' : 'disabled',
+                    'message' => $isEnabled
+                        ? 'Voucher dapat digunakan'
+                        : ($voucherType === 'barang'
+                            ? 'Voucher barang hanya dapat digunakan saat nominal transaksi berada di antara Rp ' .
+                                number_format($rangeMin, 0, ',', '.') . ' s/d Rp ' .
+                                number_format($rangeMax, 0, ',', '.')
+                            : 'Voucher belum memenuhi minimal transaksi'),
+                ];
+            }
+
+            // Untuk keperluan kompatibilitas: min_transaction terendah dari voucher nominal aktif
+            if ($minTransaction === null) {
+                $minTransaction = $buyerAvail->vouchers()->min('min_transaction');
+            }
+        }
 
         $calculation = $this->calculateSaleDocumentTotals($saleDocument, $grossTotalSale);
 
@@ -112,6 +209,8 @@ class SaleController extends BaseSaleController
             'voucher_id' => $saleDocument?->voucher_id ?? null,
             'voucher_rank_available' => $minTransaction !== null ? $grossTotalSale >= $minTransaction : false,
             'voucher_rank_value' => $calculation['voucher_rank_value'],
+            'voucher_type' => $saleDocument?->voucher ? $this->getVoucherType($saleDocument) : null,
+            'voucher_available' => $voucherAvailable,
             'total_price_document_sale' => $calculation['total_price_document_sale'],
             'cardbox_total_price' => $calculation['cardbox_total_price'],
             'price_after_tax' => $calculation['price_after_tax'],
@@ -130,6 +229,13 @@ class SaleController extends BaseSaleController
     public function show(Sale $sale)
     {
         return (new ResponseResource(true, 'data sale', $sale))->response();
+    }
+
+    private function getVoucherType(SaleDocument $saleDocument): ?string
+    {
+        $voucher = \App\Models\Voucher::find($saleDocument->voucher_id);
+
+        return $voucher?->voucher_type ?? 'nominal';
     }
 
     private function calculateSaleDocumentTotals(?SaleDocument $saleDocument, float $grossTotalSale = 0): array
