@@ -573,7 +573,8 @@ class AdjustMovementService
                 'sale',
                 'migrate',
                 'repair',
-                'scrap_qcd'
+                'scrap_qcd',
+                'cargo',
             ])
             ->where(function ($query) {
                 $query->whereRaw("
