@@ -1003,7 +1003,7 @@ class StagingProductController extends Controller
                     'weight',
                     DB::raw("(SELECT barcode FROM racks WHERE racks.id = rack_id LIMIT 1) as barcode_rack")
                 )
-                ->whereNotIn('new_status_product', ['dump', 'sale', 'migrate', 'repair', 'scrap_qcd'])
+                ->whereNotIn('new_status_product', ['dump', 'sale', 'migrate', 'repair', 'scrap_qcd', 'cargo'])
                 ->where(function ($query) {
                     $query->whereRaw("JSON_UNQUOTE(JSON_EXTRACT(new_quality, '$.lolos')) = 'lolos'")
                         ->orWhereRaw("JSON_UNQUOTE(JSON_EXTRACT(JSON_UNQUOTE(new_quality), '$.lolos')) = 'lolos'");
