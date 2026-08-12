@@ -193,9 +193,9 @@ class SaleDocumentController extends BaseSaleDocumentController
             'sales' => $saleDocument->sales,
             'user' => $saleDocument->user,
             'buyer' => $buyerData,
-            'is_voucher_forwarder' => $saleDocument->voucher_forwarder != 0,
-            'voucher_forwarder' => $saleDocument->voucher_forawarder,
-            'value_voucher_forwarder' => (int) ($saleDocument->total_price_document_sale * ($saleDocument->voucher_forawarder / 100)),
+            'is_voucher_forwarder' => $saleDocument->discount_forwarder != 0,
+            'voucher_forwarder' => $saleDocument->discount_forwarder,
+            'value_voucher_forwarder' => (int) ($saleDocument->total_price_document_sale * ($saleDocument->discount_forwarder / 100)),
         ];
 
         return new ResponseResource(true, "data document sale", $resource);
