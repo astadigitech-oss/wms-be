@@ -193,9 +193,9 @@ class SaleDocumentController extends BaseSaleDocumentController
             'sales' => $saleDocument->sales,
             'user' => $saleDocument->user,
             'buyer' => $buyerData,
-            'is_voucher_forwarder' => $saleDocument->is_voucher_forwarder != 0,
+            'is_voucher_forwarder' => $saleDocument->voucher_forwarder != 0,
             'voucher_forwarder' => $saleDocument->voucher_forawarder,
-            'value_voucher_forwarder' => (int) ($saleDocument->total_price_document_sale * (1 - $saleDocument->voucher_forawarder)),
+            'value_voucher_forwarder' => (int) ($saleDocument->total_price_document_sale * ($saleDocument->voucher_forawarder / 100)),
         ];
 
         return new ResponseResource(true, "data document sale", $resource);
@@ -1208,9 +1208,6 @@ class SaleDocumentController extends BaseSaleDocumentController
                     'upgrade_message_discount' => $upgradeDiscMsg,
                     'upgrade_expired_date' => $upgradeExpiredDate, // Added
                 ],
-                'is_voucher_forwarder' => $saleDocument->is_voucher_forwarder != 0,
-                'voucher_forwarder' => $saleDocument->voucher_forawarder,
-                'value_voucher_forwarder' => (int) ($saleDocument->total_price_document_sale * (1 - $saleDocument->voucher_forawarder)),
             ]);
         } elseif ($saleDocument->id == 2686) {
             return response()->json([
@@ -1259,6 +1256,9 @@ class SaleDocumentController extends BaseSaleDocumentController
                     'upgrade_message_discount' => $upgradeDiscMsg,
                     'upgrade_expired_date' => $upgradeExpiredDate, // Added
                 ],
+                'is_voucher_forwarder' => $saleDocument->voucher_forwarder != 0,
+                'voucher_forwarder' => $saleDocument->voucher_forawarder,
+                'value_voucher_forwarder' => (int) ($saleDocument->total_price_document_sale * ($saleDocument->voucher_forawarder / 100)),
             ]);
         }
     }
