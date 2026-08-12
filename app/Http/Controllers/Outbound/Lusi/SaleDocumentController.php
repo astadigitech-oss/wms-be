@@ -1256,9 +1256,9 @@ class SaleDocumentController extends BaseSaleDocumentController
                     'upgrade_message_discount' => $upgradeDiscMsg,
                     'upgrade_expired_date' => $upgradeExpiredDate, // Added
                 ],
-                'is_voucher_forwarder' => $saleDocument->voucher_forwarder != 0,
-                'voucher_forwarder' => $saleDocument->voucher_forawarder,
-                'value_voucher_forwarder' => (int) ($saleDocument->total_price_document_sale * ($saleDocument->voucher_forawarder / 100)),
+                'is_voucher_forwarder' => $saleDocument->discount_forwarder != 0,
+                'voucher_forwarder' => $saleDocument->discount_forwarder,
+                'value_voucher_forwarder' => (int) ($saleDocument->total_price_document_sale * ($saleDocument->discount_forwarder / 100)),
             ]);
         }
     }
