@@ -70,6 +70,7 @@ use App\Http\Controllers\Outbound\Lusi\DocumentController as LusiDocumentControl
 use App\Http\Controllers\Outbound\Lusi\FixWmsValidationController;
 use App\Http\Controllers\Outbound\Lusi\MigrateBulkyProductController as LusiMigrateBulkyProductController;
 use App\Http\Controllers\Outbound\Lusi\MigrateDocumentController as LusiMigrateDocumentController;
+use App\Http\Controllers\Outbound\Lusi\MigrateFinishController;
 use App\Http\Controllers\Outbound\Lusi\NewProductController as LusiNewProductController;
 use App\Http\Controllers\Outbound\Lusi\NewSaleController as LusiNewSaleController;
 use App\Http\Controllers\Outbound\Lusi\RackController as LusiRackController;
@@ -348,7 +349,7 @@ Route::middleware(['auth:sanctum', 'check.role:Admin'])->group(function () {
 
     // Helper ERP - COGS
     Route::post('supplier-channel-import', [CogsController::class, 'importSupplierDanChannel']);
-    
+
     // Helper ubah status sale to cargo table new_products, staging_products, bundles
     Route::post('cargo/update-status-to-cargo', [UpdateStatusCargoController::class, 'updateStatusToCargo']);
 });
@@ -733,7 +734,8 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Kasir leade
 Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Kasir leader,Admin Kasir,Reparasi,Retail,Captain'])->group(function () {
     Route::resource('destinations', DestinationController::class)->except(['index', 'show', 'destroy']);
     Route::resource('migrates', MigrateController::class)->except(['index', 'show', 'destroy']);
-    Route::post('migrate-finish', [MigrateDocumentController::class, 'MigrateDocumentFinish']);
+    // Route::post('migrate-finish', [MigrateDocumentController::class, 'MigrateDocumentFinish']);
+    Route::post('migrate-finish', [MigrateFinishController::class, 'MigrateDocumentFinish']);
     // Route::post('migrate-finish', [LusiMigrateDocumentController::class, 'MigrateDocumentFinish']);
     Route::delete('migrates/{migrate}', [MigrateController::class, 'destroy']);
     Route::resource('migrate-documents', MigrateDocumentController::class)->except(['index', 'show', 'destroy']);

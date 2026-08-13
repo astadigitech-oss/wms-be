@@ -37,38 +37,134 @@ class CargoNewController extends Controller
             ->lockForUpdate()
             ->pluck('name_document');
 
-        $hasMatch = false;
         $maxNumber = 0;
 
         foreach ($existingNames as $name) {
             if ($name === $baseName) {
-                $hasMatch = true;
                 continue;
             }
 
             if (preg_match('/^' . preg_quote($baseName, '/') . '(?: \((\d+)\)| (\d+))$/i', $name, $matches)) {
-                $hasMatch = true;
                 $matchedNumber = !empty($matches[1]) ? intval($matches[1]) : intval($matches[2]);
                 $maxNumber = max($maxNumber, $matchedNumber);
             }
         }
 
-        if (!$hasMatch) {
-            return $baseName;
-        }
-
-        $nextNumber = $maxNumber > 0 ? $maxNumber + 1 : 1;
+        $nextNumber = $maxNumber + 1;
 
         return $baseName . ' ' . $nextNumber;
     }
 
+    // public function createBulkyDocumentNew(Request $request)
+    // {
+    //     try {
+    //         $user = auth()->user();
+
+    //         $isOffline = $request->input('type') === BulkyDocument::TYPE_OFFLINE;
+    //         $isOnline = $request->input('type') === BulkyDocument::TYPE_ONLINE;
+
+    //         $validator = Validator::make(
+    //             $request->all(),
+    //             [
+    //                 'discount_bulky' => 'nullable|numeric|min:0|max:100',
+    //                 'buyer_id' => 'nullable|exists:buyers,id',
+    //                 'type' => ['required', Rule::in([BulkyDocument::TYPE_OFFLINE, BulkyDocument::TYPE_ONLINE])],
+    //                 'name_document' => $isOffline ? 'required|string|max:255' : 'nullable|string|max:255',
+    //                 'category_bulky_id' => $isOnline ? 'required|string|max:255' : 'nullable|string|max:255',
+    //                 'category_bulky_name' => $isOnline ? 'required|string|max:255' : 'nullable|string|max:255',
+    //             ]
+    //         );
+
+    //         if ($validator->fails()) {
+    //             $resource = new ResponseResource(false, "Input tidak valid!", $validator->errors());
+    //             return $resource->response()->setStatusCode(422);
+    //         }
+
+    //         $buyer = null;
+    //         if ($request->filled('buyer_id')) {
+    //             $buyer = Buyer::find($request->buyer_id);
+    //         }
+
+    //         if ($isOffline) {
+    //             DB::beginTransaction();
+    //             $finalName = $this->generateUniqueDocumentName(null, (string) $request->name_document);
+
+    //             $bulkyDocument = BulkyDocument::create([
+    //                 'user_id'               => $user->id,
+    //                 'name_user'             => $user->name,
+    //                 'total_product_bulky'   => 0,
+    //                 'total_old_price_bulky' => 0,
+    //                 'buyer_id'              => $buyer?->id,
+    //                 'name_buyer'            => $buyer?->name_buyer,
+    //                 'discount_bulky'        => $request->discount_bulky ?? 0,
+    //                 'after_price_bulky'     => 0,
+    //                 'category_bulky'        => null,
+    //                 'status_bulky'          => 'proses',
+    //                 'name_document'         => $finalName,
+    //                 'is_sale'               => BulkyDocument::SALE_NOT,
+    //                 'type'                  => $request->type,
+    //             ]);
+
+    //             DB::commit();
+
+    //             $resource = new ResponseResource(true, "Data dokumen Cargo berhasil dibuat!", $bulkyDocument);
+    //             return $resource->response();
+    //         }
+
+    //         $categoryName = trim((string) $request->input('category_bulky_name'));
+    //         if ($categoryName === '') {
+    //             return (new ResponseResource(false, "category_bulky_name wajib diisi untuk cargo online!", null))
+    //                 ->response()
+    //                 ->setStatusCode(422);
+    //         }
+
+    //         $cleanCategoryName = preg_replace('/\s+/', ' ', $categoryName);
+    //         if (preg_match('/\S+\s+[A-Z0-9]{2,}$/', $cleanCategoryName)) {
+    //             $cleanCategoryName = preg_replace('/\s+[A-Z0-9]{2,}$/', '', $cleanCategoryName);
+    //         }
+    //         $cleanCategoryName = trim($cleanCategoryName);
+
+    //         $baseName = trim('Palet ' . $cleanCategoryName);
+    //         $finalName = $this->generateUniqueDocumentName(null, $baseName);
+
+    //         $categoryPayload = [
+    //             'category_bulky' => null,
+    //             'category_bulky_id' => $request->category_bulky_id,
+    //             'category_bulky_name' => $categoryName,
+    //         ];
+
+    //         DB::beginTransaction();
+
+    //         $bulkyDocument = BulkyDocument::create([
+    //             'user_id' => $user->id,
+    //             'name_user' => $user->name,
+    //             'total_product_bulky' => 0,
+    //             'total_old_price_bulky' => 0,
+    //             'buyer_id' => $buyer?->id,
+    //             'name_buyer' => $buyer?->name_buyer,
+    //             'discount_bulky' => $request->discount_bulky ?? 0,
+    //             'after_price_bulky' => 0,
+    //             'status_bulky' => 'proses',
+    //             'name_document' => $finalName,
+    //             'is_sale' => BulkyDocument::SALE_NOT,
+    //             'type' => $request->type,
+    //         ] + $categoryPayload);
+
+    //         DB::commit();
+
+    //         $resource = new ResponseResource(true, "Data dokumen Cargo berhasil dibuat!", $bulkyDocument);
+    //         return $resource->response();
+    //     } catch (\Exception $e) {
+    //         DB::rollBack();
+
+    //         $resource = new ResponseResource(false, "Gagal membuat dokumen cargo!", $e->getMessage());
+    //         return $resource->response()->setStatusCode(500);
+    //     }
+    // }
     public function createBulkyDocumentNew(Request $request)
     {
         try {
             $user = auth()->user();
-
-            $isOffline = $request->input('type') === BulkyDocument::TYPE_OFFLINE;
-            $isOnline = $request->input('type') === BulkyDocument::TYPE_ONLINE;
 
             $validator = Validator::make(
                 $request->all(),
@@ -76,9 +172,9 @@ class CargoNewController extends Controller
                     'discount_bulky' => 'nullable|numeric|min:0|max:100',
                     'buyer_id' => 'nullable|exists:buyers,id',
                     'type' => ['required', Rule::in([BulkyDocument::TYPE_OFFLINE, BulkyDocument::TYPE_ONLINE])],
-                    'name_document' => $isOffline ? 'required|string|max:255' : 'nullable|string|max:255',
-                    'category_bulky_id' => $isOnline ? 'required|string|max:255' : 'nullable|string|max:255',
-                    'category_bulky_name' => $isOnline ? 'required|string|max:255' : 'nullable|string|max:255',
+                    'name_document' => 'required|string|max:255',
+                    'category_bulky_id' => 'nullable|string|max:255',
+                    'category_bulky_name' => 'nullable|string|max:255',
                 ]
             );
 
@@ -92,70 +188,25 @@ class CargoNewController extends Controller
                 $buyer = Buyer::find($request->buyer_id);
             }
 
-            if ($isOffline) {
-                DB::beginTransaction();
-                $finalName = $this->generateUniqueDocumentName(null, (string) $request->name_document);
-
-                $bulkyDocument = BulkyDocument::create([
-                    'user_id'               => $user->id,
-                    'name_user'             => $user->name,
-                    'total_product_bulky'   => 0,
-                    'total_old_price_bulky' => 0,
-                    'buyer_id'              => $buyer?->id,
-                    'name_buyer'            => $buyer?->name_buyer,
-                    'discount_bulky'        => $request->discount_bulky ?? 0,
-                    'after_price_bulky'     => 0,
-                    'category_bulky'        => null,
-                    'status_bulky'          => 'proses',
-                    'name_document'         => $finalName,
-                    'is_sale'               => BulkyDocument::SALE_NOT,
-                    'type'                  => $request->type,
-                ]);
-
-                DB::commit();
-
-                $resource = new ResponseResource(true, "Data dokumen Cargo berhasil dibuat!", $bulkyDocument);
-                return $resource->response();
-            }
-
-            $categoryName = trim((string) $request->input('category_bulky_name'));
-            if ($categoryName === '') {
-                return (new ResponseResource(false, "category_bulky_name wajib diisi untuk cargo online!", null))
-                    ->response()
-                    ->setStatusCode(422);
-            }
-
-            $cleanCategoryName = preg_replace('/\s+/', ' ', $categoryName);
-            if (preg_match('/\S+\s+[A-Z0-9]{2,}$/', $cleanCategoryName)) {
-                $cleanCategoryName = preg_replace('/\s+[A-Z0-9]{2,}$/', '', $cleanCategoryName);
-            }
-            $cleanCategoryName = trim($cleanCategoryName);
-
-            $baseName = trim('Palet ' . $cleanCategoryName);
-            $finalName = $this->generateUniqueDocumentName(null, $baseName);
-
-            $categoryPayload = [
-                'category_bulky' => null,
-                'category_bulky_id' => $request->category_bulky_id,
-                'category_bulky_name' => $categoryName,
-            ];
-
             DB::beginTransaction();
 
+            $finalName = $this->generateUniqueDocumentName(null, (string) $request->name_document);
+
             $bulkyDocument = BulkyDocument::create([
-                'user_id' => $user->id,
-                'name_user' => $user->name,
-                'total_product_bulky' => 0,
+                'user_id'               => $user->id,
+                'name_user'             => $user->name,
+                'total_product_bulky'   => 0,
                 'total_old_price_bulky' => 0,
-                'buyer_id' => $buyer?->id,
-                'name_buyer' => $buyer?->name_buyer,
-                'discount_bulky' => $request->discount_bulky ?? 0,
-                'after_price_bulky' => 0,
-                'status_bulky' => 'proses',
-                'name_document' => $finalName,
-                'is_sale' => BulkyDocument::SALE_NOT,
-                'type' => $request->type,
-            ] + $categoryPayload);
+                'buyer_id'              => $buyer?->id,
+                'name_buyer'            => $buyer?->name_buyer,
+                'discount_bulky'        => $request->discount_bulky ?? 0,
+                'after_price_bulky'     => 0,
+                'category_bulky'        => null,
+                'status_bulky'          => 'proses',
+                'name_document'         => $finalName,
+                'is_sale'               => BulkyDocument::SALE_NOT,
+                'type'                  => $request->type,
+            ]);
 
             DB::commit();
 

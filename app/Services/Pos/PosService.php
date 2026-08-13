@@ -121,14 +121,47 @@ class PosService
     /**
      * 3. Send Batch Products to POS
      */
-    public function sendBatchProducts($documentCode, $storeToken, $products)
+    // public function sendBatchProducts($documentCode, $storeToken, $products)
+    // {
+    //     $token = $this->getToken();
+    //     $endpoint = $this->baseUrl . '/api/products/store';
+    //     $payload = [
+    //         "document_code" => $documentCode,
+    //         "store_token"   => $storeToken,
+    //         "products"      => $products
+    //     ];
+    //
+    //     $response = Http::withToken($token)
+    //         ->acceptJson()
+    //         ->post($endpoint, $payload);
+    //
+    //     if ($response->status() === 401) {
+    //         Cache::forget('pos_oauth_token');
+    //         Log::info("Token POS Expired saat mengirim batch {$documentCode}. Meminta token baru dan mengulang otomatis...");
+    //
+    //         $token = $this->getToken();
+    //
+    //         $response = Http::withToken($token)
+    //             ->acceptJson()
+    //             ->post($endpoint, $payload);
+    //     }
+    //
+    //     if ($response->successful()) {
+    //         return $response->json();
+    //     }
+    //
+    //     Log::error("Gagal mengirim batch Dokumen {$documentCode}: " . $response->body());
+    //     throw new \Exception("Gagal mengirim batch produk ke POS. Status: " . $response->status() . " | Pesan: " . $response->body());
+    // }
+
+    public function sendIntegrationProducts(string $documentCode, string $storeToken, array $items)
     {
         $token = $this->getToken();
-        $endpoint = $this->baseUrl . '/api/products/store';
+        $endpoint = $this->baseUrl . '/api/integration/product';
         $payload = [
-            "document_code" => $documentCode,
-            "store_token"   => $storeToken,
-            "products"      => $products
+            'document_code' => $documentCode,
+            'store_token'   => $storeToken,
+            'items'         => $items,
         ];
 
         $response = Http::withToken($token)
@@ -137,7 +170,7 @@ class PosService
 
         if ($response->status() === 401) {
             Cache::forget('pos_oauth_token');
-            Log::info("Token POS Expired saat mengirim batch {$documentCode}. Meminta token baru dan mengulang otomatis...");
+            Log::info("Token POS Expired saat mengirim integration product {$documentCode}. Meminta token baru dan mengulang otomatis...");
 
             $token = $this->getToken();
 
@@ -150,8 +183,8 @@ class PosService
             return $response->json();
         }
 
-        Log::error("Gagal mengirim batch Dokumen {$documentCode}: " . $response->body());
-        throw new \Exception("Gagal mengirim batch produk ke POS. Status: " . $response->status() . " | Pesan: " . $response->body());
+        Log::error("Gagal mengirim integration product Dokumen {$documentCode}: " . $response->body());
+        throw new \Exception("Gagal mengirim integration product ke POS. Status: " . $response->status() . " | Pesan: " . $response->body());
     }
 
     /**
