@@ -1237,10 +1237,23 @@ class NewSaleController extends BaseNewSaleController
     {
         try {
             $filename = 'approval-voucher-' . now()->format('Ymd_His') . '.xlsx';
+            $path = 'exports/' . $filename;
 
-            return Excel::download(
+            Excel::store(
                 new VoucherApprovalExport($request),
-                $filename
+                $path,
+                'public'
+            );
+
+            $url = url('storage/' . $path);
+
+            return new ResponseResource(
+                true,
+                'Berhasil export approval voucher',
+                [
+                    'url' => $url,
+                    'filename' => $filename,
+                ]
             );
         } catch (\Throwable $e) {
             Log::error('Error export approval voucher', [
