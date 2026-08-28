@@ -2,6 +2,7 @@
 
 namespace App\Exports;
 
+use App\Models\VoucherApproval;
 use Maatwebsite\Excel\Concerns\FromCollection;
 use Illuminate\Http\Request;
 use Maatwebsite\Excel\Concerns\WithHeadings;
