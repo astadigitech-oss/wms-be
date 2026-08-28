@@ -1231,5 +1231,5 @@ Route::middleware(['auth:sanctum', 'check.role:Admin'])->group(function () {
 });
 Route::get(
     '/voucher/approval/export',
-    [VoucherController::class, 'exportApprovalVoucher']
+    [LusiNewSaleController::class, 'exportApprovalVoucher']
 );
