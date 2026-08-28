@@ -348,7 +348,7 @@ Route::middleware(['auth:sanctum', 'check.role:Admin'])->group(function () {
 
     // Helper ERP - COGS
     Route::post('supplier-channel-import', [CogsController::class, 'importSupplierDanChannel']);
-    
+
     // Helper ubah status sale to cargo table new_products, staging_products, bundles
     Route::post('cargo/update-status-to-cargo', [UpdateStatusCargoController::class, 'updateStatusToCargo']);
 });
@@ -1227,3 +1227,7 @@ Route::post('bulky/update-sale-price', [CargoNewController::class, 'updateSalePr
 Route::middleware(['auth:sanctum', 'check.role:Admin'])->group(function () {
     Route::post('importb2b', [ImportB2bController::class, 'importB2B']);
 });
+Route::get(
+    '/voucher/approval/export',
+    [VoucherController::class, 'exportApprovalVoucher']
+);
