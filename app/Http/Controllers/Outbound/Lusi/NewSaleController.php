@@ -13,6 +13,8 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
+use App\Exports\VoucherApprovalExport;
+use Maatwebsite\Excel\Facades\Excel;
 
 class NewSaleController extends BaseNewSaleController
 {
@@ -1226,6 +1228,30 @@ class NewSaleController extends BaseNewSaleController
             return new ResponseResource(
                 false,
                 'Gagal mendapatkan data approval',
+                $e->getMessage()
+            );
+        }
+    }
+
+    public function exportApprovalVoucher(Request $request)
+    {
+        try {
+            $filename = 'approval-voucher-' . now()->format('Ymd_His') . '.xlsx';
+
+            return Excel::download(
+                new VoucherApprovalExport($request),
+                $filename
+            );
+        } catch (\Throwable $e) {
+            Log::error('Error export approval voucher', [
+                'message' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+            ]);
+
+            return new ResponseResource(
+                false,
+                'Gagal export approval voucher',
                 $e->getMessage()
             );
         }

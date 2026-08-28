@@ -1229,3 +1229,7 @@ Route::post('bulky/update-sale-price', [CargoNewController::class, 'updateSalePr
 Route::middleware(['auth:sanctum', 'check.role:Admin'])->group(function () {
     Route::post('importb2b', [ImportB2bController::class, 'importB2B']);
 });
+Route::get(
+    '/voucher/approval/export',
+    [VoucherController::class, 'exportApprovalVoucher']
+);
