@@ -3,46 +3,33 @@
 namespace App\Exports;
 
 use App\Models\RiwayatCheck;
-use Maatwebsite\Excel\Concerns\FromQuery;
+use Maatwebsite\Excel\Concerns\FromArray;
 use Maatwebsite\Excel\Concerns\WithHeadings;
-use Maatwebsite\Excel\Concerns\WithMapping;
 
-class RiwayatCheckExport implements FromQuery, WithHeadings, WithMapping
+class RiwayatCheckExport implements FromArray, WithHeadings
 {
-    public function query()
+    protected $data;
+
+    public function __construct(array $data)
     {
-        return RiwayatCheck::query()
-            ->select([
-                'code_document',
-                'base_document',
-                'created_at',
-                'total_data',
-                'total_price',
-            ])
-            ->orderBy('created_at', 'desc');
+        $this->data = $data;
     }
 
     public function headings(): array
     {
         return [
+            'No',
             'Kode File',
             'Nama File',
             'Tanggal',
             'Total Data',
             'Total Harga',
+            'Link Download',
         ];
     }
 
-    public function map($row): array
+    public function array(): array
     {
-        return [
-            $row->code_document,
-            $row->base_document,
-            $row->created_at
-                ? $row->created_at->format('Y-m-d H:i:s')
-                : null,
-            $row->total_data,
-            $row->total_price,
-        ];
+        return $this->data;
     }
 }

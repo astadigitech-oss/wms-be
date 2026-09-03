@@ -379,30 +379,83 @@ class RiwayatCheckController extends Controller
         ]))->response();
     }
 
-    public function exportRiwayatCheck(Request $request)
+    public function exportRiwayatCheck()
     {
         try {
-            $fileName = 'riwayat-check-' . now()->format('Ymd_His_u') . '-' . uniqid() . '.xlsx';
+            $histories = RiwayatCheck::query()
+                ->select([
+                    'code_document',
+                    'base_document',
+                    'created_at',
+                    'total_data',
+                    'total_price',
+                ])
+                ->orderBy('created_at', 'desc')
+                ->get();
 
-            $path = 'exports/' . $fileName;
+            $rows = [];
+            $no = 1;
+
+            foreach ($histories as $history) {
+
+                // Timestamp + uniqid supaya tidak tertimpa
+                $fileName = 'riwayat-'
+                    . $history->code_document
+                    . '-'
+                    . now()->format('Ymd_His_u')
+                    . '-'
+                    . uniqid()
+                    . '.xlsx';
+
+                $path = 'ekspedisis/' . $fileName;
+
+                Excel::store(
+                    new RiwayatCheckExport($history),
+                    $path,
+                    'public'
+                );
+
+                $url = asset('storage/' . $path);
+
+                $rows[] = [
+                    $no++,
+                    $history->code_document,
+                    $history->base_document,
+                    $history->created_at
+                        ? $history->created_at->format('Y-m-d H:i:s')
+                        : null,
+                    $history->total_data,
+                    $history->total_price,
+                    $url,
+                ];
+            }
+
+            // Buat Excel utama yang berisi semua link
+            $indexFileName = 'export-riwayat-links-'
+                . now()->format('Ymd_His_u')
+                . '-'
+                . uniqid()
+                . '.xlsx';
+
+            $indexPath = 'ekspedisis/' . $indexFileName;
 
             Excel::store(
-                new RiwayatCheckExport(),
-                $path,
+                new RiwayatCheckExport($rows),
+                $indexPath,
                 'public'
             );
-
-            $url = asset('storage/' . $path);
 
             return (new ResponseResource(
                 true,
                 'Export berhasil',
                 [
-                    'url' => $url,
-                    'filename' => $fileName,
+                    'url' => asset('storage/' . $indexPath),
+                    'filename' => $indexFileName,
+                    'total_file' => count($rows),
                 ]
             ))->response();
         } catch (\Throwable $e) {
+
             return (new ResponseResource(
                 false,
                 'Gagal export: ' . $e->getMessage(),
