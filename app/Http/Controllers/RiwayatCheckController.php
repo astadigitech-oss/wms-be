@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Exports\RiwayatCheckExport;
 use Carbon\Carbon;
 use App\Models\User;
 use App\Mail\TestEmail;
@@ -23,6 +24,7 @@ use App\Models\ProductDefect;
 use App\Models\RepairProduct;
 use App\Models\Sale;
 use Illuminate\Support\Facades\Validator;
+use Maatwebsite\Excel\Facades\Excel;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
@@ -377,6 +379,38 @@ class RiwayatCheckController extends Controller
         ]))->response();
     }
 
+    public function exportRiwayatCheck(Request $request)
+    {
+        try {
+            $fileName = 'riwayat-check-' . now()->format('Ymd_His_u') . '-' . uniqid() . '.xlsx';
+
+            $path = 'exports/' . $fileName;
+
+            Excel::store(
+                new RiwayatCheckExport(),
+                $path,
+                'public'
+            );
+
+            $url = asset('storage/' . $path);
+
+            return (new ResponseResource(
+                true,
+                'Export berhasil',
+                [
+                    'url' => $url,
+                    'filename' => $fileName,
+                ]
+            ))->response();
+        } catch (\Throwable $e) {
+            return (new ResponseResource(
+                false,
+                'Gagal export: ' . $e->getMessage(),
+                null
+            ))->response()->setStatusCode(500);
+        }
+    }
+
     public function getByDocument(Request $request)
     {
         $codeDocument = RiwayatCheck::where('code_document', $request['code_document']);
@@ -512,7 +546,7 @@ class RiwayatCheckController extends Controller
                 //     $getProductNon[] = $product;
                 //     $totalOldPriceNon += $product->old_price_product;
                 // }
-                  if ($product->type === 'damaged') {
+                if ($product->type === 'damaged') {
                     $product->damaged_value = 'damaged';
                     $getProductDamaged[] = $product;
                     $totalOldPriceDamaged += $product->old_price_product;
