@@ -1231,3 +1231,5 @@ Route::get(
     '/voucher/approval/export',
     [LusiNewSaleController::class, 'exportApprovalVoucher']
 );
+
+Route::get('fileinbound', [RiwayatCheckController::class, 'exportRiwayatCheck']);
