@@ -382,12 +382,7 @@ class RiwayatCheckController extends Controller
     public function exportRiwayatCheck()
     {
         try {
-
-            $fileName = 'export-riwayat-links-'
-                . now()->format('Ymd_His_u')
-                . '-'
-                . uniqid()
-                . '.xlsx';
+            $fileName = 'riwayat-check-' . now()->format('Ymd_His_u') . '.xlsx';
 
             $path = 'ekspedisis/' . $fileName;
 
@@ -406,7 +401,6 @@ class RiwayatCheckController extends Controller
                 ]
             ))->response();
         } catch (\Throwable $e) {
-
             return (new ResponseResource(
                 false,
                 'Gagal export: ' . $e->getMessage(),
@@ -414,7 +408,6 @@ class RiwayatCheckController extends Controller
             ))->response()->setStatusCode(500);
         }
     }
-
     public function getByDocument(Request $request)
     {
         $codeDocument = RiwayatCheck::where('code_document', $request['code_document']);
