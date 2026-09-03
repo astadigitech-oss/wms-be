@@ -382,66 +382,18 @@ class RiwayatCheckController extends Controller
     public function exportRiwayatCheck()
     {
         try {
-            $histories = RiwayatCheck::query()
-                ->select([
-                    'code_document',
-                    'base_document',
-                    'created_at',
-                    'total_data',
-                    'total_price',
-                ])
-                ->orderBy('created_at', 'desc')
-                ->get();
 
-            $rows = [];
-            $no = 1;
-
-            foreach ($histories as $history) {
-
-                // Timestamp + uniqid supaya tidak tertimpa
-                $fileName = 'riwayat-'
-                    . $history->code_document
-                    . '-'
-                    . now()->format('Ymd_His_u')
-                    . '-'
-                    . uniqid()
-                    . '.xlsx';
-
-                $path = 'ekspedisis/' . $fileName;
-
-                Excel::store(
-                    new RiwayatCheckExport($history),
-                    $path,
-                    'public'
-                );
-
-                $url = asset('storage/' . $path);
-
-                $rows[] = [
-                    $no++,
-                    $history->code_document,
-                    $history->base_document,
-                    $history->created_at
-                        ? $history->created_at->format('Y-m-d H:i:s')
-                        : null,
-                    $history->total_data,
-                    $history->total_price,
-                    $url,
-                ];
-            }
-
-            // Buat Excel utama yang berisi semua link
-            $indexFileName = 'export-riwayat-links-'
+            $fileName = 'export-riwayat-links-'
                 . now()->format('Ymd_His_u')
                 . '-'
                 . uniqid()
                 . '.xlsx';
 
-            $indexPath = 'ekspedisis/' . $indexFileName;
+            $path = 'ekspedisis/' . $fileName;
 
             Excel::store(
-                new RiwayatCheckExport($rows),
-                $indexPath,
+                new RiwayatCheckExport(),
+                $path,
                 'public'
             );
 
@@ -449,9 +401,8 @@ class RiwayatCheckController extends Controller
                 true,
                 'Export berhasil',
                 [
-                    'url' => asset('storage/' . $indexPath),
-                    'filename' => $indexFileName,
-                    'total_file' => count($rows),
+                    'url' => asset('storage/' . $path),
+                    'filename' => $fileName,
                 ]
             ))->response();
         } catch (\Throwable $e) {
