@@ -28,6 +28,7 @@ use App\Http\Controllers\DamagedDocumentController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DestinationController;
 use App\Http\Controllers\DocumentController;
+use App\Http\Controllers\ExtraProductController;
 use App\Http\Controllers\FilterBklController;
 use App\Http\Controllers\FilterProductInputController;
 use App\Http\Controllers\FilterQcdController;
@@ -1233,3 +1234,8 @@ Route::get(
 );
 
 Route::get('fileinbound', [RiwayatCheckController::class, 'exportRiwayatCheck']);
+
+Route::get(
+    '/extra-product/export',
+    [ExtraProductController::class, 'export']
+)->name('extra-product.export');
