@@ -170,9 +170,14 @@ class BulkySaleSheet implements FromQuery, WithTitle, WithHeadings, WithMapping
                 'bulky_sales.display_price',
                 'bulky_sales.status_product_before',
                 'bulky_sales.created_at',
+
+                // Dari bulky_documents
+                'bulky_documents.code_document_bulky',
                 'bulky_documents.name_document',
                 'bulky_documents.type as document_type',
                 'bulky_documents.is_sale as document_status',
+
+                // Dari bag_products
                 'bag_products.name_bag'
             )
             ->leftJoin('bulky_documents', 'bulky_sales.bulky_document_id', '=', 'bulky_documents.id')
@@ -200,6 +205,7 @@ class BulkySaleSheet implements FromQuery, WithTitle, WithHeadings, WithMapping
     public function headings(): array
     {
         return [
+            'Document Code',
             'Document Name',
             'Document Type',
             'Bag Name',
@@ -235,6 +241,7 @@ class BulkySaleSheet implements FromQuery, WithTitle, WithHeadings, WithMapping
     public function map($row): array
     {
         return [
+            $this->cleanString($row->code_document_bulky ?? ''),
             $this->cleanString($row->name_document ?? ''),
             $this->cleanString($row->document_type ?? ''),
             $this->cleanString($row->name_bag ?? ''),
