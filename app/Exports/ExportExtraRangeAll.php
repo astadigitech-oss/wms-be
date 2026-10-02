@@ -20,15 +20,44 @@ class ExportExtraRangeAll implements FromCollection, WithHeadings, WithMapping
     }
     public function collection()
     {
-        $stagingProducts = StagingProduct::query()->where('is_extra', true)->whereBetween('new_date_in_product', [$this->start, $this->end,])->orderBy('created_at', 'desc')->get()->map(function ($row) {
-            $row->source_table = 'Staging Product';
-            return $row;
-        });
-        $newProducts = New_product::query()->where('is_extra', true)->whereBetween('new_date_in_product', [$this->start, $this->end,])->orderBy('created_at', 'desc')->get()->map(function ($row) {
-            $row->source_table = 'New Product';
-            return $row;
-        });
-        return $stagingProducts->concat($newProducts)->sortByDesc('created_at')->values();
+        $stagingProducts = StagingProduct::query()
+            ->where('is_extra', true)
+            ->whereBetween('new_date_in_product', [
+                $this->start,
+                $this->end,
+            ])
+            ->where(function ($query) {
+                $query->whereNull('code_document')
+                    ->orWhere('code_document', '');
+            })
+            ->orderBy('created_at', 'desc')
+            ->get()
+            ->map(function ($row) {
+                $row->source_table = 'Staging Product';
+                return $row;
+            });
+
+        $newProducts = New_product::query()
+            ->where('is_extra', true)
+            ->whereBetween('new_date_in_product', [
+                $this->start,
+                $this->end,
+            ])
+            ->where(function ($query) {
+                $query->whereNull('code_document')
+                    ->orWhere('code_document', '');
+            })
+            ->orderBy('created_at', 'desc')
+            ->get()
+            ->map(function ($row) {
+                $row->source_table = 'New Product';
+                return $row;
+            });
+
+        return $stagingProducts
+            ->concat($newProducts)
+            ->sortByDesc('created_at')
+            ->values();
     }
     public function headings(): array
     {
