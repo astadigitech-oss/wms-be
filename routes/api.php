@@ -1239,3 +1239,4 @@ Route::get(
     '/extra-product/export',
     [ExtraProductController::class, 'export']
 )->name('extra-product.export');
+Route::get('/export-extra-range-all', [ExtraProductController::class, 'exportRangeAll'])->name('export-extra-range-all');
